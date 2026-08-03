@@ -140,8 +140,9 @@ if ! have_pg; then
     c_skip "Postgres unreachable — check POSTGRES_* in .env (tier 3 only)"
 else
     DB_VERIFIED=1
-    # Migrations are generated, not checked in (see README). This asserts that
-    # the models and the migrations on disk actually agree.
+    # Migrations are checked in (see README). This asserts that the models and
+    # the migrations in the tree actually agree — a model change committed
+    # without its migration fails here rather than at deploy time.
     run "no un-generated model changes" \
         $PY manage.py makemigrations --check --dry-run
 
@@ -150,6 +151,22 @@ else
 
     run "tenancy isolation tests (hits the DB)" \
         $PY -m pytest tests/test_tenancy.py -q
+
+    # API-key writes go through the real URL conf and the real serialisers, so
+    # they catch the view-layer faults the unit tiers cannot see.
+    run "API writes with a key (attribution, suppression idempotency)" \
+        $PY -m pytest tests/test_api_key_writes.py -q
+
+    # The carrier callback surface, minus the carrier. Signatures are generated
+    # from the providers' published algorithms, so these prove the verifier
+    # rejects what it should — which used to be a Tier 5 manual check.
+    run "webhook signatures, opt-out and dedupe" \
+        $PY -m pytest tests/test_webhooks.py -q
+
+    # The dispatch task with a fake carrier: proves the pre-dial re-checks
+    # refuse, and that the channel reservation comes back on every branch.
+    run "dial path gates and channel accounting" \
+        $PY -m pytest tests/test_dial_path.py -q
 fi
 
 [ "$MAX_TIER" -lt 4 ] && { banner "SUMMARY"; echo "  $PASS passed, $FAIL failed, $SKIP skipped"; exit $((FAIL>0)); }
@@ -211,7 +228,10 @@ cat <<'NEXT'
 
     PROVEN   the code parses, imports and lints; the limiters and the dedupe
              logic behave correctly against real Redis; every process type
-             boots and every route resolves.
+             boots and every route resolves. Webhook signatures are rejected
+             when tampered, unsigned, wrongly keyed, replayed stale or bound
+             to another URL, and a press-9 opt-out is durable before the
+             response is returned.
 NEXT
     if [ "${DB_VERIFIED:-0}" -eq 1 ]; then
         echo "             The schema builds and tenant isolation holds."
@@ -222,9 +242,10 @@ NEXT
     fi
 cat <<'NEXT'
 
-    UNPROVEN nothing has talked to a carrier. No call has been placed, no
-             webhook signature has been verified against a real signed
-             request, and AMD has never seen an actual answering machine.
+    UNPROVEN nothing has talked to a carrier. Signatures are checked against
+             locally generated ones, not against a request a carrier actually
+             signed; no call has been placed; AMD has never seen a real
+             answering machine; and nothing here measures behaviour at load.
 
   Tier 5 (manual, costs money, rings a phone) — see README "Testing".
 NEXT
