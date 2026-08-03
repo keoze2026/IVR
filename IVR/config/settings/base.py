@@ -13,6 +13,39 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 # --------------------------------------------------------------------------
+# .env loader. Dependency-free for the same reason the helpers below are: this
+# module is on the Celery worker bootstrap path.
+#
+# A real environment variable always wins over the file. That ordering is what
+# makes containers, CI and the prod-settings check in verify.sh work — each of
+# those injects its own values and must not have a checked-out .env override
+# them. It is also why DJANGO_SETTINGS_MODULE in .env cannot hijack a process
+# that was launched pointing at a different settings module.
+#
+# `#` is only a comment at the start of a line. Inline comments are not
+# stripped, because a secret is allowed to contain a `#`.
+# --------------------------------------------------------------------------
+def load_dotenv(path: Path) -> None:
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, val = line.partition("=")
+        key = key.removeprefix("export ").strip()
+        val = val.strip()
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in "\"'":
+            val = val[1:-1]
+        os.environ.setdefault(key, val)
+
+
+load_dotenv(BASE_DIR / ".env")
+
+
+# --------------------------------------------------------------------------
 # Tiny env helper. Deliberately dependency-free so settings import cheaply in
 # the Celery worker bootstrap path.
 # --------------------------------------------------------------------------

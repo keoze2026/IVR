@@ -53,3 +53,25 @@ def mask_phone(e164: str) -> str:
     if not e164:
         return ""
     return f"{e164[:2]}{'*' * max(0, len(e164) - 6)}{e164[-4:]}"
+
+
+def acting_user(request):
+    """The `User` row behind a request, or None if there is not one.
+
+    An API-key request carries an `APIKeyUser`, which duck-types the user
+    contract — including `is_authenticated`, which is unconditionally True.
+    So the obvious `request.user if request.user.is_authenticated else None`
+    passes and then raises ValueError the moment the result is assigned to a
+    `User` foreign key. Machine credentials are the normal way this API is
+    driven, so that turned routine writes into 500s.
+
+    Attribution for key-authenticated requests lives on the API key itself
+    (`AuditLogEntry.api_key`, and `request.api_key` for anything else that
+    needs it), not on these columns.
+    """
+    from apps.accounts.models import User
+
+    user = getattr(request, "user", None)
+    if isinstance(user, User) and user.is_authenticated:
+        return user
+    return None

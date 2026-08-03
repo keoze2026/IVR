@@ -4,9 +4,14 @@ from rest_framework import serializers
 
 from apps.campaigns.models import CallerID, Campaign, CampaignStats
 from apps.common.enums import CampaignStatus, ConsentScope
+from apps.common.serializers import UnscopedUniqueValidatorsMixin
 
 
-class CallerIDSerializer(serializers.ModelSerializer):
+class CallerIDSerializer(UnscopedUniqueValidatorsMixin, serializers.ModelSerializer):
+    # phone_e164 is unique platform-wide: one carrier number belongs to exactly
+    # one tenant. The duplicate check therefore has to see every tenant's rows,
+    # or a number already claimed elsewhere would validate here and fail at the
+    # INSERT with a 500 instead of a 400.
     is_available = serializers.BooleanField(read_only=True)
 
     class Meta:

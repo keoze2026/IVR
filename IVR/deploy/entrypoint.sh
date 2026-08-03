@@ -38,10 +38,17 @@ case "$ROLE" in
           python manage.py migrate --noinput
           python manage.py setup_partitions --months-ahead 3
       fi
+      # gthread, not uvicorn.workers.UvicornWorker: config.wsgi is a WSGI
+      # callable, and the uvicorn worker drives it as ASGI — it calls the app
+      # with (scope, receive, send) and Django raises
+      # "WSGIHandler.__call__() missing 1 required positional argument".
+      # Every request 500s, including /healthz, so the container also never
+      # reports healthy. Websockets are the asgi role's job, on daphne.
       exec gunicorn config.wsgi:application \
           --bind 0.0.0.0:8000 \
           --workers "${WEB_WORKERS:-4}" \
-          --worker-class uvicorn.workers.UvicornWorker \
+          --worker-class gthread \
+          --threads "${WEB_THREADS:-4}" \
           --max-requests 2000 \
           --max-requests-jitter 200 \
           --timeout 30 \

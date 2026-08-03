@@ -114,14 +114,14 @@ class IVRFlowVersionSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
+        from apps.common.utils import acting_user
         from apps.ivr.services import create_version
 
         flow = validated_data["flow"]
         return create_version(
             flow,
             validated_data["definition"],
-            user=self.context["request"].user
-            if self.context["request"].user.is_authenticated else None,
+            user=acting_user(self.context["request"]),
         )
 
 

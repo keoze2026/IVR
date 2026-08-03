@@ -64,9 +64,11 @@ class CampaignViewSet(TenantViewSetMixin, AuditedActionMixin, viewsets.ModelView
         return super().get_throttles()
 
     def perform_create(self, serializer):
+        from apps.common.utils import acting_user
+
         campaign = serializer.save(
             organization=self.request.organization,
-            created_by=self.request.user if self.request.user.is_authenticated else None,
+            created_by=acting_user(self.request),
         )
         self.audit("campaign.create", campaign, name=campaign.name)
 

@@ -2,6 +2,7 @@
 
 from rest_framework import serializers
 
+from apps.common.serializers import UnscopedUniqueValidatorsMixin
 from apps.contacts.models import ConsentRecord, Contact, ContactList
 
 
@@ -25,7 +26,10 @@ class ContactListSerializer(serializers.ModelSerializer):
         ]
 
 
-class ContactSerializer(serializers.ModelSerializer):
+class ContactSerializer(UnscopedUniqueValidatorsMixin, serializers.ModelSerializer):
+    # (contact_list, phone_e164) is unique. contact_list already pins the row to
+    # one tenant, so running the duplicate check unscoped reads no more than the
+    # scoped version would — it just satisfies the guard explicitly.
     phone_masked = serializers.SerializerMethodField()
 
     class Meta:

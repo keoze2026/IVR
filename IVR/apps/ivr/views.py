@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from apps.accounts.permissions import HasCapability, IsOrganizationMember
 from apps.common.mixins import AuditedActionMixin, TenantViewSetMixin
 from apps.common.pagination import SmallPageNumberPagination
+from apps.common.utils import acting_user
 from apps.ivr.models import IVRFlow, IVRFlowVersion
 from apps.ivr.serializers import (
     FlowValidationSerializer,
@@ -125,7 +126,7 @@ class IVRFlowVersionViewSet(TenantViewSetMixin, AuditedActionMixin,
         """
         version = publish_version(
             self.get_object(),
-            user=request.user if request.user.is_authenticated else None,
+            user=acting_user(request),
         )
         self.audit("flow.publish", version, version=version.version,
                    flow=str(version.flow_id))
@@ -142,7 +143,7 @@ class IVRFlowVersionViewSet(TenantViewSetMixin, AuditedActionMixin,
 
         draft = clone_for_edit(
             self.get_object(),
-            user=request.user if request.user.is_authenticated else None,
+            user=acting_user(request),
         )
         self.audit("flow.clone", draft, source_version=str(pk))
         return Response(self.get_serializer(draft).data,

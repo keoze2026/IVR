@@ -48,16 +48,46 @@ class DNCEntryViewSet(TenantViewSetMixin, AuditedActionMixin, viewsets.ModelView
     }
 
     def perform_create(self, serializer):
-        from apps.common.utils import phone_hash
+        """Idempotent by design.
 
-        e164 = serializer.validated_data["phone_e164"]
-        entry = serializer.save(
-            organization=self.request.organization, phone_hash=phone_hash(e164)
-        )
-        # Make it effective immediately rather than within the cache TTL.
+        Suppressing a number that is already suppressed is not an error: the
+        caller asked for an end state that already holds. The unique
+        constraints here are conditional (org-wide vs campaign-scoped), which
+        DRF cannot express as a validator, so without this an operator
+        re-adding a known opt-out got a 500 — on the one path where a failure
+        that looks like "it didn't work" invites a retry that keeps dialling.
+        """
+        from django.db import IntegrityError, transaction
+
+        from apps.common.utils import phone_hash
         from apps.compliance.services import invalidate_suppression_cache
 
-        invalidate_suppression_cache(self.request.organization.pk, entry.phone_hash)
+        org = self.request.organization
+        hashed = phone_hash(serializer.validated_data["phone_e164"])
+        scope = serializer.validated_data.get("scope_campaign")
+
+        def existing():
+            return (
+                DNCEntry.objects.for_org(org)
+                .filter(phone_hash=hashed, scope_campaign=scope)
+                .first()
+            )
+
+        entry = existing()
+        if entry is None:
+            try:
+                # Savepoint so a lost race does not poison the transaction.
+                with transaction.atomic():
+                    entry = serializer.save(organization=org, phone_hash=hashed)
+            except IntegrityError:
+                entry = existing()
+                if entry is None:  # not the duplicate we assumed
+                    raise
+        if serializer.instance is None:
+            serializer.instance = entry
+
+        # Make it effective immediately rather than within the cache TTL.
+        invalidate_suppression_cache(org.pk, entry.phone_hash)
         self.audit("dnc.create", entry, reason=entry.reason)
 
     def perform_destroy(self, instance):

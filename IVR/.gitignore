@@ -1,0 +1,26 @@
+# Secrets. .env holds the real DJANGO_SECRET_KEY, PHONE_HASH_PEPPER and carrier
+# credentials; .env.example is the template and is meant to be committed.
+.env
+!.env.example
+
+# Byte code
+__pycache__/
+*.py[cod]
+
+# Environments
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local artefacts
+*.log
+*.sqlite3
+
+# Database dumps. These contain real contact and consent data — never commit
+# them. scripts/backup.sh writes here by default.
+backups/

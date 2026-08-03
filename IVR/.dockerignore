@@ -1,0 +1,32 @@
+# The Dockerfile does `COPY . .`, so anything left here is baked into an image
+# layer and ships wherever that image goes. Deleting a file in a later layer
+# does not remove it from the earlier one.
+
+# Secrets. .env holds DJANGO_SECRET_KEY, PHONE_HASH_PEPPER and carrier
+# credentials; runtime config comes from the environment, never from the image.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 384MB of host-built virtualenv with wrong-platform binaries. Dependencies are
+# installed from requirements.txt inside the build.
+.venv/
+venv/
+
+# History — including any secret ever committed to it.
+.git/
+.gitignore
+
+# Build/test noise
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local artefacts
+*.log
+*.sqlite3

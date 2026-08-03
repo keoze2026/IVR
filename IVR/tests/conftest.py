@@ -28,6 +28,23 @@ _COUNTER_CONSUMERS = (
 _CALLSTATE_CONSUMERS = ("apps.ivr.state",)
 
 
+@pytest.fixture(scope="session")
+def django_db_setup(django_db_setup, django_db_blocker):  # noqa: PT004
+    """Add the partitioned event table to the test database.
+
+    `telephony_callevent` is partitioned by range on a composite key, which the
+    ORM cannot express, so it is created by `manage.py setup_partitions` rather
+    than by a migration. pytest-django builds the test database from migrations
+    alone, so without this the table simply does not exist there — and any code
+    path that touches a CallEvent, including a cascading delete from CallLog,
+    fails with "relation does not exist" in tests while working in production.
+    """
+    from django.core.management import call_command
+
+    with django_db_blocker.unblock():
+        call_command("setup_partitions", verbosity=0)
+
+
 @pytest.fixture
 def redis_client(monkeypatch):
     """A real Redis connection on a throwaway DB, injected everywhere."""
