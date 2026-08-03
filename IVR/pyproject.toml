@@ -1,0 +1,47 @@
+[project]
+name = "ivr-platform"
+version = "1.0.0"
+description = "Outbound IVR blasting and voice automation platform"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.dev"
+python_files = ["test_*.py", "tests.py"]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+    "integration: needs a live Postgres and Redis",
+    "carrier: talks to a real carrier sandbox; never runs in CI by default",
+]
+
+[tool.ruff]
+line-length = 92
+target-version = "py312"
+# extend-exclude, not exclude: `exclude` replaces ruff's defaults, which is how
+# you end up linting .venv and getting 150k findings.
+extend-exclude = ["migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "DJ", "S", "RET", "SIM"]
+ignore = [
+    "S101",   # assert in tests
+    "B008",   # DRF/Django call-in-default is idiomatic
+    "N818",   # exception naming
+    "RET504", # named return values read better in this codebase
+]
+
+[tool.ruff.lint.per-file-ignores]
+# S314: tests parse XML we generated ourselves to prove it is well-formed.
+"tests/*" = ["S105", "S106", "PLR2004", "S314"]
+"config/settings/*" = ["F403", "F405"]
+# S105 flags the embedded Lua source as a "hardcoded password". A noqa cannot
+# go on the assignment line without landing inside the string literal, where
+# `#` is not a comment character in Lua.
+"apps/dialer/limits.py" = ["S105"]
+# DJ012 wants fields before managers. `objects` must be declared first
+# because Django takes the first declared manager as _default_manager, and
+# the tenancy guard has to be it.
+"apps/common/models.py" = ["DJ012"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config"]

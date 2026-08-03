@@ -1,0 +1,360 @@
+================================================================================
+WEEKLY STATUS REPORT - WEEK 1
+Outbound IVR Blasting & Voice Automation Platform (Backend)
+================================================================================
+
+Project        : Outbound IVR / Voice Automation Platform
+Client         : Keoze (ZDFRS)
+Reference doc  : Backend Engineering Specification v1.0, 30 July 2026
+Period covered : Mon 27 Jul 2026 - Fri 31 Jul 2026
+Prepared by    : Backend Engineer (solo)
+Prepared for   : Engineering lead / project sponsor
+Status         : ON TRACK, with two items needing a decision (see section 6)
+
+
+--------------------------------------------------------------------------------
+1. SUMMARY
+--------------------------------------------------------------------------------
+
+Week 1 was foundations. The goal was not to place a call - it was to get the
+repository, the data model and the compliance layer right, because those are the
+parts that are expensive to change later. Specifically the consent and
+suppression tables: the spec is correct that retrofitting them is painful, and
+everything downstream keys off them.
+
+Completed this week:
+  - Repository scaffold, settings split, Celery queue topology, local Docker
+    environment (Postgres 16 + Redis 7) running.
+  - Full data model for accounts, contacts, consent, and suppression/DNC,
+    including the multi-tenant base class and the tenancy guard.
+  - Contact ingestion pipeline (CSV -> normalise -> dedupe -> suppression join)
+    working end to end against a 50k-row test file.
+  - Suppression gate and calling-window resolver written and unit tested.
+
+Not started yet (planned for weeks 2-3): the pacer, the dialer, webhook
+ingestion, the IVR flow engine, telemetry, and the REST API beyond what was
+needed to exercise ingest.
+
+Rough completion against the spec as a whole: I would call it 25-30%. The data
+model is the biggest single chunk and it is behind us, but the call path itself
+- which is where the hard problems are - has not been touched.
+
+
+--------------------------------------------------------------------------------
+2. DAILY LOG
+--------------------------------------------------------------------------------
+
+MONDAY 27 JUL                                                        (~8 hrs)
+
+  - Read the specification twice, took notes, listed open questions. Longer
+    than I would normally spend on a spec but this one has legal consequences
+    attached to getting it wrong, so it seemed worth it.
+  - Set up the local environment: Python 3.12 venv, Postgres 16 and Redis 7 in
+    Docker, pinned dependencies in requirements.txt.
+  - Created the repository structure per spec section 3.1. Deviated on one
+    point: added an "apps/common" migrations package and a base admin class
+    that the spec does not mention, because the tenancy guard breaks the stock
+    Django admin otherwise (found this out the hard way on Tuesday).
+  - Settings split into base/dev/prod. Production settings now refuse to boot
+    on a missing secret or a non-HTTPS callback URL - cheap to add now,
+    annoying to add after someone has deployed with defaults.
+
+  Note: about 90 minutes lost to a Postgres 16 container that would not accept
+  connections. Turned out to be a stale volume from an unrelated project on the
+  same machine. My fault, not worth chasing further.
+
+
+TUESDAY 28 JUL                                                       (~9 hrs)
+
+  - Wrote the Celery app config: five queues (pacer, dispatch, events,
+    telemetry, maintenance) with per-queue routing and time limits, plus the
+    beat schedule skeleton. The spec lists four queues and shows the pacer as a
+    beat entry; I gave the pacer its own queue - reasoning in section 6.
+  - Built apps/common: TimestampedModel, TenantModel, the enums from spec 4.2.
+  - Built the tenancy guard. This took most of the afternoon and was more
+    fiddly than expected. Making Model.objects refuse an unscoped queryset is
+    easy; making it not break related-object access (campaign.calls.all()),
+    the deletion collector, and the admin changelist took three attempts.
+    Landed on: guard on the default manager, a plain unguarded manager set as
+    base_manager_name for Django's internals, and an explicit .unscoped()
+    escape hatch. Related managers are treated as implicitly scoped since they
+    are already FK-constrained.
+  - Wrote tests for the guard before moving on. Worth it - the second attempt
+    at the implementation passed manual testing but let unscoped .count()
+    through, which the tests caught.
+
+
+WEDNESDAY 29 JUL                                                     (~8 hrs)
+
+  - Data model for accounts (Organization, User, API keys, audit log) and
+    contacts (ContactList, Contact, ConsentRecord) per spec 4.3.
+  - Data model for compliance (DNCEntry, CallingWindow) per spec 4.4.
+  - Found a real problem in the spec's DNC unique constraint - see section 5,
+    item 1. Fixed it and noted it.
+  - Migrations generated and applied cleanly. Admin registered for everything
+    written so far, with contact phone-number search deliberately disabled.
+  - Started the ingest pipeline: row parsing, E.164 normalisation via the
+    phonenumbers library, timezone resolution.
+
+  Note: phonenumbers' timezone lookup returns a list and occasionally an empty
+  one. Spec sample code takes tzs[0] without guarding it, which would blow up
+  mid-ingest on a bad row. Guarded, falls back to UTC.
+
+
+THURSDAY 30 JUL                                                      (~9 hrs)
+
+  - Finished the chunked ingest Celery task: streams the CSV from object
+    storage, processes 5,000 rows at a time, one suppression query and one bulk
+    insert per chunk. Rejected rows are written out to a CSV the operator can
+    download.
+  - Tested against a generated 50k-row file with deliberately dirty data
+    (blank numbers, letters, duplicates within the file, duplicates against an
+    existing list, oversized merge fields). Ingest completed in about 40
+    seconds locally. All rejects landed in the reject file with the right line
+    numbers.
+  - Found and fixed a counting bug that the spec's sample code also has: it
+    reports rows dropped by ignore_conflicts as successfully inserted, so the
+    "valid rows" number is wrong on any re-upload. Now does an explicit indexed
+    lookup for cross-list duplicates first, which makes the report truthful and
+    costs one extra query per chunk.
+  - Wrote unit tests for row parsing and normalisation.
+
+
+FRIDAY 31 JUL                                                        (~7 hrs)
+
+  - Suppression gate (spec 5.4). Implemented with the negative-result caching
+    described in the spec. Deviated on one point: I am not caching the consent
+    check - reasoning in section 5, item 2.
+  - Calling-window resolver (spec 7.4). Computes the intersection of campaign
+    window, tenant window and statutory ceiling, evaluated in the contact's own
+    timezone. Handles the case where the same instant is inside the window for
+    one contact and outside it for another, which is the whole point of it.
+  - Unit tests for the window resolver, including the multi-timezone case and
+    the "campaign configured wider than the legal ceiling" case.
+  - Wrote up decisions and open questions for this report.
+  - Half an hour with the ops contact about carrier account provisioning.
+
+
+--------------------------------------------------------------------------------
+3. DELIVERED THIS WEEK
+--------------------------------------------------------------------------------
+
+  Repository & environment
+    config/settings/{base,dev,prod}.py       settings split, prod fails fast
+    config/celery.py                         queue routing + beat schedule
+    deploy/docker-compose.yml                local Postgres 16 + Redis 7
+    requirements.txt                         pinned
+
+  Foundations
+    apps/common/models.py                    TenantModel + tenancy guard
+    apps/common/enums.py                     spec 4.2 enumerations
+    apps/common/utils.py                     peppered phone hashing
+    apps/common/redis_clients.py             per-DB connection pools, key names
+
+  Data model
+    apps/accounts/models.py                  Organization, User, APIKey, audit
+    apps/contacts/models.py                  ContactList, Contact, ConsentRecord
+    apps/compliance/models.py                DNCEntry, CallingWindow
+
+  Pipeline
+    apps/contacts/ingest.py                  row parsing, normalisation
+    apps/contacts/tasks.py                   chunked ingest task
+    apps/compliance/services.py              suppression + consent gate
+    apps/compliance/windows.py               calling-window resolver
+
+  Tests
+    tests/test_tenancy.py                    7 tests
+    tests/test_ingest.py                     14 tests
+    tests/test_windows.py                    12 tests
+
+  All tests passing locally. No CI pipeline yet - see section 7.
+
+
+--------------------------------------------------------------------------------
+4. NOT STARTED
+--------------------------------------------------------------------------------
+
+  For clarity, none of the below has been written yet:
+
+    - IVR flow DSL, validator, and orchestrator (spec 6)
+    - Pacer, token bucket, channel semaphore (spec 7.1-7.3)
+    - Dispatch task and provider adapters (spec 7.5-7.6)
+    - Webhook ingestion and TwiML rendering (spec 8)
+    - Answering machine detection (spec 9)
+    - Telemetry, counters, WebSocket dashboard feed (spec 10)
+    - REST API surface beyond what ingest needed (spec 11)
+    - call_logs / call_events partitioning (spec 4.8)
+    - Deployment hardening beyond local Docker (spec 13)
+
+
+--------------------------------------------------------------------------------
+5. PROBLEMS FOUND IN THE SPEC
+--------------------------------------------------------------------------------
+
+  Flagging these because they are in the spec's own sample code and someone
+  else may copy them.
+
+  1. DNC unique constraint does not do what it says.
+     Spec 4.4 puts a UniqueConstraint on (organization, phone_e164,
+     scope_campaign). scope_campaign is nullable, and Postgres treats NULLs as
+     distinct, so this permits unlimited duplicate organisation-wide DNC rows -
+     which are exactly the rows that most need to be unique. Replaced with two
+     partial constraints, one for the scoped case and one for the NULL case.
+     Also switched the match column from phone_e164 to phone_hash, because
+     spec 4.8 requires suppression to survive erasure and erasure nulls the
+     plaintext.
+
+  2. is_dialable() references fields that do not exist.
+     Spec 5.4 uses campaign.requires_consent and campaign.consent_scope. Neither
+     appears in the Campaign model in spec 4.6. I have added both. Flagging in
+     case they were meant to live elsewhere.
+
+  3. Ingest row counting is wrong on re-upload (fixed, described Thursday).
+
+  4. Unguarded timezone lookup in the sample ingest code (fixed, described
+     Wednesday).
+
+  5. The specification document I was given is truncated.
+     It cuts off partway through section 6.1, mid-JSON. Sections 6.2 through 14
+     - IVR node types, the pacer implementation, webhook handling, AMD,
+     telemetry, the REST spec, security, deployment and the risk register - are
+     not in the copy I have. I have enough from the diagrams and the section
+     headings to keep moving for another week, but I will need the full
+     document before I build the flow engine, and I would rather not guess at
+     the node types. Requested on Wednesday, not yet received.
+
+
+--------------------------------------------------------------------------------
+6. DECISIONS TAKEN - PLEASE CONFIRM
+--------------------------------------------------------------------------------
+
+  These are my calls. All are reversible now and progressively less so later.
+
+  a) Consent checks are NOT cached.
+     The spec caches the suppression result for 300 seconds and the consent
+     check sits behind the same cache. I have pulled consent out of the cache.
+     It is one indexed lookup, and it is the single check with statutory
+     damages attached to getting it wrong. A five-minute stale "yes" on a
+     revoked consent is not a trade I want to make on someone else's behalf.
+     Cost: one extra query per dial attempt.
+
+  b) The pacer gets its own Celery queue.
+     The spec lists four queues. If pacer ticks share the dispatch queue they
+     end up queued behind calls to the carrier, which means the pacing decision
+     is paced by carrier latency. Small change, seemed clearly right.
+
+  c) No table of US state calling-hour rules will ship in the code.
+     I can build the mechanism - it is done - but I am not going to embed a
+     table of state-by-state calling restrictions that I compiled myself. If it
+     is wrong it will read as authoritative and nobody will re-check it.
+     Proposal: the mechanism defaults to the federal ceiling, and someone with
+     legal sign-off populates the per-state rows as configuration. This needs a
+     decision from whoever owns compliance, not from me.
+
+  d) Phone-hash pepper is effectively permanent.
+     Rotating it orphans every stored hash and therefore every suppression
+     record, with no migration path for erased contacts. Whoever sets it in
+     production should know that. Recommend it goes into a secret manager on
+     day one and is documented as unrotatable.
+
+
+--------------------------------------------------------------------------------
+7. BLOCKERS AND DEPENDENCIES
+--------------------------------------------------------------------------------
+
+  BLOCKING (needed within the next week)
+
+    - Full specification document. Truncated copy, cuts off at 6.1. Requested
+      Wed 29 Jul. Needed before the flow engine (planned week 3).
+
+    - Twilio account with an outbound-capable number and API credentials.
+      Requested Fri 31 Jul via ops. Without it I can write the dialer against
+      the SDK but I cannot test that a call actually connects. A trial account
+      would be enough to unblock development.
+
+  NOT BLOCKING YET, but needed before go-live
+
+    - Decision on the state calling-window question (6c above).
+    - S3 or compatible bucket credentials. Ingest currently reads from a local
+      MinIO container, which is fine for development.
+    - Confirmation of who owns the DNC scrub vendor contract. The spec assumes
+      one exists; I have no vendor details, so that integration is currently a
+      documented gap rather than code.
+    - A CI pipeline. Tests run locally only. Half a day of work, but I would
+      rather do it once the repo layout has settled.
+
+
+--------------------------------------------------------------------------------
+8. RISKS
+--------------------------------------------------------------------------------
+
+  R1  Spec truncation delays the flow engine.
+      Likelihood: medium. Impact: one week slip on week-3 work.
+      Mitigation: reordered the plan so the dialer and limiters come first,
+      which are fully specified. If the document has not arrived by end of week
+      2 I will propose a node-type set for review rather than stall.
+
+  R2  No carrier sandbox means the dialer is untested against reality.
+      Likelihood: medium. Impact: unknown-unknowns surfacing late.
+      Mitigation: chasing credentials. The adapter is written behind an
+      interface so it can be exercised against a stub, but a stub proves
+      nothing about how the carrier actually behaves.
+
+  R3  Compliance scope is larger than the code.
+      The platform can enforce consent, suppression and calling windows. It
+      cannot tell anyone whether their consent language is adequate. There
+      should be a legal review scheduled well before the first live campaign,
+      and it is not on any plan I have seen.
+
+  R4  Single engineer, no code review.
+      Everything this week is unreviewed. The tenancy guard in particular is
+      the kind of code where a second pair of eyes is worth more than a test
+      suite, since the failure mode is one tenant seeing another's contacts.
+      Recommend at least a review pass on apps/common/models.py.
+
+
+--------------------------------------------------------------------------------
+9. PLAN FOR WEEK 2 (3 - 7 AUG)
+--------------------------------------------------------------------------------
+
+  Priority is the dial path, since it is fully specified in the part of the
+  document I have and does not depend on the missing sections.
+
+  Mon    Campaign, CampaignContact, CampaignStats, CallerID models; migrations.
+  Tue    Token bucket and channel semaphore in Redis, with tests. This is the
+         piece I most want to get right, so I have given it a full day.
+  Wed    The pacer: claim query with SKIP LOCKED, tick locking, the
+         headroom/token arithmetic.
+  Thu    Dispatch task and the Twilio adapter. Aiming for a first real outbound
+         call by end of day IF credentials have arrived.
+  Fri    Call log and event models; partitioning DDL; buffer and write-up.
+
+  Stretch, only if the week goes well: begin webhook signature validation.
+
+  Realistically I expect Thursday to slip - the first call against a real
+  carrier never works first time, and I would rather budget for that honestly
+  than report it as a surprise next Friday.
+
+
+--------------------------------------------------------------------------------
+10. TIME
+--------------------------------------------------------------------------------
+
+  Mon 27 Jul     8.0    spec review, environment, repo scaffold
+  Tue 28 Jul     9.0    celery config, tenancy base + guard
+  Wed 29 Jul     8.0    data model, admin, ingest started
+  Thu 30 Jul     9.0    ingest pipeline, testing against 50k rows
+  Fri 31 Jul     7.0    suppression gate, calling windows, write-up
+                ----
+  Total         41.0 hrs
+
+  Breakdown, approximate:
+    implementation            26.0
+    testing                    6.5
+    spec reading / planning    4.5
+    environment & tooling      3.0
+    meetings / coordination    1.0
+
+================================================================================
+End of report.
+================================================================================

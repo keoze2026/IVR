@@ -1,0 +1,151 @@
+# ---------------------------------------------------------------------------
+# Local / staging topology (spec 13.1).
+#
+# Production runs the same images under systemd or Kubernetes with the same
+# role split; the only differences are replica counts, managed Postgres/Redis,
+# and pgbouncer in front of the database.
+# ---------------------------------------------------------------------------
+name: ivr-platform
+
+x-app: &app
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile
+  env_file: ../.env
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ivr}
+      POSTGRES_USER: ${POSTGRES_USER:-ivr}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ivr}
+    command:
+      - postgres
+      # The dial path is short transactions at high frequency; the defaults
+      # are tuned for a much smaller working set.
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - effective_cache_size=1536MB
+      - -c
+      - work_mem=16MB
+      - -c
+      - random_page_cost=1.1
+      # Log anything slower than a webhook's whole latency budget.
+      - -c
+      - log_min_duration_statement=200
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ivr}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    # appendfsync everysec on the counters DB: losing a second of KPIs is a
+    # dashboard blip, losing the channel semaphore is over-dialling.
+    command: >
+      redis-server
+      --appendonly yes
+      --appendfsync everysec
+      --maxmemory 512mb
+      --maxmemory-policy noeviction
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    ports:
+      - "6379:6379"
+
+  web:
+    <<: *app
+    command: ["web"]
+    ports:
+      - "8000:8000"
+
+  asgi:
+    <<: *app
+    command: ["asgi"]
+    environment:
+      RUN_MIGRATIONS: "0"
+    ports:
+      - "8001:8000"
+
+  beat:
+    <<: *app
+    command: ["beat"]
+    environment:
+      RUN_MIGRATIONS: "0"
+
+  pacer:
+    <<: *app
+    command: ["pacer"]
+    environment:
+      RUN_MIGRATIONS: "0"
+
+  dispatch:
+    <<: *app
+    command: ["dispatch"]
+    environment:
+      RUN_MIGRATIONS: "0"
+    deploy:
+      replicas: 2
+
+  events:
+    <<: *app
+    command: ["events"]
+    environment:
+      RUN_MIGRATIONS: "0"
+    deploy:
+      replicas: 2
+
+  telemetry:
+    <<: *app
+    command: ["telemetry"]
+    environment:
+      RUN_MIGRATIONS: "0"
+
+  maintenance:
+    <<: *app
+    command: ["maintenance"]
+    environment:
+      RUN_MIGRATIONS: "0"
+
+  flower:
+    <<: *app
+    command: ["flower"]
+    environment:
+      RUN_MIGRATIONS: "0"
+    ports:
+      - "5555:5555"
+
+  nginx:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web
+      - asgi
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
