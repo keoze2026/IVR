@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: IVR
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Tiers 2-4 of scripts/verify.sh need both of these. Without them the
+    # script skips those tiers and still exits 0, which would make a green
+    # build mean nothing — so they are services, not optional.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ivr
+          POSTGRES_USER: ivr
+          POSTGRES_PASSWORD: ivr
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U ivr -d ivr"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      POSTGRES_DB: ivr
+      POSTGRES_USER: ivr
+      POSTGRES_PASSWORD: ivr
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: 5434
+      REDIS_URL: redis://127.0.0.1:6379
+      REDIS_DB_BROKER: 0
+      REDIS_DB_CACHE: 1
+      REDIS_DB_CALLSTATE: 2
+      REDIS_DB_CHANNELS: 3
+      REDIS_DB_COUNTERS: 4
+      # CI-only values. The real ones live in the deployment environment and
+      # are never present in this repo.
+      DJANGO_SECRET_KEY: ci-only-not-a-real-secret
+      PHONE_HASH_PEPPER: ci-only-pepper
+      PUBLIC_BASE_URL: https://ci.invalid
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: IVR/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff
+
+      # redis-cli is what verify.sh probes with; without it tier 2 silently
+      # skips the limiter tests.
+      - name: Install redis-cli
+        run: sudo apt-get update && sudo apt-get install -y redis-tools
+
+      # A skipped tier is not a failure as far as verify.sh is concerned — it
+      # exits 0 when Postgres or Redis is simply absent. In CI they are
+      # services, so a SKIP means the wiring broke and the build must fail.
+      - name: Verify tiers 1-4
+        # GitHub runs `run:` under `bash -eo pipefail`, so a non-zero exit from
+        # verify.sh fails the step here before the SKIP check is reached.
+        run: |
+          ./scripts/verify.sh 4 2>&1 | tee /tmp/verify.out
+          if grep -q "SKIP" /tmp/verify.out; then
+            echo "::error::A verification tier was skipped — services unreachable."
+            grep "SKIP" /tmp/verify.out
+            exit 1
+          fi
