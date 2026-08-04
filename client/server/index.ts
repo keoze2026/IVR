@@ -1,0 +1,97 @@
+/**
+ * The BFF.
+ *
+ * Two jobs: hold the API key server-side, and give the browser a session. It
+ * is not an application — no business logic lives here, and anything that
+ * looks like a decision belongs in Django where it can be audited.
+ *
+ * In production it also serves the built SPA, so the whole portal is one
+ * origin and CORS never enters the picture.
+ */
+
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
+import { Hono } from "hono";
+import { logger } from "hono/logger";
+
+import { authRoutes } from "./auth/routes.js";
+import { readSession } from "./auth/session.js";
+import { proxyRoutes } from "./proxy.js";
+import { apiBase, apiUrl, safeJson } from "./upstream.js";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const distDir = resolve(here, "..", "dist");
+
+const app = new Hono();
+app.use("*", logger());
+
+// --- health -----------------------------------------------------------
+app.get("/bff/health", (c) => c.json({ status: "ok", upstream: apiBase() }));
+
+// --- session ----------------------------------------------------------
+app.route("/bff", authRoutes);
+
+/**
+ * Identity for the SPA.
+ *
+ * Proxied from /api/v1/me/ when the backend has it. The 404 fallback keeps
+ * the portal usable against a backend predating that endpoint — the client
+ * then has no capability list and hides nothing, and the server still refuses
+ * anything the role cannot do.
+ */
+app.get("/bff/me", async (c) => {
+  const session = await readSession(c);
+  if (!session) {
+    return c.json(
+      { error: { code: "not_authenticated", message: "No session." } },
+      401,
+    );
+  }
+
+  const upstream = await fetch(apiUrl("me/"), {
+    headers: { Authorization: `Bearer ${session.apiKey}`, Accept: "application/json" },
+  });
+
+  if (upstream.status === 404) {
+    return c.json({
+      user: null,
+      api_key: null,
+      organization: null,
+      role: "",
+      capabilities: [],
+      ceilings: null,
+      degraded: "backend has no /me endpoint (see docs/API-GAPS.md G-04)",
+    });
+  }
+  return c.json((await safeJson(upstream)) as object, upstream.status as 200);
+});
+
+// --- API passthrough --------------------------------------------------
+app.route("/bff/api", proxyRoutes);
+
+// --- SPA --------------------------------------------------------------
+if (existsSync(distDir)) {
+  app.use("/assets/*", serveStatic({ root: "./dist" }));
+  app.use("/favicon.ico", serveStatic({ root: "./dist" }));
+
+  // Client-side routing: anything not under /bff falls through to the shell.
+  app.get("*", async (c) => {
+    if (c.req.path.startsWith("/bff")) return c.notFound();
+    return c.html(await readFile(join(distDir, "index.html"), "utf8"));
+  });
+}
+
+const port = Number(process.env.PORT ?? 8787);
+
+serve({ fetch: app.fetch, port }, (info) => {
+  console.log(`BFF listening on http://localhost:${info.port}`);
+  console.log(`  upstream: ${apiBase()}`);
+  console.log(`  spa:      ${existsSync(distDir) ? distDir : "dev (vite on :5173)"}`);
+});
+
+export default app;

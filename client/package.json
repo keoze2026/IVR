@@ -1,0 +1,40 @@
+{
+  "name": "ivr-operator-portal",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -n bff,web -c magenta,cyan \"npm:dev:bff\" \"npm:dev:web\"",
+    "dev:bff": "node --env-file-if-exists=.env --import tsx server/index.ts",
+    "dev:web": "vite",
+    "build": "tsc -b && vite build",
+    "start": "node --env-file-if-exists=.env --import tsx server/index.ts",
+    "typecheck": "tsc -b --noEmit",
+    "lint": "eslint src server --ext .ts,.tsx",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@tanstack/react-query": "^5.62.7",
+    "hono": "^4.6.14",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "tailwindcss": "^4.0.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5",
+    "vitest": "^2.1.8"
+  }
+}

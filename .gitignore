@@ -1,0 +1,10 @@
+# Local-only, not part of the delivered repo.
+/docs/
+.claude/
+
+# Deliberately minimal.
+#
+# Patterns for `.env` and `*.pyc` belong here too, but IVR/ currently tracks
+# both — a root rule listing them would contradict what is committed. That is
+# the backend's call to make; see docs/BACKEND-REQUIREMENTS.md §0.
+# The frontend has its own rules in client/.gitignore.

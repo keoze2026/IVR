@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+/*
+ * Operator tooling, not a marketing site. Dense, quiet, high-contrast.
+ * Someone watches this screen for hours while calls are going out; anything
+ * that pulses or animates for decoration is a liability.
+ */
+
+@theme {
+  --color-canvas: oklch(0.99 0.002 250);
+  --color-surface: oklch(1 0 0);
+  --color-line: oklch(0.91 0.005 250);
+  --color-ink: oklch(0.24 0.01 250);
+  --color-muted: oklch(0.52 0.012 250);
+
+  --color-brand-50: oklch(0.97 0.02 250);
+  --color-brand-100: oklch(0.93 0.04 250);
+  --color-brand-500: oklch(0.58 0.16 250);
+  --color-brand-600: oklch(0.51 0.17 250);
+  --color-brand-700: oklch(0.44 0.16 250);
+
+  /* Campaign status. Running is the only one that reads as "go". */
+  --color-live-50: oklch(0.96 0.04 155);
+  --color-live-600: oklch(0.55 0.14 155);
+  --color-warn-50: oklch(0.97 0.05 85);
+  --color-warn-600: oklch(0.62 0.15 62);
+  --color-stop-50: oklch(0.96 0.03 25);
+  --color-stop-600: oklch(0.56 0.19 25);
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-feature-settings: "cv02", "cv03", "cv04";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Counters change often; tabular figures stop the layout jittering. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+}
