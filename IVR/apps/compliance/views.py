@@ -117,7 +117,7 @@ class DNCEntryViewSet(TenantViewSetMixin, AuditedActionMixin, viewsets.ModelView
             except RowError as exc:
                 rejected.append({"input": raw, "reason": str(exc)})
 
-        added = apply_suppression_batch(
+        result = apply_suppression_batch(
             request.organization.pk,
             cleaned,
             reason=body.validated_data["reason"],
@@ -125,7 +125,9 @@ class DNCEntryViewSet(TenantViewSetMixin, AuditedActionMixin, viewsets.ModelView
         )
         self.audit("dnc.bulk", request.organization, count=len(cleaned))
         return Response(
-            {"submitted": len(cleaned), "contacts_flagged": added,
+            {"submitted": len(cleaned),
+             "entries_added": result.entries_added,
+             "contacts_flagged": result.contacts_flagged,
              "rejected": rejected},
             status=status.HTTP_202_ACCEPTED,
         )

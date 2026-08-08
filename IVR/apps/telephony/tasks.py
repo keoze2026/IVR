@@ -294,17 +294,27 @@ def record_opt_out_task(organization_id: str, e164: str, sid: str = ""):
 # Housekeeping
 # ---------------------------------------------------------------------------
 @shared_task(name="telephony.sweep_stuck_calls", queue="maintenance")
-def sweep_stuck_calls(max_age_minutes: int = 90):
+def sweep_stuck_calls(max_age_minutes: int | None = None):
     """
     Find calls the carrier stopped talking about.
 
     Every lost `completed` callback is a leaked channel and a queue row stuck
     in `dialing` forever. The semaphore heals itself on a four-hour horizon;
     this closes the gap by asking the carrier directly what happened.
+
+    The window comes from ``settings.STUCK_CALL_SWEEP_MINUTES`` unless a caller
+    passes one explicitly. It is a setting rather than a constant because it is
+    the recovery time after a webhook outage, and the right value depends on
+    how long your calls legitimately run.
     """
+    from django.conf import settings
+
     from apps.campaigns.models import CampaignContact
     from apps.common.enums import LIVE_CALL_STATES
     from apps.dialer.providers import get_provider
+
+    if max_age_minutes is None:
+        max_age_minutes = getattr(settings, "STUCK_CALL_SWEEP_MINUTES", 15)
 
     cutoff = timezone.now() - timezone.timedelta(minutes=max_age_minutes)
     stuck = (

@@ -294,6 +294,29 @@ TENANCY_STRICT = env_bool("TENANCY_STRICT", False)
 # Live call state TTL in Redis (spec 2.3: 4 hours).
 CALL_STATE_TTL_SECONDS = env_int("CALL_STATE_TTL_SECONDS", 4 * 3600)
 
+# How long a call may sit in a live state with no terminal callback before
+# sweep_stuck_calls asks the carrier what actually happened.
+#
+# This is the recovery time for lost callbacks, and lost callbacks are not
+# rare — an ingress outage loses all of them at once, and every one holds a
+# channel until it is swept. At 90 minutes a campaign whose webhooks broke
+# stalls for an hour and a half with no error anywhere, which is how this
+# default was found. 15 minutes is far longer than any IVR call this platform
+# places, and the sweep is not destructive to a genuinely live call: it takes
+# whatever status the carrier reports, so an in-progress call stays live.
+#
+# Raise it if you run long agent transfers AND your carrier's call-fetch API
+# is unreliable, since an unreachable carrier resolves the call to failed.
+STUCK_CALL_SWEEP_MINUTES = env_int("STUCK_CALL_SWEEP_MINUTES", 15)
+
+# External suppression source. Set exactly one; see
+# apps/compliance/scrub_sources.py for why the vendor client itself is not
+# implemented here. With neither set, refresh_external_scrub records a failed
+# ScrubJob rather than reporting a successful scrub of nothing.
+SCRUB_SOURCE_DIR = env("SCRUB_SOURCE_DIR", "")
+SCRUB_SOURCE_URL = env("SCRUB_SOURCE_URL", "")  # may contain {san} / {slug}
+SCRUB_SOURCE_TOKEN = env("SCRUB_SOURCE_TOKEN", "")
+
 # Webhook replay window. Signatures older than this are rejected outright.
 WEBHOOK_MAX_SKEW_SECONDS = env_int("WEBHOOK_MAX_SKEW_SECONDS", 300)
 WEBHOOK_IP_ALLOWLIST = env_list("WEBHOOK_IP_ALLOWLIST")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import NamedTuple
 
 from celery import shared_task
 from django.conf import settings
@@ -42,11 +43,12 @@ def refresh_external_scrub(organization_id: str | None = None):
     )
     try:
         numbers = _fetch_scrub_numbers(org)
-        added = apply_suppression_batch(
+        result = apply_suppression_batch(
             org.id, numbers, reason="litigator", notes="vendor scrub"
         )
         job.records_processed = len(numbers)
-        job.records_added = added
+        job.records_added = result.entries_added
+        job.contacts_suppressed = result.contacts_flagged
         job.status = ScrubJob.Status.COMPLETED
     except NotImplementedError as exc:
         # No vendor wired up yet. Recorded rather than silently skipped, so the
@@ -59,32 +61,80 @@ def refresh_external_scrub(organization_id: str | None = None):
         logger.exception("scrub job failed", extra={"org": str(org.id)})
     finally:
         job.finished_at = timezone.now()
-        job.save(update_fields=["records_processed", "records_added", "status",
+        job.save(update_fields=["records_processed", "records_added",
+                                "contacts_suppressed", "status",
                                 "error_message", "finished_at"])
     return {"job": str(job.id), "status": job.status}
 
 
 def _fetch_scrub_numbers(org) -> list[str]:
     """
-    Vendor integration point.
+    Read this organisation's external suppression list.
 
-    Left unimplemented deliberately: the federal DNC SAN download and the
-    litigator vendors each have their own contract, file format and refresh
-    cadence, and guessing at one produces code that looks like it works. Wire
-    the tenant's vendor in here; the surrounding job bookkeeping is done.
+    The vendor-specific parts — which registry, whose credential, how often —
+    stay configuration, because they differ per contract and guessing at one
+    produces code that only looks like it works. What every source has in
+    common is that it ends in a file of phone numbers, and that part is
+    implemented in `scrub_sources`.
+
+    Configure exactly one of:
+
+        SCRUB_SOURCE_DIR   directory the vendor's downloader writes into.
+                           Preferred — no credential in this codebase.
+        SCRUB_SOURCE_URL   https URL, optionally with SCRUB_SOURCE_TOKEN.
+                           May contain {san} and {slug}, filled from the org.
+
+    With neither set this still raises, and the ScrubJob still records the
+    failure, so "when did you last scrub?" keeps an honest answer.
     """
+    from apps.compliance import scrub_sources
+
+    directory = getattr(settings, "SCRUB_SOURCE_DIR", "")
+    url = getattr(settings, "SCRUB_SOURCE_URL", "")
+
+    if directory:
+        # Scope the read to this tenant. A shared drop directory that fed one
+        # org's list to another would suppress the wrong contacts silently.
+        patterns = [f"{org.slug}*", f"*{org.slug}*"]
+        if org.dnc_san:
+            patterns.append(f"*{org.dnc_san}*")
+        return scrub_sources.from_directory(directory, patterns=patterns)
+
+    if url:
+        resolved = url.format(san=org.dnc_san or "", slug=org.slug)
+        return scrub_sources.from_url(
+            resolved, token=getattr(settings, "SCRUB_SOURCE_TOKEN", "")
+        )
+
     raise NotImplementedError(
-        "No external scrub provider configured for this organisation. "
-        "Implement _fetch_scrub_numbers() against your DNC/litigator vendor."
+        "No external scrub source configured for this organisation. Set "
+        "SCRUB_SOURCE_DIR or SCRUB_SOURCE_URL, or implement a vendor client "
+        "here. Until then no external suppression list is being applied."
     )
 
 
+class SuppressionResult(NamedTuple):
+    """
+    Two genuinely different numbers.
+
+    ``entries_added`` is how much the suppression list itself grew.
+    ``contacts_flagged`` is how many of *your* contacts that list matched.
+    A scrub can add fifty thousand entries and flag none of them, which means
+    it worked — not that it did nothing. Reporting one as the other makes a
+    healthy scrub look like a broken one and vice versa.
+    """
+
+    entries_added: int
+    contacts_flagged: int
+
+
 def apply_suppression_batch(org_id, numbers: list[str], *, reason: str,
-                            notes: str = "") -> int:
+                            notes: str = "") -> SuppressionResult:
     """Insert a batch of suppressions and flag matching contacts."""
     from apps.contacts.models import Contact
 
-    added = 0
+    entries_added = 0
+    contacts_flagged = 0
     for batch in chunked(numbers, 5_000):
         digests = [phone_hash(n) for n in batch]
         entries = [
@@ -98,22 +148,30 @@ def apply_suppression_batch(org_id, numbers: list[str], *, reason: str,
             for n, d in zip(batch, digests, strict=True)
         ]
         with transaction.atomic():
+            # bulk_create's return value is unusable for counting on
+            # PostgreSQL with ignore_conflicts (see DECISIONS.md item 6), so
+            # the pre-existing rows are counted explicitly against the unique
+            # index rather than inferred.
+            already = DNCEntry.objects.unscoped().filter(
+                organization_id=org_id, phone_hash__in=digests
+            ).count()
             DNCEntry.objects.bulk_create(entries, batch_size=1000,
                                          ignore_conflicts=True)
-            flagged = Contact.objects.unscoped().filter(
+            entries_added += len(set(digests)) - already
+
+            contacts_flagged += Contact.objects.unscoped().filter(
                 organization_id=org_id, phone_hash__in=digests, is_suppressed=False
             ).update(
                 is_suppressed=True,
                 suppression_reason=reason,
                 suppressed_at=timezone.now(),
             )
-        added += flagged
 
         from apps.compliance.services import invalidate_suppression_cache
 
         for digest in digests:
             invalidate_suppression_cache(org_id, digest)
-    return added
+    return SuppressionResult(entries_added, contacts_flagged)
 
 
 @shared_task(name="compliance.apply_retention_policy", queue="maintenance")
