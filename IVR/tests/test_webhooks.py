@@ -84,6 +84,30 @@ class TestTwilioSignature:
         response = post_twilio(client, self.PATH, params)
         assert response.status_code != 403
 
+    def test_blank_valued_parameters_are_kept_when_verifying(self, client,
+                                                             webhook_settings):
+        """
+        Regression: a real Twilio callback carries empty-valued fields, and
+        Twilio signs over them. Parsing the body with parse_qsl's default
+        keep_blank_values=False dropped them, so the reconstructed signature
+        never matched and every live callback 403'd — while every test using a
+        hand-built payload passed, because those have no blank fields.
+
+        Found against a real carrier, not in CI. Hence this test.
+        """
+        params = {
+            "CallSid": "CA" + "1" * 32,
+            "CallStatus": "completed",
+            "CalledCity": "",
+            "CalledState": "",
+            "CallerName": "",
+            "To": "+254700392123",
+        }
+        response = post_twilio(client, self.PATH, params)
+        assert response.status_code != 403, (
+            "blank-valued parameters were dropped before signature verification"
+        )
+
     def test_a_tampered_body_is_rejected(self, client, webhook_settings):
         params = {"CallSid": "CA" + "1" * 32, "CallStatus": "completed"}
         signature = twilio_signature(f"{BASE_URL}{self.PATH}", params)

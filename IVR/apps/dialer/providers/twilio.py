@@ -207,4 +207,11 @@ def _form_params(body: bytes, headers) -> dict | None:
         return None
     from urllib.parse import parse_qsl
 
-    return dict(parse_qsl(body.decode("utf-8", "replace")))
+    # keep_blank_values is mandatory, not a nicety. Twilio signs over every
+    # parameter it sends, including the ones whose value is empty — and real
+    # callbacks are full of them (CalledCity, CalledState, CallerName are all
+    # blank for an international destination). Dropping them here rebuilds a
+    # different string than Twilio signed, so every signature fails and every
+    # callback 403s. The unit tests never caught it because hand-built
+    # payloads have no empty fields.
+    return dict(parse_qsl(body.decode("utf-8", "replace"), keep_blank_values=True))
