@@ -291,3 +291,334 @@ export type ServerMessage =
   | { type: "kpi.tick"; payload: KpiFrame; ts: string }
   | { type: "pong" }
   | { type: "error"; payload: { code: string; action?: string } };
+
+export interface AmdQuality {
+  answered: number;
+  machine: number;
+  human: number;
+  unknown: number;
+  machine_with_dtmf: number;
+  human_no_input: number;
+  /** The expensive error: a human hung up on or dropped into voicemail. */
+  false_machine_rate: number;
+  suspected_false_human_rate: number;
+  machine_rate: number;
+}
+
+// --- contacts ---------------------------------------------------------
+
+export type IngestStatus = "pending" | "running" | "completed" | "failed";
+
+export interface IngestReport {
+  total?: number;
+  valid?: number;
+  rejected?: number;
+  duplicates?: number;
+  suppressed?: number;
+  errors?: unknown[];
+  [key: string]: unknown;
+}
+
+export interface ContactList {
+  id: string;
+  name: string;
+  description: string;
+  default_region: string;
+  source_filename: string;
+  total_rows: number;
+  valid_rows: number;
+  rejected_rows: number;
+  duplicate_rows: number;
+  suppressed_rows: number;
+  reachable_rows: number;
+  ingest_status: IngestStatus;
+  ingest_started_at: string | null;
+  ingest_finished_at: string | null;
+  ingest_report: IngestReport;
+  created_at: string;
+}
+
+export interface Contact {
+  id: string;
+  contact_list: string;
+  phone_e164: string;
+  phone_masked: string;
+  country_code: string;
+  line_type: string;
+  carrier_name: string;
+  first_name: string;
+  last_name: string;
+  variables: Record<string, string>;
+  timezone: string;
+  is_suppressed: boolean;
+  suppression_reason: SuppressionReason | "";
+  suppressed_at: string | null;
+  last_called_at: string | null;
+  total_attempts: number;
+  created_at: string;
+}
+
+export interface SuppressionPreview {
+  total: number;
+  already_suppressed: number;
+  newly_suppressed: number;
+  reachable: number;
+  sampled: number;
+}
+
+// --- flows ------------------------------------------------------------
+
+export interface FlowSummary {
+  id: string;
+  name: string;
+  description: string;
+  is_archived: boolean;
+  latest_version: { id: string; version: number; is_published: boolean } | null;
+  published_version: { id: string; version: number } | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FlowVersion {
+  id: string;
+  flow: string;
+  version: number;
+  definition: FlowDefinition;
+  entry_node: string;
+  checksum: string;
+  is_published: boolean;
+  published_at: string | null;
+  rendered_prompts: Record<string, Record<string, string>>;
+  prompts_rendered_at: string | null;
+  validation_report: ValidationReport | null;
+  created_at: string;
+}
+
+/** The DSL document. `metadata` is free-form and never validated — the only
+ *  legal place to keep builder canvas positions, since any unknown key on a
+ *  node is a hard `unknown_field` error. */
+export interface FlowDefinition {
+  schema_version: "1.0";
+  entry: string;
+  default_locale?: string;
+  locales?: string[];
+  metadata?: Record<string, unknown> & {
+    positions?: Record<string, { x: number; y: number }>;
+  };
+  nodes: Record<string, FlowNode>;
+}
+
+export type NodeType =
+  | "play"
+  | "menu"
+  | "collect"
+  | "transfer"
+  | "opt_out"
+  | "voicemail"
+  | "record"
+  | "branch"
+  | "hangup";
+
+export type PromptKind = "audio" | "tts" | "say";
+
+export interface Prompt {
+  kind: PromptKind;
+  /** audio only — an AudioAsset id. A `url` key is a hard error (SSRF guard). */
+  asset?: string;
+  text?: string;
+  voice?: string;
+}
+
+export interface BranchCondition {
+  variable: string;
+  op: string;
+  value?: unknown;
+  then: string;
+}
+
+export interface FlowNode {
+  type: NodeType;
+  label?: string;
+  disposition?: string;
+  tags?: string[];
+  barge_in?: boolean;
+  prompt?: Prompt;
+  invalid_prompt?: Prompt;
+  timeout_prompt?: Prompt;
+  whisper?: Prompt;
+  ring_prompt?: Prompt;
+  next?: string;
+  on_timeout?: string;
+  on_invalid?: string;
+  on_fail?: string;
+  options?: Record<string, string>;
+  conditions?: BranchCondition[];
+  default?: string;
+  variable?: string;
+  endpoint?: string;
+  scope?: string;
+  [key: string]: unknown;
+}
+
+export interface ValidationIssue {
+  level: "error" | "warning";
+  code: string;
+  message: string;
+  /** "" for document-level issues. */
+  node: string;
+}
+
+export interface ValidationReport {
+  ok: boolean;
+  errors: ValidationIssue[];
+  warnings: ValidationIssue[];
+}
+
+export interface NodeSpec {
+  type: NodeType;
+  required: string[];
+  optional: string[];
+  transitions: string[];
+  terminal: boolean;
+  gathers_input: boolean;
+  description: string;
+}
+
+export interface NodeCatalogue {
+  prompt_kinds: PromptKind[];
+  branch_operators: string[];
+  nodes: NodeSpec[];
+}
+
+export interface TransferEndpoint {
+  id: string;
+  name: string;
+  kind: "pstn" | "sip";
+  destination: string;
+  caller_id_override: string;
+  timeout_seconds: number;
+  max_concurrent: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AudioAsset {
+  id: string;
+  name: string;
+  storage_key: string;
+  mime_type: string;
+  duration_ms: number;
+  sample_rate: number;
+  source: string;
+  source_text: string;
+  voice_id: string;
+  url: string;
+  created_at: string;
+}
+
+// --- calls ------------------------------------------------------------
+
+export interface CallSummary {
+  id: string;
+  campaign: string;
+  provider_call_sid: string;
+  to_masked: string;
+  status: CallStatus;
+  answered_by: AnsweredBy | "";
+  disposition: Disposition | "";
+  attempt_number: number;
+  duration_seconds: number;
+  ring_seconds: number;
+  cost: string | null;
+  terminal_node: string;
+  created_at: string;
+  ended_at: string | null;
+}
+
+export interface DtmfPress {
+  node_id: string;
+  digits: string;
+  attempt: number;
+  latency_ms: number | null;
+  is_valid: boolean;
+  created_at: string;
+}
+
+export interface CallDetail extends CallSummary {
+  contact: string | null;
+  flow_version: string;
+  provider: string;
+  from_number: string;
+  to_number: string;
+  sip_response_code: number | null;
+  error_code: string;
+  error_message: string;
+  initiated_at: string | null;
+  ringing_at: string | null;
+  answered_at: string | null;
+  amd_latency_ms: number | null;
+  node_path: string[];
+  transferred_to: string;
+  transfer_duration_seconds: number;
+  recording_duration: number;
+  cost_currency: string;
+  /** Twilio back-fills Price minutes later. Never present cost as final
+   *  while this is false — the figure is always low. */
+  cost_reconciled: boolean;
+  stir_attestation: string;
+  dtmf: DtmfPress[];
+}
+
+export interface CallEvent {
+  event_type: string;
+  sequence_number: number | null;
+  payload: Record<string, unknown>;
+  signature_valid: boolean;
+  received_at: string;
+}
+
+// --- compliance -------------------------------------------------------
+
+export interface DncEntry {
+  id: string;
+  phone_e164: string;
+  phone_masked: string;
+  reason: SuppressionReason;
+  scope_campaign: string | null;
+  notes: string;
+  expires_at: string | null;
+  is_global: boolean;
+  created_at: string;
+}
+
+export interface ConsentRecord {
+  id: string;
+  phone_e164: string;
+  consent_type: "express_written" | "express_oral" | "ebr" | "transactional";
+  scope: "marketing" | "informational";
+  source: string;
+  source_url: string;
+  /** Required and non-empty. The exact language shown — in a TCPA dispute
+   *  this field is the evidence. */
+  disclosure_text: string;
+  captured_at: string;
+  captured_ip: string | null;
+  captured_user_agent: string;
+  evidence_ref: string;
+  revoked_at: string | null;
+  revocation_channel: string;
+  expires_at: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface CallingWindow {
+  id: string;
+  jurisdiction: string;
+  start_local: string;
+  end_local: string;
+  weekdays: number[];
+  holidays_blocked: boolean;
+  notes: string;
+  created_at: string;
+}

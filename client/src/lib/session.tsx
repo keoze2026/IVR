@@ -8,7 +8,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 
-import { logout as postLogout } from "./api";
+import { login as postLogin, logout as postLogout } from "./api";
 import { capabilitiesFor } from "./capabilities";
 import { ApiError } from "./errors";
 import type { Capability, Me } from "@/types/domain";
@@ -18,12 +18,15 @@ interface SessionValue {
   capabilities: Set<Capability>;
   isLoading: boolean;
   isAuthenticated: boolean;
+  signIn: (apiKey: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
 const SessionContext = createContext<SessionValue | null>(null);
 
-async function fetchMe(): Promise<Me | null> {
+export const SESSION_KEY = ["session"] as const;
+
+export async function fetchMe(): Promise<Me | null> {
   const response = await fetch("/bff/me", { credentials: "same-origin" });
   if (response.status === 401) return null;
   if (!response.ok) {
@@ -41,7 +44,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
-    queryKey: ["session"],
+    queryKey: SESSION_KEY,
     queryFn: fetchMe,
     retry: false,
     staleTime: 5 * 60_000,
@@ -54,6 +57,25 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       capabilities: capabilitiesFor(me?.role ?? "", me?.capabilities),
       isLoading,
       isAuthenticated: me !== null,
+
+      /**
+       * Sign in, then re-resolve who we are *before* returning.
+       *
+       * The order matters. Clearing the cache drops the session query with it,
+       * and nothing re-runs it on its own — so navigating straight after a
+       * clear lands on a guarded route with no session and bounces back to
+       * the login screen, having just logged in successfully. `fetchQuery`
+       * repopulates the cache and the mounted observer picks it up.
+       */
+      signIn: async (apiKey: string) => {
+        await postLogin(apiKey);
+        queryClient.clear();
+        await queryClient.fetchQuery({
+          queryKey: SESSION_KEY,
+          queryFn: fetchMe,
+        });
+      },
+
       signOut: async () => {
         await postLogout();
         queryClient.clear();

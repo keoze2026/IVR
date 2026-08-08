@@ -38,15 +38,29 @@ function sweep() {
   }
 }
 
+/** Generated once per process when running locally without a configured one. */
+let ephemeral: string | null = null;
+
 export function secret(): string {
   const value = process.env.SESSION_SECRET;
-  if (!value || value.length < 32) {
+  if (value && value.length >= 32) return value;
+
+  // Production must never fall back — an unset secret there means sessions
+  // would silently reset on every deploy, and worse, differ between replicas.
+  if (process.env.NODE_ENV === "production") {
     throw new Error(
-      "SESSION_SECRET must be set to at least 32 characters. " +
-        "Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
+      "SESSION_SECRET must be set to at least 32 characters in production.",
     );
   }
-  return value;
+
+  if (!ephemeral) {
+    ephemeral = randomBytes(32).toString("hex");
+    console.warn(
+      "\n  No SESSION_SECRET set — generated a temporary one for this run.\n" +
+        "  Sessions will not survive a restart. Copy .env.example to .env to fix.\n",
+    );
+  }
+  return ephemeral;
 }
 
 export async function createSession(c: Context, apiKey: string): Promise<Session> {

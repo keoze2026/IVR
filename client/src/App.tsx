@@ -1,9 +1,9 @@
 /**
  * Routing and global providers.
  *
- * Retry policy is deliberate: 401/403/404 and 4xx generally are not
- * transient, and the API is throttled per-organisation (600/min, 60/sec), so
- * retrying a rejected request wastes budget every other tab is sharing.
+ * Retry policy is deliberate: nothing below 500 is retried. A 403 will never
+ * become a 200, and retrying into a 429 spends a budget shared by every
+ * operator in the organisation.
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -11,17 +11,44 @@ import type { ReactNode } from "react";
 import {
   BrowserRouter,
   Navigate,
+  Outlet,
   Route,
   Routes,
   useLocation,
+  useOutletContext,
 } from "react-router-dom";
 
 import { AppShell } from "@/components/AppShell";
-import { EmptyState, Spinner } from "@/components/ui";
+import { PulseLoader } from "@/components/styled/PulseLoader";
+import { EmptyState } from "@/components/ui";
 import { ApiError } from "@/lib/errors";
 import { SessionProvider, useSession } from "@/lib/session";
+
+import { CallerIdsPage, SettingsPage } from "@/features/admin/CallerIdsPage";
 import { LoginPage } from "@/features/auth/LoginPage";
+import { CallDetailPage } from "@/features/calls/CallDetailPage";
+import { CallsTable } from "@/features/calls/CallsTable";
+import { CampaignCallsPage } from "@/features/campaigns/CampaignCallsPage";
+import {
+  CampaignDetailLayout,
+  CampaignOverview,
+} from "@/features/campaigns/CampaignDetailPage";
+import { CampaignSettingsPage } from "@/features/campaigns/CampaignSettingsPage";
 import { CampaignsPage } from "@/features/campaigns/CampaignsPage";
+import { LivePage } from "@/features/campaigns/LivePage";
+import { NewCampaignPage } from "@/features/campaigns/NewCampaignPage";
+import {
+  CallingWindowsPage,
+  ConsentPage,
+  DncPage,
+} from "@/features/compliance/CompliancePages";
+import {
+  ContactListDetailPage,
+  ContactListsPage,
+} from "@/features/contacts/ContactListsPage";
+import { FlowBuilderPage } from "@/features/flows/FlowBuilderPage";
+import { FlowVersionsPage, FlowsPage } from "@/features/flows/FlowsPage";
+import type { Campaign } from "@/types/domain";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -44,7 +71,7 @@ function RequireSession({ children }: { children: ReactNode }) {
   if (isLoading) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
-        <Spinner />
+        <PulseLoader label="Checking your session" />
       </div>
     );
   }
@@ -54,13 +81,24 @@ function RequireSession({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-/** Screens planned but not yet built — honest about it rather than a 404. */
-function Planned({ name, phase }: { name: string; phase: string }) {
+/** Hands the loaded campaign down to the overview tab. */
+function CampaignOverviewRoute() {
+  const campaign = useOutletContext<Campaign>();
+  return <CampaignOverview campaign={campaign} />;
+}
+
+function GlobalCalls() {
   return (
-    <EmptyState
-      title={`${name} is not built yet`}
-      description={`Scheduled for ${phase}. See the plan for what this screen does.`}
-    />
+    <div className="space-y-6">
+      <header>
+        <h1 className="display text-xl font-semibold text-chalk sm:text-2xl">Calls</h1>
+        <p className="mt-1 text-sm text-ash">
+          Every attempt and how it ended. Filter by outcome, or open a campaign
+          to see only its calls.
+        </p>
+      </header>
+      <CallsTable />
+    </div>
   );
 }
 
@@ -80,39 +118,56 @@ export function App() {
               }
             >
               <Route index element={<Navigate to="/campaigns" replace />} />
+
+              {/* --- campaigns ------------------------------------- */}
               <Route path="/campaigns" element={<CampaignsPage />} />
+              <Route path="/campaigns/new" element={<NewCampaignPage />} />
+              <Route path="/campaigns/:id" element={<CampaignDetailLayout />}>
+                <Route index element={<CampaignOverviewRoute />} />
+                <Route path="live" element={<LivePage />} />
+                <Route path="calls" element={<CampaignCallsPage />} />
+                <Route path="settings" element={<CampaignSettingsPage />} />
+              </Route>
+
+              {/* --- contacts -------------------------------------- */}
+              <Route path="/contact-lists" element={<ContactListsPage />} />
               <Route
-                path="/campaigns/new"
-                element={<Planned name="The campaign wizard" phase="phase 2" />}
+                path="/contact-lists/:id"
+                element={<ContactListDetailPage />}
               />
+
+              {/* --- flows ----------------------------------------- */}
+              <Route path="/flows" element={<FlowsPage />} />
+              <Route path="/flows/:id" element={<FlowVersionsPage />} />
               <Route
-                path="/campaigns/:id"
-                element={<Planned name="Campaign detail" phase="phase 2" />}
+                path="/flows/:id/versions/:versionId"
+                element={<FlowBuilderPage />}
               />
-              <Route
-                path="/campaigns/:id/live"
-                element={<Planned name="The live dashboard" phase="phase 2" />}
-              />
-              <Route
-                path="/contact-lists"
-                element={<Planned name="Contact lists" phase="phase 2" />}
-              />
-              <Route path="/flows" element={<Planned name="Flows" phase="phase 3" />} />
-              <Route
-                path="/calls"
-                element={<Planned name="The call log" phase="phase 4" />}
-              />
-              <Route
-                path="/compliance/dnc"
-                element={<Planned name="Compliance" phase="phase 4" />}
-              />
-              <Route
-                path="/caller-ids"
-                element={<Planned name="Caller IDs" phase="phase 4" />}
-              />
+
+              {/* --- calls ----------------------------------------- */}
+              <Route path="/calls" element={<GlobalCalls />} />
+              <Route path="/calls/:id" element={<CallDetailPage />} />
+
+              {/* --- compliance ------------------------------------ */}
+              <Route path="/compliance" element={<Outlet />}>
+                <Route index element={<Navigate to="/compliance/dnc" replace />} />
+                <Route path="dnc" element={<DncPage />} />
+                <Route path="consent" element={<ConsentPage />} />
+                <Route path="windows" element={<CallingWindowsPage />} />
+              </Route>
+
+              {/* --- admin ----------------------------------------- */}
+              <Route path="/caller-ids" element={<CallerIdsPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+
               <Route
                 path="*"
-                element={<EmptyState title="No such page" />}
+                element={
+                  <EmptyState
+                    title="No such page"
+                    description="Check the address, or head back to your campaigns."
+                  />
+                }
               />
             </Route>
           </Routes>

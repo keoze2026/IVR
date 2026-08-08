@@ -27,6 +27,14 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
-    sourcemap: true,
+    /*
+     * No sourcemaps in production.
+     *
+     * They ship the original TypeScript — every comment, every note about
+     * which upstream checks exist and where they are enforced. That is a map
+     * of the system handed to anyone who opens devtools. Set VITE_SOURCEMAP=1
+     * locally when you need to debug a built bundle.
+     */
+    sourcemap: process.env.VITE_SOURCEMAP === "1",
   },
 });

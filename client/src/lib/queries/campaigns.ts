@@ -79,6 +79,47 @@ export function useCampaignStats(id: string | undefined, enabled = true) {
   });
 }
 
+// --- writes -----------------------------------------------------------
+
+export function useCreateCampaign() {
+  const queryClient = useQueryClient();
+  return useMutation<Campaign, ApiError, Partial<Campaign>>({
+    mutationFn: (body) =>
+      request<Campaign>("campaigns/", { method: "POST", body }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: campaignKeys.all }),
+  });
+}
+
+/**
+ * Patch a campaign.
+ *
+ * Five fields are refused while running or throttled — the serializer 400s on
+ * `flow_version`, `contact_lists`, `caller_id`, `requires_consent` and
+ * `consent_scope`. Pacing is editable live, which is the point: you can slow a
+ * campaign down without stopping it.
+ */
+export function useUpdateCampaign(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation<Campaign, ApiError, Partial<Campaign>>({
+    mutationFn: (body) =>
+      request<Campaign>(`campaigns/${id}/`, { method: "PATCH", body }),
+    onSuccess: (campaign) => {
+      queryClient.setQueryData(campaignKeys.detail(id), campaign);
+      queryClient.invalidateQueries({ queryKey: campaignKeys.all });
+    },
+  });
+}
+
+export function useRebuildStats(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation<{ status: string }, ApiError, void>({
+    mutationFn: () =>
+      request(`campaigns/${id}/rebuild-stats/`, { method: "POST" }),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: campaignKeys.stats(id) }),
+  });
+}
+
 // --- lifecycle --------------------------------------------------------
 
 /**

@@ -21,30 +21,38 @@ authRoutes.post("/login", async (c) => {
   const body = await c.req.json<{ apiKey?: string }>().catch(() => ({}) as never);
   const apiKey = (body.apiKey ?? "").trim();
 
-  if (!apiKey) {
-    return c.json(
-      { error: { code: "missing_key", message: "Enter your API key." } },
-      400,
-    );
-  }
-  if (!KEY_PATTERN.test(apiKey)) {
-    return c.json(
-      {
-        error: {
-          code: "malformed_key",
-          message: "That does not look like an API key. Keys start with ivrk_.",
-        },
+  // One shape of failure for everything a caller could get wrong: blank,
+  // malformed, unknown, revoked, expired, or out-of-network. Distinguishing
+  // them tells whoever is probing which of those they are looking at, and the
+  // legitimate user cannot act on the difference anyway.
+  const rejected = c.json(
+    {
+      error: {
+        code: "invalid_credentials",
+        message: "That key was not accepted.",
       },
-      400,
-    );
-  }
+    },
+    401,
+  );
+
+  if (!apiKey || !KEY_PATTERN.test(apiKey)) return rejected;
 
   const probe = await probeCredential(apiKey);
   if (!probe.ok) {
-    // Pass the upstream message through — "API key is revoked or expired" and
-    // "Source address not permitted for this key" are already the right words.
-    return c.json(probe.body ?? { error: { code: "unauthorized", message: "Rejected." } },
-      probe.status as 401);
+    // A 5xx upstream is not a credential problem, and saying so stops the
+    // user hunting for a key that was fine all along.
+    if (probe.status >= 500) {
+      return c.json(
+        {
+          error: {
+            code: "upstream_unavailable",
+            message: "The service is unavailable. Try again shortly.",
+          },
+        },
+        503,
+      );
+    }
+    return rejected;
   }
 
   await createSession(c, apiKey);

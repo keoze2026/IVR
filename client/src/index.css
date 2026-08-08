@@ -1,52 +1,243 @@
 @import "tailwindcss";
 
+/* Roboto for everything, Roboto Mono for measurements. Self-hosted — an
+   operations console should not depend on a font CDN being reachable. */
+@import "@fontsource/roboto/400.css";
+@import "@fontsource/roboto/500.css";
+@import "@fontsource/roboto/700.css";
+@import "@fontsource/roboto-mono/400.css";
+@import "@fontsource/roboto-mono/500.css";
+
 /*
- * Operator tooling, not a marketing site. Dense, quiet, high-contrast.
- * Someone watches this screen for hours while calls are going out; anything
- * that pulses or animates for decoration is a liability.
+ * Outbound IVR — operator console.
+ *
+ * Watched for hours while regulated calls go out. Chrome is near-monochrome
+ * on purpose: the only bright things are live data and the one primary
+ * action, so colour stays available to carry state.
+ *
+ * Two greens, never swapped:
+ *   --signal  luminous — brand, emphasis, key figures
+ *   --live    deeper   — this campaign is dialing right now
+ *
+ * No gradients anywhere.
  */
 
 @theme {
-  --color-canvas: oklch(0.99 0.002 250);
-  --color-surface: oklch(1 0 0);
-  --color-line: oklch(0.91 0.005 250);
-  --color-ink: oklch(0.24 0.01 250);
-  --color-muted: oklch(0.52 0.012 250);
+  --color-void: #16181c;
+  --color-panel: #1e2126;
+  --color-raised: #24282e;
+  --color-edge: #2c3037;
+  --color-edge-bright: #3a4048;
 
-  --color-brand-50: oklch(0.97 0.02 250);
-  --color-brand-100: oklch(0.93 0.04 250);
-  --color-brand-500: oklch(0.58 0.16 250);
-  --color-brand-600: oklch(0.51 0.17 250);
-  --color-brand-700: oklch(0.44 0.16 250);
+  --color-signal: #b8ff3c;
+  --color-signal-dim: #7fae2a;
+  --color-live: #1d7f4c;
+  --color-live-bright: #2aa866;
 
-  /* Campaign status. Running is the only one that reads as "go". */
-  --color-live-50: oklch(0.96 0.04 155);
-  --color-live-600: oklch(0.55 0.14 155);
-  --color-warn-50: oklch(0.97 0.05 85);
-  --color-warn-600: oklch(0.62 0.15 62);
-  --color-stop-50: oklch(0.96 0.03 25);
-  --color-stop-600: oklch(0.56 0.19 25);
+  --color-chalk: #e6e9ed;
+  --color-ash: #9aa2ac;
+  /* Lightened from #5D6570, which sat at 3.0:1 on --void and failed AA for
+     text. This is 5.1:1. Nothing in the UI carries meaning below that. */
+  --color-ash-dim: #828a95;
+
+  --color-amber: #f0b429;
+  --color-rust: #f05c60;
+
+  --font-display: "Roboto", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Roboto", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Roboto Mono", ui-monospace, "SF Mono", monospace;
+
+  /* The console floats on a darker page, the way the reference app floats a
+     white shell on grey. It reads as one instrument rather than a browser
+     window that happens to have chrome in it. */
+  --color-backdrop: #101215;
+
+  --radius-shell: 20px;
+  --radius-card: 14px;
 }
 
 @layer base {
   html {
-    color-scheme: light;
+    color-scheme: dark;
   }
 
   body {
-    background-color: var(--color-canvas);
-    color: var(--color-ink);
-    font-feature-settings: "cv02", "cv03", "cv04";
+    background-color: var(--color-backdrop);
+    color: var(--color-chalk);
+    font-family: var(--font-sans);
+    /* 16px base. Dense areas step down to 14px, never below. */
+    font-size: 16px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Counters change often; tabular figures stop the layout jittering. */
-  .tnum {
+  /* If it is a measurement, it is mono and tabular. Counters change every
+     second; proportional figures make the layout twitch. */
+  .num {
+    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  .display {
+    font-family: var(--font-display);
+    font-weight: 500;
+    letter-spacing: -0.011em;
+  }
+
+  /* Section labels. 11px is the floor — below that, wide tracking stops
+     helping and starts hurting. */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.3;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--color-ash-dim);
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-brand-600);
+    outline: 2px solid var(--color-signal);
     outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  ::selection {
+    background: var(--color-signal);
+    color: var(--color-void);
+  }
+
+  * {
+    scrollbar-color: var(--color-edge-bright) transparent;
+    scrollbar-width: thin;
+  }
+}
+
+/*
+ * The hatch.
+ *
+ * Borrowed from the reference dashboard, where unfilled bars are drawn as
+ * diagonal stripes rather than left blank. It earns its place here because
+ * this product has a genuine "capacity you are not using" quantity —
+ * channels below the ceiling, contacts not yet dialled, calls that never
+ * connected. A blank track reads as missing data; a hatched one reads as
+ * headroom, which is what it is.
+ *
+ * Hard colour stops, not a blend — the palette has no gradients.
+ */
+@layer utilities {
+  .hatch {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      var(--color-edge) 0px,
+      var(--color-edge) 1.5px,
+      transparent 1.5px,
+      transparent 5px
+    );
+  }
+
+  .hatch-bright {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      var(--color-edge-bright) 0px,
+      var(--color-edge-bright) 2px,
+      transparent 2px,
+      transparent 6px
+    );
+  }
+}
+
+/*
+ * Motion.
+ *
+ * Three patterns, and deliberately no more. Each one carries meaning:
+ * arrival tells you the page settled, press confirms the click landed, and
+ * the value flash says a number just changed under you. Anything beyond
+ * that is decoration on a screen people stare at all day.
+ *
+ * Everything sits in the 160–260ms band and animates only transform and
+ * opacity, so nothing triggers layout.
+ */
+@layer utilities {
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 8px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  @keyframes settle {
+    from {
+      opacity: 0;
+      transform: scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* A counter that just moved. Brief, once, no colour change — the number
+     itself is already the message. */
+  @keyframes tick {
+    0% {
+      color: var(--color-signal);
+    }
+    100% {
+      color: inherit;
+    }
+  }
+
+  .rise {
+    animation: rise 240ms cubic-bezier(0.22, 0.8, 0.3, 1) both;
+  }
+
+  .settle {
+    animation: settle 200ms cubic-bezier(0.22, 0.8, 0.3, 1) both;
+  }
+
+  .ticked {
+    animation: tick 620ms ease-out;
+  }
+
+  /* Staggered arrival for a row of tiles or list items. Capped at eight —
+     past that the last item arrives late enough to feel broken. */
+  .stagger > * {
+    animation: rise 240ms cubic-bezier(0.22, 0.8, 0.3, 1) both;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .stagger > *:nth-child(2) { animation-delay: 35ms; }
+  .stagger > *:nth-child(3) { animation-delay: 70ms; }
+  .stagger > *:nth-child(4) { animation-delay: 105ms; }
+  .stagger > *:nth-child(5) { animation-delay: 140ms; }
+  .stagger > *:nth-child(6) { animation-delay: 175ms; }
+  .stagger > *:nth-child(7) { animation-delay: 210ms; }
+  .stagger > *:nth-child(n + 8) { animation-delay: 240ms; }
+
+  /* Press feedback. Hover alone is not enough — it never fires on touch. */
+  .press {
+    transition:
+      transform 120ms cubic-bezier(0.22, 0.8, 0.3, 1),
+      background-color 160ms ease-out,
+      border-color 160ms ease-out,
+      color 160ms ease-out;
+  }
+  .press:active:not(:disabled) {
+    transform: scale(0.975);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
