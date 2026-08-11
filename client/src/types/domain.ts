@@ -125,7 +125,7 @@ export interface Me {
     max_concurrent_channels: number;
     max_contacts: number;
   } | null;
-  /** Set when the backend predates /api/v1/me/ — see docs/API-GAPS.md G-04. */
+  /** Set only when talking to a backend that predates /api/v1/me/. */
   degraded?: string;
 }
 

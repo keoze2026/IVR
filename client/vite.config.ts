@@ -23,6 +23,22 @@ export default defineConfig({
         target: process.env.BFF_ORIGIN ?? "http://localhost:8787",
         changeOrigin: true,
       },
+      /*
+       * The live KPI socket connects to `window.location.host`, which in dev
+       * is this server. Without this entry the handshake hits Vite, which has
+       * no such route, and every campaign falls back to REST polling with no
+       * error a developer would notice.
+       *
+       * It goes straight to Django rather than through the BFF: the token is
+       * in the query string and Channels authenticates it there, so the BFF
+       * has nothing to add. In production nginx already routes /ws/ to the
+       * Channels upstream.
+       */
+      "/ws": {
+        target: process.env.IVR_API_BASE ?? "http://localhost:8000",
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
   build: {

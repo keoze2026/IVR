@@ -39,10 +39,12 @@ app.route("/bff", authRoutes);
 /**
  * Identity for the SPA.
  *
- * Proxied from /api/v1/me/ when the backend has it. The 404 fallback keeps
- * the portal usable against a backend predating that endpoint — the client
- * then has no capability list and hides nothing, and the server still refuses
- * anything the role cannot do.
+ * Proxied from /api/v1/me/, which the backend now implements. The 404 branch
+ * remains for a backend predating it, but note what it costs: with no role and
+ * no capabilities, `capabilitiesFor` returns an empty set and the portal hides
+ * every control rather than showing them all. That is a deliberately visible
+ * failure — an operator staring at an empty page asks why, where a portal that
+ * quietly offered buttons which only 403 would waste more of their time.
  */
 app.get("/bff/me", async (c) => {
   const session = await readSession(c);

@@ -16,8 +16,9 @@ export function apiUrl(path: string): string {
  *
  * `/me/` is the right probe: it is the only endpoint that needs no capability
  * beyond membership, and its response is exactly what the client wants next.
- * Older backends without it (see docs/API-GAPS.md G-04) fall back to a
- * one-row campaign list, which every role can read.
+ * The backend implements it (apps/accounts/views.py). The one-row campaign
+ * list remains as a fallback for a backend predating it, since every role can
+ * read that.
  */
 export async function probeCredential(
   apiKey: string,

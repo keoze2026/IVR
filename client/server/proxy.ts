@@ -15,7 +15,17 @@ import { authorizationHeader } from "./auth/provider.js";
 import { readSession } from "./auth/session.js";
 import { apiUrl } from "./upstream.js";
 
-/** Hop-by-hop headers must not be forwarded. */
+/**
+ * Hop-by-hop headers must not be forwarded.
+ *
+ * The forwarding headers are in here for a different reason than the rest.
+ * Django checks `APIKey.allowed_cidrs` against the first entry of
+ * X-Forwarded-For, and a browser is free to set that header on a fetch — it is
+ * not on the Fetch spec's forbidden list. Passing the client's value through
+ * would let anyone holding a stolen key defeat its network restriction by
+ * naming an allowed address. The value this proxy sends is derived below from
+ * the socket peer, never from the request.
+ */
 const STRIP_REQUEST = new Set([
   "host",
   "connection",
@@ -23,6 +33,11 @@ const STRIP_REQUEST = new Set([
   "authorization",
   "content-length",
   "accept-encoding",
+  "x-forwarded-for",
+  "x-forwarded-host",
+  "x-forwarded-proto",
+  "x-real-ip",
+  "forwarded",
 ]);
 const STRIP_RESPONSE = new Set([
   "content-encoding",
@@ -72,9 +87,18 @@ proxyRoutes.all("/*", async (c) => {
   headers.set("Authorization", authorizationHeader(session));
 
   // X-Forwarded-For matters: APIKey.allowed_cidrs is checked against the first
-  // hop, so dropping it would let a CIDR-restricted key work from anywhere.
-  const clientIp = c.req.header("x-forwarded-for") ?? remoteAddress(c.env);
-  if (clientIp) headers.set("X-Forwarded-For", clientIp);
+  // hop, so dropping it entirely would let a CIDR-restricted key work from
+  // anywhere. Taking it from the request would do the same, since the client
+  // chooses that value — hence the socket peer.
+  //
+  // Set TRUST_PROXY_XFF=1 only when this process genuinely sits behind a proxy
+  // that overwrites the header. Then the inbound chain is preserved and this
+  // hop is appended, which is what Django's "first entry" check expects.
+  const trustInbound = process.env.TRUST_PROXY_XFF === "1";
+  const inbound = trustInbound ? c.req.header("x-forwarded-for") : undefined;
+  const peer = remoteAddress(c.env);
+  const chain = [inbound, peer].filter(Boolean).join(", ");
+  if (chain) headers.set("X-Forwarded-For", chain);
 
   const method = c.req.method;
   const hasBody = method !== "GET" && method !== "HEAD";

@@ -42,6 +42,15 @@ export function useCampaignSocket(
   const rafRef = useRef<number | null>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const closedRef = useRef(false);
+  /**
+   * Whether this socket has ever reached OPEN.
+   *
+   * A ref rather than the `state` value, because the close handler is created
+   * once per effect run and would otherwise close over the state from that
+   * first render forever — reading "connecting" even after a successful
+   * connection, and so treating every later drop as permanent.
+   */
+  const openedRef = useRef(false);
 
   /** Coalesce: hold the newest frame, paint once per frame. */
   const enqueue = useCallback((next: KpiFrame) => {
@@ -99,6 +108,7 @@ export function useCampaignSocket(
 
       socket.onopen = () => {
         attemptRef.current = 0;
+        openedRef.current = true;
         setState("open");
         pingTimer = setInterval(() => send("ping"), PING_MS);
       };
@@ -124,7 +134,9 @@ export function useCampaignSocket(
         // Permanent: unauthenticated, cross-tenant, or no such campaign.
         // Also treat a close before we ever opened as possibly-permanent —
         // the server rejects before accept(), so the browser sees only 1006.
-        const neverOpened = attemptRef.current === 0 && state !== "open";
+        // Once a connection has succeeded, 1006 means the network dropped, and
+        // that must reconnect rather than give up for the life of the page.
+        const neverOpened = !openedRef.current;
         if (PERMANENT.has(event.code) || (neverOpened && event.code === 1006)) {
           setState("offline");
           return;
@@ -157,15 +169,26 @@ export function useCampaignSocket(
       socketRef.current?.close(1000, "unmounted");
       socketRef.current = null;
     };
-    // `state` is read inside onclose only as a hint; re-subscribing on every
-    // state change would tear the socket down constantly.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId, enabled, enqueue, send, refresh]);
+
+  /*
+   * Staleness is the absence of an event, so nothing re-renders to reveal it.
+   * Comparing Date.now() during render only re-evaluates when a frame arrives
+   * — precisely when the counters are *not* stale — so without this the
+   * indicator could never turn on. One cheap timer while the socket is open.
+   */
+  const [clock, setClock] = useState(0);
+  useEffect(() => {
+    if (state !== "open" || lastTickAt === null) return;
+    const id = setInterval(() => setClock((n) => n + 1), STALE_AFTER_MS / 3);
+    return () => clearInterval(id);
+  }, [state, lastTickAt]);
 
   const isStale =
     state === "open" &&
     lastTickAt !== null &&
     Date.now() - lastTickAt > STALE_AFTER_MS;
+  void clock; // read so the timer above is not optimised away as unused
 
   return { frame, state, isStale, refresh, lastTickAt };
 }
