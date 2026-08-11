@@ -17,6 +17,7 @@ predictable for the frontend:
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from apps.accounts.views import MeView
 from apps.campaigns.views import CallerIDViewSet, CampaignViewSet
 from apps.compliance.views import (
     CallingWindowViewSet,
@@ -40,5 +41,8 @@ router.register("consent", ConsentRecordViewSet, basename="consent")
 router.register("calling-windows", CallingWindowViewSet, basename="calling-window")
 
 urlpatterns = [
+    # Not a viewset: there is no collection here, only the caller. Registered
+    # before the router so "me" cannot be shadowed by a future detail route.
+    path("me/", MeView.as_view(), name="me"),
     path("", include(router.urls)),
 ]
