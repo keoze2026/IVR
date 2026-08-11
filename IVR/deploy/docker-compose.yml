@@ -143,6 +143,31 @@ services:
     ports:
       - "5555:5555"
 
+  # Operator portal: the BFF plus the built SPA in one image. It holds the API
+  # key server-side so the browser never sees a credential, and nginx gives it
+  # "/" while Django keeps /api, /ws, /webhooks and /admin.
+  client:
+    build:
+      context: ../../client
+      dockerfile: Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: "8787"
+      # Service name, not localhost: this runs in its own container.
+      IVR_API_BASE: http://web:8000
+      # Signs the session cookie. Must be set and at least 32 characters, or
+      # the BFF refuses to start in production rather than minting sessions
+      # that silently differ between replicas.
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set}
+      # nginx overwrites X-Forwarded-For with the real client address, so the
+      # BFF may preserve that chain. Without this it would report the nginx
+      # container's address to Django and APIKey.allowed_cidrs would never
+      # match a real operator.
+      TRUST_PROXY_XFF: "1"
+    depends_on:
+      - web
+    restart: unless-stopped
+
   nginx:
     image: nginx:1.27-alpine
     volumes:
@@ -150,6 +175,7 @@ services:
     depends_on:
       - web
       - asgi
+      - client
     ports:
       - "8080:80"
     restart: unless-stopped
