@@ -82,7 +82,9 @@ CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
 
 INSTALLED_APPS = [
     "daphne",
-    "django.contrib.admin",
+    # django.contrib.admin is not installed: administration is done through
+    # the portal (apps/accounts/platform.py), not through a second UI with
+    # different permissions and no tenancy awareness.
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",

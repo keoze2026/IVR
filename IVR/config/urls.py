@@ -11,7 +11,6 @@ They are deliberately kept on separate prefixes so the edge can apply different
 WAF rules to each.
 """
 
-from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
@@ -45,7 +44,10 @@ def readyz(_request):
 
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    # Django admin is deliberately absent. It is a developer's tool — it
+    # exposes column names, cascades and every model without regard to
+    # tenancy — and this platform is administered from the portal instead.
+    # See apps/accounts/platform.py.
     path("healthz", healthz),
     path("readyz", readyz),
     path("api/v1/", include(("apps.common.urls", "api"), namespace="v1")),
