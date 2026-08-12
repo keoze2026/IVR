@@ -185,8 +185,13 @@ class AuditLogEntry(TimestampedModel):
     who started the campaign that placed it and who published the flow it ran.
     """
 
+    # Nullable because platform-level actions have no tenant: deleting an
+    # organisation, or editing shared reference data such as the area-code
+    # table, belongs to no organisation by definition. Refusing to record those
+    # would leave the most privileged actions in the system unlogged.
     organization = models.ForeignKey(
-        Organization, on_delete=models.CASCADE, related_name="audit_log"
+        Organization, null=True, blank=True,
+        on_delete=models.CASCADE, related_name="audit_log",
     )
     actor = models.ForeignKey(
         User, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"

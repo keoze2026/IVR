@@ -238,6 +238,10 @@ CELERY_TASK_DEFAULT_QUEUE = "maintenance"
 # --------------------------------------------------------------------------
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        # Order matters only in that both read the Bearer header and each
+        # returns None for the other's prefix — machines carry ivrk_, people
+        # carry ivrt_ — so whichever runs first hands the request on cleanly.
+        "apps.accounts.authentication.UserTokenAuthentication",
         "apps.accounts.authentication.APIKeyAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],

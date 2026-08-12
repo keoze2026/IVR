@@ -213,3 +213,56 @@ class APIKeyViewSet(TenantViewSetMixin, AuditedActionMixin, viewsets.ModelViewSe
         key.save(update_fields=["revoked_at"])
         self.audit("apikey.revoke", key, name=key.name)
         return Response(self.get_serializer(key).data)
+
+
+class LoginView(APIView):
+    """
+    `POST /api/v1/auth/login/` — username and password, for a person.
+
+    The only unauthenticated endpoint in the API. It exists because a human
+    cannot be issued a credential by a system they cannot yet reach: something
+    has to accept a password. Machines keep using API keys and never come here.
+
+    Failures are deliberately indistinguishable. "No such user" and "wrong
+    password" tell an attacker which half they have already guessed, and the
+    legitimate user cannot act on the difference anyway.
+    """
+
+    authentication_classes: list = []
+    permission_classes: list = []
+
+    def post(self, request):
+        from django.contrib.auth import authenticate
+
+        from apps.accounts.authentication import issue_user_token
+
+        username = (request.data.get("username") or "").strip()
+        password = request.data.get("password") or ""
+
+        refused = Response(
+            {"error": {"code": "invalid_credentials",
+                       "message": "Those details were not accepted."}},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+        if not username or not password:
+            return refused
+
+        user = authenticate(request, username=username, password=password)
+        if user is None or not user.is_active:
+            return refused
+
+        return Response(
+            {
+                "token": issue_user_token(user),
+                "user": {
+                    "id": str(user.pk),
+                    "username": user.get_username(),
+                    "email": user.email,
+                    "role": user.role,
+                    "is_superuser": user.is_superuser,
+                    "organization": str(user.organization_id)
+                    if user.organization_id
+                    else None,
+                },
+            }
+        )

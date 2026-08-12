@@ -17,7 +17,12 @@ predictable for the frontend:
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from apps.accounts.views import APIKeyViewSet, MeView
+from apps.accounts.platform import (
+    PlatformViewSet,
+    platform_overview,
+    platform_schema,
+)
+from apps.accounts.views import APIKeyViewSet, LoginView, MeView
 from apps.campaigns.views import CallerIDViewSet, CampaignViewSet
 from apps.compliance.views import (
     CallingWindowViewSet,
@@ -45,5 +50,25 @@ urlpatterns = [
     # Not a viewset: there is no collection here, only the caller. Registered
     # before the router so "me" cannot be shadowed by a future detail route.
     path("me/", MeView.as_view(), name="me"),
+    path("auth/login/", LoginView.as_view(), name="login"),
+
+    # Platform administration. Superuser-only and deliberately not
+    # tenant-scoped; see apps/accounts/platform.py.
+    path("platform/schema/", platform_schema, name="platform-schema"),
+    path("platform/overview/", platform_overview, name="platform-overview"),
+    path(
+        "platform/<str:resource>/",
+        PlatformViewSet.as_view({"get": "list", "post": "create"}),
+        name="platform-list",
+    ),
+    path(
+        "platform/<str:resource>/<str:pk>/",
+        PlatformViewSet.as_view(
+            {"get": "retrieve", "patch": "partial_update",
+             "put": "update", "delete": "destroy"}
+        ),
+        name="platform-detail",
+    ),
+
     path("", include(router.urls)),
 ]

@@ -8,9 +8,11 @@ time in the database and no plaintext at rest. `request.organization` is set
 here and is the single source of truth for every downstream tenant filter.
 """
 
+import hashlib
 import ipaddress
 import logging
 
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from rest_framework import authentication, exceptions
 
@@ -109,3 +111,89 @@ class APIKeyAuthentication(authentication.BaseAuthentication):
 
     def authenticate_header(self, request):
         return self.keyword
+
+
+# ---------------------------------------------------------------------------
+# Human sessions
+# ---------------------------------------------------------------------------
+
+#: Prefix distinguishing a person's session token from a machine's API key, so
+#: the two authentication classes never have to guess which they are holding.
+USER_TOKEN_PREFIX = "ivrt_"  # noqa: S105 - a prefix, not a secret
+
+#: Session lifetime. Short enough that a token copied off a shared screen stops
+#: working the same day, long enough not to interrupt a shift.
+USER_TOKEN_MAX_AGE = 12 * 60 * 60
+
+
+def issue_user_token(user) -> str:
+    """
+    Mint a signed session token for a human.
+
+    Signed rather than stored: there is no row to look up, so a token cannot be
+    left valid by a failed delete, and no table grows with every login. The
+    password hash is folded into the payload, which means changing or resetting
+    somebody's credential invalidates every token they hold — the property that
+    makes "remove their access" actually remove it.
+    """
+    from django.core.signing import TimestampSigner
+
+    signer = TimestampSigner(salt="ivr.user-token")
+    fingerprint = hashlib.sha256(user.password.encode()).hexdigest()[:16]
+    return USER_TOKEN_PREFIX + signer.sign(f"{user.pk}:{fingerprint}")
+
+
+class UserTokenAuthentication(authentication.BaseAuthentication):
+    """
+    Authenticates a person holding a token from `issue_user_token`.
+
+    Sits alongside APIKeyAuthentication rather than replacing it: machines keep
+    using long-lived keys, people get a session that expires.
+    """
+
+    keyword = "Bearer"
+
+    def authenticate(self, request):
+        from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
+
+        header = authentication.get_authorization_header(request).split()
+        if not header or header[0].lower() != self.keyword.lower().encode():
+            return None
+        if len(header) != 2:
+            return None
+
+        raw = header[1].decode()
+        if not raw.startswith(USER_TOKEN_PREFIX):
+            # An API key. Let APIKeyAuthentication have it.
+            return None
+
+        signer = TimestampSigner(salt="ivr.user-token")
+        try:
+            payload = signer.unsign(
+                raw[len(USER_TOKEN_PREFIX):], max_age=USER_TOKEN_MAX_AGE
+            )
+        except SignatureExpired:
+            raise exceptions.AuthenticationFailed("Session expired.") from None
+        except BadSignature:
+            raise exceptions.AuthenticationFailed("Invalid session.") from None
+
+        user_id, _, fingerprint = payload.partition(":")
+        from apps.accounts.models import User
+
+        try:
+            user = User.objects.select_related("organization").get(pk=user_id)
+        except (User.DoesNotExist, ValueError, ValidationError):
+            raise exceptions.AuthenticationFailed("Invalid session.") from None
+
+        if not user.is_active:
+            raise exceptions.AuthenticationFailed("This account is disabled.")
+        if hashlib.sha256(user.password.encode()).hexdigest()[:16] != fingerprint:
+            # The credential changed after this token was issued.
+            raise exceptions.AuthenticationFailed("Session no longer valid.")
+
+        # A platform administrator has no organisation; everyone else is scoped
+        # to theirs, exactly as an API key would be.
+        request.organization = user.organization
+        request.api_key = None
+        User.objects.filter(pk=user.pk).update(last_seen_at=timezone.now())
+        return user, None
