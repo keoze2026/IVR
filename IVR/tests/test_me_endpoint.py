@@ -122,3 +122,103 @@ class TestTenantIsolation:
         Organization.objects.create(name="Other", slug="other-me")
         body = client_for(org, Role.OWNER).get("/api/v1/me/").json()
         assert body["organization"]["slug"] == "acme-me"
+
+
+class TestAccessKeyIssuing:
+    """
+    /api/v1/api-keys/ — how a non-technical administrator grants access.
+
+    The secret is the whole point of the create response and must never appear
+    anywhere else, because only its hash is stored and a second chance to read
+    it does not exist.
+    """
+
+    def test_the_secret_is_returned_once_on_create(self, org):
+        from apps.accounts.models import Role
+
+        response = client_for(org, Role.OWNER).post(
+            "/api/v1/api-keys/", {"name": "Jane", "role": "operator"}, format="json"
+        )
+        assert response.status_code == 201, response.data
+        assert response.data["secret"].startswith("ivrk_")
+        assert len(response.data["secret"]) > 30
+
+    def test_the_secret_never_appears_again(self, org):
+        """Only the hash is stored, so a list that leaked it would be
+        reconstructing something the server deliberately cannot reproduce."""
+        from apps.accounts.models import Role
+
+        api = client_for(org, Role.OWNER)
+        created = api.post(
+            "/api/v1/api-keys/", {"name": "Jane", "role": "operator"}, format="json"
+        )
+        secret = created.data["secret"]
+
+        listing = api.get("/api/v1/api-keys/")
+        assert secret not in listing.content.decode()
+        for row in listing.data["results"]:
+            assert "secret" not in row
+            assert "key_hash" not in row
+
+    def test_a_created_key_can_immediately_sign_in(self, org):
+        from apps.accounts.models import Role
+
+        secret = client_for(org, Role.OWNER).post(
+            "/api/v1/api-keys/", {"name": "Jane", "role": "operator"}, format="json"
+        ).data["secret"]
+
+        from rest_framework.test import APIClient
+
+        jane = APIClient()
+        jane.credentials(HTTP_AUTHORIZATION=f"Bearer {secret}")
+        me = jane.get("/api/v1/me/")
+        assert me.status_code == 200
+        assert me.data["role"] == "operator"
+
+    def test_revoking_stops_the_key_working(self, org):
+        from apps.accounts.models import Role
+
+        api = client_for(org, Role.OWNER)
+        created = api.post(
+            "/api/v1/api-keys/", {"name": "Jane", "role": "operator"}, format="json"
+        )
+        secret, key_id = created.data["secret"], created.data["id"]
+
+        from rest_framework.test import APIClient
+
+        jane = APIClient()
+        jane.credentials(HTTP_AUTHORIZATION=f"Bearer {secret}")
+        assert jane.get("/api/v1/me/").status_code == 200
+
+        assert api.post(f"/api/v1/api-keys/{key_id}/revoke/").status_code == 200
+        assert jane.get("/api/v1/me/").status_code in (401, 403)
+
+    def test_revoking_keeps_the_row_for_the_audit_trail(self, org):
+        """Deleting would take the audit trail's referent with it — 'which key
+        did this?' would stop having an answer."""
+        from apps.accounts.models import APIKey, Role
+
+        api = client_for(org, Role.OWNER)
+        key_id = api.post(
+            "/api/v1/api-keys/", {"name": "Jane", "role": "operator"}, format="json"
+        ).data["id"]
+        api.post(f"/api/v1/api-keys/{key_id}/revoke/")
+        assert APIKey.objects.filter(pk=key_id).exists()
+
+    def test_an_operator_cannot_issue_keys_at_all(self, org):
+        """Issuing access is an ownership action; an operator who could mint
+        keys could escalate themselves with no audit signal."""
+        response = client_for(org, "operator").post(
+            "/api/v1/api-keys/", {"name": "Self", "role": "owner"}, format="json"
+        )
+        assert response.status_code == 403
+
+    def test_keys_from_another_organisation_are_invisible(self, org, db):
+        from apps.accounts.models import APIKey, Organization, Role
+
+        other = Organization.objects.create(name="Other", slug="other-keys")
+        APIKey.generate(other, "theirs", role=Role.OWNER)
+
+        listing = client_for(org, Role.OWNER).get("/api/v1/api-keys/")
+        names = [r["name"] for r in listing.data["results"]]
+        assert "theirs" not in names

@@ -17,7 +17,7 @@ predictable for the frontend:
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from apps.accounts.views import MeView
+from apps.accounts.views import APIKeyViewSet, MeView
 from apps.campaigns.views import CallerIDViewSet, CampaignViewSet
 from apps.compliance.views import (
     CallingWindowViewSet,
@@ -39,6 +39,7 @@ router.register("calls", CallLogViewSet, basename="call")
 router.register("dnc", DNCEntryViewSet, basename="dnc")
 router.register("consent", ConsentRecordViewSet, basename="consent")
 router.register("calling-windows", CallingWindowViewSet, basename="calling-window")
+router.register("api-keys", APIKeyViewSet, basename="api-key")
 
 urlpatterns = [
     # Not a viewset: there is no collection here, only the caller. Registered

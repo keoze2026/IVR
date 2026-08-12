@@ -24,6 +24,7 @@ import { EmptyState } from "@/components/ui";
 import { ApiError } from "@/lib/errors";
 import { SessionProvider, useSession } from "@/lib/session";
 
+import { AccessKeysPage } from "@/features/admin/AccessKeysPage";
 import { CallerIdsPage, SettingsPage } from "@/features/admin/CallerIdsPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { CallDetailPage } from "@/features/calls/CallDetailPage";
@@ -158,6 +159,7 @@ export function App() {
 
               {/* --- admin ----------------------------------------- */}
               <Route path="/caller-ids" element={<CallerIdsPage />} />
+              <Route path="/access-keys" element={<AccessKeysPage />} />
               <Route path="/settings" element={<SettingsPage />} />
 
               <Route

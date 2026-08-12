@@ -35,6 +35,7 @@ import type {
   FlowVersion,
   IngestReport,
   NodeCatalogue,
+  Role,
   SuppressionPreview,
   TransferEndpoint,
   ValidationReport,
@@ -515,3 +516,58 @@ export function useAudioAssets() {
 }
 
 export type { IngestReport };
+
+// --- access keys ------------------------------------------------------
+
+/**
+ * Issuing console access.
+ *
+ * `secret` appears on exactly one response — the create — because only its
+ * hash is stored. Nothing refetches it, so the mutation result is the single
+ * place it exists client-side and the UI must show it before navigating away.
+ */
+export interface AccessKey {
+  id: string;
+  name: string;
+  prefix: string;
+  role: Role;
+  created_at: string;
+  last_used_at: string | null;
+  expires_at: string | null;
+  revoked_at: string | null;
+  is_active: boolean;
+  allowed_cidrs: string[];
+  created_by_name: string;
+}
+
+export interface CreatedAccessKey extends AccessKey {
+  secret: string;
+}
+
+export function useAccessKeys() {
+  return useQuery<PagedResponse<AccessKey>, ApiError>({
+    queryKey: ["api-keys"],
+    queryFn: () => request<PagedResponse<AccessKey>>("api-keys/"),
+  });
+}
+
+export function useCreateAccessKey() {
+  const qc = useQueryClient();
+  return useMutation<
+    CreatedAccessKey,
+    ApiError,
+    { name: string; role: Role; expires_at?: string | null }
+  >({
+    mutationFn: (body) =>
+      request<CreatedAccessKey>("api-keys/", { method: "POST", body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["api-keys"] }),
+  });
+}
+
+export function useRevokeAccessKey() {
+  const qc = useQueryClient();
+  return useMutation<AccessKey, ApiError, string>({
+    mutationFn: (id) => request<AccessKey>(`api-keys/${id}/revoke/`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["api-keys"] }),
+  });
+}
