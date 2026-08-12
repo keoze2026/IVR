@@ -197,6 +197,9 @@ export interface Campaign {
   consent_scope: "marketing" | "informational";
   cps_limit: number;
   max_concurrent_channels: number;
+  dial_mode: "fixed" | "pulse" | "ramp";
+  dial_batch_size: number;
+  dial_interval_seconds: number;
   ring_timeout_seconds: number;
   scheduled_start: string | null;
   scheduled_end: string | null;

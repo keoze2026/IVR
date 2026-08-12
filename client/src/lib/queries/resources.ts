@@ -687,8 +687,12 @@ export type DialMode = "fixed" | "pulse" | "ramp";
 export interface QuickDialBody {
   name?: string;
   target_number: string;
-  caller_id: string;
+  // One of a single caller ID or a CLI pool.
+  caller_id?: string;
+  cli_pool?: string;
+  // One of a single sound, an audio pool, or spoken text.
   audio?: string | null;
+  audio_pool?: string;
   say_text?: string;
   dial_mode: DialMode;
   max_concurrent_channels: number;
@@ -712,5 +716,109 @@ export function useQuickDial() {
   return useMutation<QuickDialResult, ApiError, QuickDialBody>({
     mutationFn: (body) => request<QuickDialResult>("quick-dial/", { method: "POST", body }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["campaigns"] }),
+  });
+}
+
+// --- audio pools & cli pools ------------------------------------------
+
+export interface Pool {
+  id: string;
+  name: string;
+  description: string;
+  rotation: string;
+  members: string[];
+  member_count: number;
+  created_at: string;
+}
+
+function poolHooks(path: string, key: string) {
+  return {
+    useList: () =>
+      useQuery<PagedResponse<Pool>, ApiError>({
+        queryKey: [key],
+        queryFn: () => request<PagedResponse<Pool>>(`${path}/`),
+      }),
+    useCreate: () => {
+      const qc = useQueryClient();
+      return useMutation<Pool, ApiError, Partial<Pool>>({
+        mutationFn: (body) => request<Pool>(`${path}/`, { method: "POST", body }),
+        onSuccess: () => qc.invalidateQueries({ queryKey: [key] }),
+      });
+    },
+    useUpdate: () => {
+      const qc = useQueryClient();
+      return useMutation<Pool, ApiError, { id: string } & Partial<Pool>>({
+        mutationFn: ({ id, ...body }) =>
+          request<Pool>(`${path}/${id}/`, { method: "PATCH", body }),
+        onSuccess: () => qc.invalidateQueries({ queryKey: [key] }),
+      });
+    },
+    useDelete: () => {
+      const qc = useQueryClient();
+      return useMutation<void, ApiError, string>({
+        mutationFn: (id) => request<void>(`${path}/${id}/`, { method: "DELETE" }),
+        onSuccess: () => qc.invalidateQueries({ queryKey: [key] }),
+      });
+    },
+  };
+}
+
+export const audioPools = poolHooks("audio-pools", "audio-pools");
+export const cliPools = poolHooks("cli-pools", "cli-pools");
+
+// --- wallet & tariffs -------------------------------------------------
+
+export interface WalletEntry {
+  id: string;
+  kind: string;
+  amount: string;
+  description: string;
+  created_at: string;
+}
+export interface WalletData {
+  id: string;
+  balance: string;
+  currency: string;
+  low_balance_threshold: string;
+  recent: WalletEntry[];
+}
+
+export function useWallet() {
+  return useQuery<PagedResponse<WalletData>, ApiError>({
+    queryKey: ["wallet"],
+    queryFn: () => request<PagedResponse<WalletData>>("wallet/"),
+  });
+}
+
+export interface Tariff {
+  id: string;
+  name: string;
+  prefix: string;
+  per_minute: string;
+  connect_fee: string;
+  increment_seconds: number;
+  currency: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export function useTariffs() {
+  return useQuery<PagedResponse<Tariff>, ApiError>({
+    queryKey: ["tariffs"],
+    queryFn: () => request<PagedResponse<Tariff>>("tariffs/"),
+  });
+}
+export function useCreateTariff() {
+  const qc = useQueryClient();
+  return useMutation<Tariff, ApiError, Partial<Tariff>>({
+    mutationFn: (body) => request<Tariff>("tariffs/", { method: "POST", body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tariffs"] }),
+  });
+}
+export function useDeleteTariff() {
+  const qc = useQueryClient();
+  return useMutation<void, ApiError, string>({
+    mutationFn: (id) => request<void>(`tariffs/${id}/`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tariffs"] }),
   });
 }

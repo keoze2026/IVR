@@ -29,19 +29,28 @@ import type { Campaign, KpiFrame } from "@/types/domain";
 interface NavEntry {
   to: string;
   label: string;
-  group: "operate" | "govern";
+  group: "general" | "telephony" | "billing" | "govern";
 }
 
 const NAV: NavEntry[] = [
-  { to: "/campaigns", label: "Campaigns", group: "operate" },
-  { to: "/quick-dial", label: "Quick dial", group: "operate" },
-  { to: "/contact-lists", label: "Contacts", group: "operate" },
-  { to: "/flows", label: "Flows", group: "operate" },
-  { to: "/calls", label: "Calls", group: "operate" },
+  // General — what you do daily, in the reference's order.
+  { to: "/dashboard", label: "Dashboard", group: "general" },
+  { to: "/jobs", label: "Jobs", group: "general" },
+  { to: "/cdr", label: "Call records", group: "general" },
+  { to: "/campaigns", label: "Campaigns", group: "general" },
+  { to: "/contact-lists", label: "Contacts", group: "general" },
+  { to: "/flows", label: "Flows", group: "general" },
+  // Telephony — the pools a job dials from.
+  { to: "/audio-pools", label: "Audio pools", group: "telephony" },
+  { to: "/cli-pools", label: "CLI pools", group: "telephony" },
+  { to: "/caller-ids", label: "Caller IDs", group: "telephony" },
+  // Billing.
+  { to: "/wallet", label: "Wallet", group: "billing" },
+  { to: "/tariffs", label: "Tariffs", group: "billing" },
+  // Govern — compliance and access.
   { to: "/compliance/dnc", label: "Suppression", group: "govern" },
   { to: "/compliance/consent", label: "Consent", group: "govern" },
   { to: "/compliance/windows", label: "Calling hours", group: "govern" },
-  { to: "/caller-ids", label: "Caller IDs", group: "govern" },
   { to: "/people", label: "People", group: "govern" },
   { to: "/access-keys", label: "Machine keys", group: "govern" },
 ];
@@ -304,8 +313,20 @@ function Rail({
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-3" aria-label="All sections">
         <NavGroup
-          label="Operate"
-          items={NAV.filter((n) => n.group === "operate")}
+          label="General"
+          items={NAV.filter((n) => n.group === "general")}
+          counts={counts}
+          onNavigate={onNavigate}
+        />
+        <NavGroup
+          label="Telephony"
+          items={NAV.filter((n) => n.group === "telephony")}
+          counts={counts}
+          onNavigate={onNavigate}
+        />
+        <NavGroup
+          label="Billing"
+          items={NAV.filter((n) => n.group === "billing")}
           counts={counts}
           onNavigate={onNavigate}
         />

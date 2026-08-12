@@ -44,6 +44,9 @@ export function NewCampaignPage() {
   const [cps, setCps] = useState("1");
   const [channels, setChannels] = useState("30");
   const [scope, setScope] = useState<"marketing" | "informational">("marketing");
+  const [dialMode, setDialMode] = useState<"fixed" | "pulse" | "ramp">("fixed");
+  const [batchSize, setBatchSize] = useState("5");
+  const [interval, setIntervalSecs] = useState("30");
 
   const flows = useFlows();
   const callerIds = useCallerIds({ is_active: "true" });
@@ -70,6 +73,9 @@ export function NewCampaignPage() {
       contact_lists: lists,
       cps_limit: Number(cps),
       max_concurrent_channels: Number(channels),
+      dial_mode: dialMode,
+      dial_batch_size: Number(batchSize),
+      dial_interval_seconds: Number(interval),
       consent_scope: scope,
       requires_consent: true,
     });
@@ -258,6 +264,62 @@ export function NewCampaignPage() {
         )}
 
         {step === 4 && (
+          <div className="space-y-5">
+            {/* Dial mode — the boss's Fixed / Pulse / Ramp, on the form that
+                actually creates a campaign. */}
+            <div>
+              <span className="mb-1 block text-xs uppercase tracking-wider text-ash">
+                How calls are released
+              </span>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {([
+                  ["fixed", "Fixed", "Dial as fast as the pace allows until every line is busy."],
+                  ["pulse", "Pulse", "A set batch on a steady beat — e.g. 5 calls every 30 seconds."],
+                  ["ramp", "Ramp", "The batch trickles out at random moments inside each interval."],
+                ] as const).map(([value, label, how]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setDialMode(value)}
+                    className={cx(
+                      "rounded border px-3 py-2 text-left text-sm",
+                      dialMode === value
+                        ? "border-signal bg-signal/10 text-chalk"
+                        : "border-edge text-ash hover:text-chalk",
+                    )}
+                  >
+                    <span className="block font-semibold">{label}</span>
+                    <span className="mt-0.5 block text-xs text-ash">{how}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {dialMode !== "fixed" && (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Calls per batch" htmlFor="batch">
+                  <Input
+                    id="batch"
+                    type="number"
+                    min="1"
+                    value={batchSize}
+                    onChange={(e) => setBatchSize(e.target.value)}
+                    className="num"
+                  />
+                </Field>
+                <Field label="Every … seconds" htmlFor="interval">
+                  <Input
+                    id="interval"
+                    type="number"
+                    min="1"
+                    value={interval}
+                    onChange={(e) => setIntervalSecs(e.target.value)}
+                    className="num"
+                  />
+                </Field>
+              </div>
+            )}
+
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
               label="Calls per second"
@@ -300,6 +362,7 @@ export function NewCampaignPage() {
               concurrent channels. If that is above your trunk capacity the
               carrier starts refusing calls.
             </p>
+          </div>
           </div>
         )}
 

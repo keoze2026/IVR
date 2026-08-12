@@ -26,7 +26,10 @@ import { SessionProvider, useSession } from "@/lib/session";
 
 import { AccessKeysPage } from "@/features/admin/AccessKeysPage";
 import { PeoplePage } from "@/features/admin/PeoplePage";
-import { QuickDialPage } from "@/features/campaigns/QuickDialPage";
+import { TariffsPage, WalletPage } from "@/features/billing/BillingPages";
+import { CdrPage, DashboardPage } from "@/features/dashboard/DashboardPage";
+import { JobsPage } from "@/features/jobs/JobsPage";
+import { AudioPoolsPage, CliPoolsPage } from "@/features/telephony/PoolsPage";
 import { AdminLoginPage } from "@/features/platform/AdminLoginPage";
 import {
   AdminCreatePage,
@@ -153,8 +156,14 @@ export function App() {
 
               {/* --- campaigns ------------------------------------- */}
               <Route path="/campaigns" element={<CampaignsPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/jobs" element={<JobsPage />} />
+              <Route path="/cdr" element={<CdrPage />} />
+              <Route path="/audio-pools" element={<AudioPoolsPage />} />
+              <Route path="/cli-pools" element={<CliPoolsPage />} />
+              <Route path="/wallet" element={<WalletPage />} />
+              <Route path="/tariffs" element={<TariffsPage />} />
               <Route path="/campaigns/new" element={<NewCampaignPage />} />
-              <Route path="/quick-dial" element={<QuickDialPage />} />
               <Route path="/campaigns/:id" element={<CampaignDetailLayout />}>
                 <Route index element={<CampaignOverviewRoute />} />
                 <Route path="live" element={<LivePage />} />
