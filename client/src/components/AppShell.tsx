@@ -34,6 +34,7 @@ interface NavEntry {
 
 const NAV: NavEntry[] = [
   { to: "/campaigns", label: "Campaigns", group: "operate" },
+  { to: "/quick-dial", label: "Quick dial", group: "operate" },
   { to: "/contact-lists", label: "Contacts", group: "operate" },
   { to: "/flows", label: "Flows", group: "operate" },
   { to: "/calls", label: "Calls", group: "operate" },

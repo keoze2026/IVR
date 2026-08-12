@@ -26,6 +26,7 @@ import { SessionProvider, useSession } from "@/lib/session";
 
 import { AccessKeysPage } from "@/features/admin/AccessKeysPage";
 import { PeoplePage } from "@/features/admin/PeoplePage";
+import { QuickDialPage } from "@/features/campaigns/QuickDialPage";
 import { AdminLoginPage } from "@/features/platform/AdminLoginPage";
 import {
   AdminCreatePage,
@@ -153,6 +154,7 @@ export function App() {
               {/* --- campaigns ------------------------------------- */}
               <Route path="/campaigns" element={<CampaignsPage />} />
               <Route path="/campaigns/new" element={<NewCampaignPage />} />
+              <Route path="/quick-dial" element={<QuickDialPage />} />
               <Route path="/campaigns/:id" element={<CampaignDetailLayout />}>
                 <Route index element={<CampaignOverviewRoute />} />
                 <Route path="live" element={<LivePage />} />

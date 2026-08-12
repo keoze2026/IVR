@@ -28,13 +28,18 @@ def s3_client():
 
 
 def put_bytes(bucket: str, key: str, data: bytes, content_type: str) -> str:
-    s3_client().put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=data,
-        ContentType=content_type,
-        ServerSideEncryption="AES256",
-    )
+    params = {
+        "Bucket": bucket,
+        "Key": key,
+        "Body": data,
+        "ContentType": content_type,
+    }
+    # AES256 is real S3 server-side encryption; a MinIO instance without an
+    # encryption backend rejects the header outright. Only ask for it where the
+    # store supports it — a local endpoint stands in for exactly that case.
+    if not settings.AWS_S3_ENDPOINT_URL:
+        params["ServerSideEncryption"] = "AES256"
+    s3_client().put_object(**params)
     return key
 
 

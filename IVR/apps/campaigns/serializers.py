@@ -62,6 +62,7 @@ class CampaignSerializer(serializers.ModelSerializer):
             "contact_lists", "provider",
             "requires_consent", "consent_scope",
             "cps_limit", "max_concurrent_channels", "ring_timeout_seconds",
+            "dial_mode", "dial_batch_size", "dial_interval_seconds",
             "scheduled_start", "scheduled_end", "window_start_local",
             "window_end_local", "active_weekdays", "respect_contact_timezone",
             "fallback_timezone",

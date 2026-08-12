@@ -19,7 +19,7 @@ import {
   type CursorResponse,
   type PagedResponse,
 } from "../api";
-import type { ApiError } from "../errors";
+import { ApiError } from "../errors";
 import type {
   AudioAsset,
   CallDetail,
@@ -634,5 +634,83 @@ export function useUpdateEmployee() {
     mutationFn: ({ id, ...body }) =>
       request<Employee>(`employees/${id}/`, { method: "PATCH", body }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["employees"] }),
+  });
+}
+
+// --- audio & quick dial -----------------------------------------------
+
+export interface AudioClip {
+  id: string;
+  name: string;
+  mime_type: string;
+  duration_ms: number;
+  source: string;
+  created_at: string;
+  play_url: string;
+}
+
+export function useAudioClips() {
+  return useQuery<PagedResponse<AudioClip>, ApiError>({
+    queryKey: ["audio"],
+    queryFn: () => request<PagedResponse<AudioClip>>("audio/"),
+  });
+}
+
+/**
+ * Uploads a sound. Multipart, so it does not go through the JSON `request`
+ * helper — the BFF forwards the body untouched either way.
+ */
+export function useUploadAudio() {
+  const qc = useQueryClient();
+  return useMutation<AudioClip, ApiError, { name: string; file: File }>({
+    mutationFn: async ({ name, file }) => {
+      const form = new FormData();
+      form.append("name", name);
+      form.append("file", file);
+      const response = await fetch("/bff/api/audio/", {
+        method: "POST",
+        credentials: "same-origin",
+        body: form,
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new ApiError(response.status, payload?.error ?? null, "Upload failed.");
+      }
+      return (await response.json()) as AudioClip;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["audio"] }),
+  });
+}
+
+export type DialMode = "fixed" | "pulse" | "ramp";
+
+export interface QuickDialBody {
+  name?: string;
+  target_number: string;
+  caller_id: string;
+  audio?: string | null;
+  say_text?: string;
+  dial_mode: DialMode;
+  max_concurrent_channels: number;
+  dial_batch_size: number;
+  dial_interval_seconds: number;
+  cps_limit: number;
+  start_now: boolean;
+}
+
+export interface QuickDialResult {
+  campaign: string;
+  name: string;
+  target: string;
+  status: string;
+  started?: boolean;
+  blocked?: unknown;
+}
+
+export function useQuickDial() {
+  const qc = useQueryClient();
+  return useMutation<QuickDialResult, ApiError, QuickDialBody>({
+    mutationFn: (body) => request<QuickDialResult>("quick-dial/", { method: "POST", body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["campaigns"] }),
   });
 }

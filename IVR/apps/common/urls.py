@@ -28,6 +28,7 @@ from apps.accounts.views import (
     LoginView,
     MeView,
 )
+from apps.campaigns.quickdial import QuickDialView
 from apps.campaigns.views import CallerIDViewSet, CampaignViewSet
 from apps.compliance.views import (
     CallingWindowViewSet,
@@ -35,6 +36,7 @@ from apps.compliance.views import (
     DNCEntryViewSet,
 )
 from apps.contacts.views import ContactListViewSet, ContactViewSet
+from apps.ivr.audio_views import AudioAssetViewSet
 from apps.ivr.views import IVRFlowVersionViewSet, IVRFlowViewSet
 from apps.telephony.views import CallLogViewSet
 
@@ -51,12 +53,14 @@ router.register("consent", ConsentRecordViewSet, basename="consent")
 router.register("calling-windows", CallingWindowViewSet, basename="calling-window")
 router.register("api-keys", APIKeyViewSet, basename="api-key")
 router.register("employees", EmployeeViewSet, basename="employee")
+router.register("audio", AudioAssetViewSet, basename="audio")
 
 urlpatterns = [
     # Not a viewset: there is no collection here, only the caller. Registered
     # before the router so "me" cannot be shadowed by a future detail route.
     path("me/", MeView.as_view(), name="me"),
     path("auth/login/", LoginView.as_view(), name="login"),
+    path("quick-dial/", QuickDialView.as_view(), name="quick-dial"),
 
     # Platform administration. Superuser-only and deliberately not
     # tenant-scoped; see apps/accounts/platform.py.

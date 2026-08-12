@@ -43,6 +43,64 @@ MAX_BATCH = 200
 LOCK_TTL_SECONDS = 5
 
 
+def _dial_mode_allowance(campaign, headroom: int) -> int:
+    """
+    How many calls this dial mode permits this tick, before pacing and headroom.
+
+    The three modes differ only in *when* calls leave, never in the limits:
+    cps_limit and the channel ceiling still bind underneath all of them.
+
+      fixed  no extra metering — fill to the ceiling as fast as the token
+             bucket allows.
+
+      pulse  one batch of `dial_batch_size` at the start of each
+             `dial_interval_seconds` window, then nothing until the next. A
+             NX key with the interval as its TTL is the whole mechanism: the
+             first tick of a window sets it and gets the batch; every later
+             tick in that window finds it set and gets zero.
+
+      ramp   the same batch per window, but released at scattered moments
+             rather than all on the beat. Each tick has a batch/interval chance
+             of letting one call out, and a per-window counter caps the total
+             so a run of lucky ticks cannot exceed the batch.
+    """
+    from apps.common.redis_clients import counters_redis
+
+    mode = getattr(campaign, "dial_mode", "fixed")
+    if mode == "fixed":
+        return headroom
+
+    batch = max(1, int(campaign.dial_batch_size or 1))
+    interval = max(1, int(campaign.dial_interval_seconds or 1))
+    r = counters_redis()
+
+    if mode == "pulse":
+        gate = f"pace:pulse:{campaign.pk}"
+        # set(nx, ex) is atomic: exactly one tick per window wins it.
+        if r.set(gate, 1, nx=True, ex=interval):
+            return batch
+        return 0
+
+    if mode == "ramp":
+        import random
+
+        counter = f"pace:ramp:{campaign.pk}"
+        # Open the window on its first tick and stamp its lifetime once, so the
+        # count resets cleanly when the interval elapses.
+        if r.set(counter, 0, nx=True, ex=interval):
+            pass
+        sent = int(r.get(counter) or 0)
+        if sent >= batch:
+            return 0
+        # Expected `batch` releases spread across `interval` ticks.
+        if random.random() < batch / interval:  # noqa: S311 - jitter, not a secret
+            r.incr(counter)
+            return 1
+        return 0
+
+    return headroom
+
+
 def pace(campaign) -> dict:
     """Run one pacing tick for one campaign. Returns a small report for logs."""
     report = {
@@ -75,12 +133,19 @@ def pace(campaign) -> dict:
         report["reason"] = "no_channel_headroom"
         return report
 
+    # How many the dial mode wants to release this tick. Fixed says "as many as
+    # pacing allows"; pulse and ramp meter the batch out over the interval.
+    mode_cap = _dial_mode_allowance(campaign, headroom)
+    if mode_cap <= 0:
+        report["reason"] = "mode_waiting"
+        return report
+
     cps = campaign.effective_cps()
     # One tick is one second, so the per-tick ceiling is the CPS itself, with a
     # floor of 1 so that sub-1-CPS campaigns still make progress (the bucket
     # will simply grant 0 on most ticks).
     per_tick_cap = max(1, int(cps + 0.999))
-    want = min(headroom, per_tick_cap, MAX_BATCH)
+    want = min(headroom, per_tick_cap, MAX_BATCH, mode_cap)
 
     bucket = TokenBucket(Keys.token_bucket(campaign.pk), cps)
     granted = bucket.take(want)

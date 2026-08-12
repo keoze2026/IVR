@@ -93,6 +93,29 @@ class Campaign(TenantModel):
     )
     ring_timeout_seconds = models.PositiveSmallIntegerField(default=30)
 
+    # --- Dial mode -------------------------------------------------------
+    # How calls are released *towards* the concurrency ceiling. cps_limit is
+    # still the hard safety rail underneath all three: a mode may ask for a
+    # burst, but the token bucket never lets it exceed the configured rate.
+    class DialMode(models.TextChoices):
+        FIXED = "fixed", "Fixed — fill to the ceiling as fast as pacing allows"
+        PULSE = "pulse", "Pulse — a fixed batch on a fixed beat"
+        RAMP = "ramp", "Ramp — a batch per interval, released at random moments"
+
+    dial_mode = models.CharField(
+        max_length=8, choices=DialMode.choices, default=DialMode.FIXED
+    )
+    # Pulse and Ramp share the same two knobs; the difference is only *when*
+    # inside the interval the batch goes out (on the beat vs. scattered).
+    dial_batch_size = models.PositiveIntegerField(
+        default=5,
+        help_text="Calls released per interval, in pulse and ramp modes.",
+    )
+    dial_interval_seconds = models.PositiveIntegerField(
+        default=30,
+        help_text="Seconds between batches, in pulse and ramp modes.",
+    )
+
     # --- Scheduling ------------------------------------------------------
     scheduled_start = models.DateTimeField(null=True, blank=True)
     scheduled_end = models.DateTimeField(null=True, blank=True)
