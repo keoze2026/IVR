@@ -45,6 +45,20 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) =>
     setF((p) => ({ ...p, [k]: v }));
 
+  // Keys the caller can press. Off by default — a plain broadcast just plays.
+  const [dtmfOn, setDtmfOn] = useState(false);
+  const [steps, setSteps] = useState<{ digit: string; action: string }[]>([
+    { digit: "1", action: "confirm" },
+  ]);
+
+  // Schedule. Off by default — a job runs as soon as it is started.
+  const [scheduleOn, setScheduleOn] = useState(false);
+  const [sched, setSched] = useState({
+    schedule_start: "",
+    window_start: "09:00",
+    window_end: "17:00",
+  });
+
   async function submit(startNow: boolean) {
     const cli = f.cli_source.startsWith("pool:")
       ? { cli_pool: f.cli_source.slice(5) }
@@ -54,11 +68,32 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
         ? { say_text: f.say_text }
         : { audio_pool: f.audio_source.slice(5) };
 
+    const dtmf = dtmfOn
+      ? {
+          dtmf_steps: steps
+            .filter((s) => s.digit.trim())
+            .map((s, i) => ({ order: i + 1, digit: s.digit.trim(), action: s.action })),
+        }
+      : {};
+    const schedule = scheduleOn
+      ? {
+          // datetime-local has no zone; treat it as the browser's local time
+          // and send an absolute instant so the server does not guess.
+          schedule_start: sched.schedule_start
+            ? new Date(sched.schedule_start).toISOString()
+            : undefined,
+          window_start: sched.window_start || undefined,
+          window_end: sched.window_end || undefined,
+        }
+      : {};
+
     await quickDial.mutateAsync({
       name: f.name.trim() || undefined,
       target_number: f.target_number.trim(),
       ...cli,
       ...audio,
+      ...dtmf,
+      ...schedule,
       dial_mode: f.dial_mode,
       max_concurrent_channels: f.max_concurrent_channels,
       dial_batch_size: f.dial_batch_size,
@@ -229,6 +264,107 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
               {f.dial_mode === "ramp" &&
                 `Release ${f.dial_batch_size} calls per ${f.dial_interval_seconds}s, at random moments.`}
             </p>
+          </div>
+
+          {/* DTMF steps */}
+          <div className="border-t border-steel pt-4">
+            <label className="flex items-center gap-2 text-sm text-chalk">
+              <input
+                type="checkbox"
+                checked={dtmfOn}
+                onChange={(e) => setDtmfOn(e.target.checked)}
+                className="accent-live-bright"
+              />
+              Let the caller press a key
+            </label>
+            {dtmfOn && (
+              <div className="mt-3 space-y-2">
+                {steps.map((s, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="w-6 text-xs text-ash">{i + 1}</span>
+                    <input
+                      value={s.digit}
+                      maxLength={1}
+                      onChange={(e) =>
+                        setSteps(steps.map((x, j) => (j === i ? { ...x, digit: e.target.value } : x)))
+                      }
+                      placeholder="1"
+                      className={`${input} w-16 text-center font-mono`}
+                    />
+                    <select
+                      value={s.action}
+                      onChange={(e) =>
+                        setSteps(steps.map((x, j) => (j === i ? { ...x, action: e.target.value } : x)))
+                      }
+                      className={input}
+                    >
+                      <option value="confirm">Confirm / count them in</option>
+                      <option value="opt_out">Opt out — stop calling them</option>
+                      <option value="repeat">Repeat the message</option>
+                      <option value="hangup">Hang up</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setSteps(steps.filter((_, j) => j !== i))}
+                      className="text-rust"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setSteps([...steps, { digit: "", action: "confirm" }])}
+                >
+                  + Add key
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Schedule */}
+          <div className="border-t border-steel pt-4">
+            <label className="flex items-center gap-2 text-sm text-chalk">
+              <input
+                type="checkbox"
+                checked={scheduleOn}
+                onChange={(e) => setScheduleOn(e.target.checked)}
+                className="accent-live-bright"
+              />
+              Schedule it for later
+            </label>
+            {scheduleOn && (
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <span className="mb-1 block text-xs text-ash">Start date &amp; time</span>
+                  <input
+                    type="datetime-local"
+                    value={sched.schedule_start}
+                    onChange={(e) => setSched({ ...sched, schedule_start: e.target.value })}
+                    className={input}
+                  />
+                </div>
+                <div>
+                  <span className="mb-1 block text-xs text-ash">Calling from</span>
+                  <input
+                    type="time"
+                    value={sched.window_start}
+                    onChange={(e) => setSched({ ...sched, window_start: e.target.value })}
+                    className={input}
+                  />
+                </div>
+                <div>
+                  <span className="mb-1 block text-xs text-ash">Calling until</span>
+                  <input
+                    type="time"
+                    value={sched.window_end}
+                    onChange={(e) => setSched({ ...sched, window_end: e.target.value })}
+                    className={input}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {quickDial.error && (

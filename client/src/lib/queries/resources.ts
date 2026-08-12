@@ -699,6 +699,12 @@ export interface QuickDialBody {
   dial_batch_size: number;
   dial_interval_seconds: number;
   cps_limit: number;
+  // Keys the caller can press, and what each does.
+  dtmf_steps?: { order: number; digit: string; action: string }[];
+  // When the job may run.
+  schedule_start?: string;
+  window_start?: string;
+  window_end?: string;
   start_now: boolean;
 }
 

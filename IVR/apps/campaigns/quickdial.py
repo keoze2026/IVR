@@ -14,6 +14,8 @@ operator would otherwise have to do by hand.
 
 from __future__ import annotations
 
+import datetime as dt
+
 from django.db import transaction
 from rest_framework import serializers, status
 from rest_framework.response import Response
@@ -25,6 +27,81 @@ from apps.common.utils import phone_hash
 from apps.contacts.ingest import RowError, normalise_phone
 from apps.contacts.models import Contact, ContactList
 from apps.ivr.models import AudioAsset, IVRFlow, IVRFlowVersion
+
+#: What a pressed key can do in a quick-dial job. Kept small on purpose: a
+#: single-number job is a broadcast, and the useful presses are "yes, connect
+#: me / count me in" and "stop calling me". Transfer needs a configured
+#: endpoint, so it is offered only when one is named on the step.
+_DTMF_ACTIONS = {"confirm", "opt_out", "repeat", "hangup"}
+
+
+def _build_definition(prompt: dict, dtmf_steps: list) -> dict:
+    """
+    A play-then-hangup flow, or play-then-listen when there are DTMF steps.
+
+    Each step is a digit the caller can press and what it does. Without steps
+    the sound simply plays and the call ends — the plain broadcast.
+    """
+    if not dtmf_steps:
+        return {
+            "schema_version": "1.0",
+            "entry": "play",
+            "default_locale": "en",
+            "locales": ["en"],
+            "nodes": {
+                "play": {"type": "play", "prompt": prompt, "next": "done"},
+                "done": {"type": "hangup",
+                         "prompt": {"kind": "say", "text": "Goodbye."}},
+            },
+        }
+
+    options: dict[str, str] = {}
+    nodes: dict[str, dict] = {
+        # The sound is the menu prompt: it plays, then the call waits for a key.
+        "menu": {
+            "type": "menu",
+            "prompt": prompt,
+            "options": options,
+            "timeout_seconds": 6,
+            "max_attempts": 2,
+            "on_timeout": "done",
+            "on_invalid": "done",
+        },
+        "confirm": {"type": "play",
+                    "prompt": {"kind": "say", "text": "Thank you. Goodbye."},
+                    "next": "done", "disposition": "confirmed"},
+        "optout": {"type": "opt_out",
+                   "prompt": {"kind": "say",
+                              "text": "You have been removed. Goodbye."},
+                   "scope": "organization"},
+        "done": {"type": "hangup", "prompt": {"kind": "say", "text": "Goodbye."}},
+    }
+
+    for step in dtmf_steps:
+        digit = str(step.get("digit", "")).strip()
+        if digit not in "0123456789*#" or len(digit) != 1:
+            continue
+        action = str(step.get("action", "confirm")).strip()
+        if action not in _DTMF_ACTIONS:
+            action = "confirm"
+        options[digit] = {
+            "confirm": "confirm",
+            "opt_out": "optout",
+            "repeat": "menu",
+            "hangup": "done",
+        }[action]
+
+    if not options:
+        # Steps were supplied but none was usable; fall back to plain playback
+        # rather than a menu that accepts nothing.
+        return _build_definition(prompt, [])
+    return {
+        "schema_version": "1.0",
+        "entry": "menu",
+        "default_locale": "en",
+        "locales": ["en"],
+        "nodes": nodes,
+    }
 
 
 def _bad(message: str) -> Response:
@@ -60,6 +137,20 @@ class QuickDialSerializer(serializers.Serializer):
         min_value=1, max_value=3600, default=30
     )
     cps_limit = serializers.FloatField(min_value=0.1, max_value=100, default=5.0)
+
+    # DTMF steps: keys the caller can press after the sound plays. Each is a
+    # digit plus what happens — transfer the call, or hang up. The reference's
+    # "Order / Digit / Delay" maps here; delay is advisory and not enforced
+    # per-step, so it is accepted but not required.
+    dtmf_steps = serializers.ListField(
+        child=serializers.DictField(), required=False, default=list,
+    )
+
+    # Schedule: when the job may run. Absent means "now, within the wide
+    # window". Present pins a start and a daily calling window.
+    schedule_start = serializers.DateTimeField(required=False, allow_null=True)
+    window_start = serializers.TimeField(required=False, allow_null=True)
+    window_end = serializers.TimeField(required=False, allow_null=True)
 
     start_now = serializers.BooleanField(default=False)
 
@@ -128,17 +219,7 @@ class QuickDialView(APIView):
             flow = IVRFlow.objects.create(
                 organization=org, name=f"{name} — sound", description="Quick dial"
             )
-            definition = {
-                "schema_version": "1.0",
-                "entry": "play",
-                "default_locale": "en",
-                "locales": ["en"],
-                "nodes": {
-                    "play": {"type": "play", "prompt": prompt, "next": "done"},
-                    "done": {"type": "hangup",
-                             "prompt": {"kind": "say", "text": "Goodbye."}},
-                },
-            }
+            definition = _build_definition(prompt, data.get("dtmf_steps") or [])
             version = IVRFlowVersion.objects.create(
                 organization=org, flow=flow, version=1, definition=definition,
                 entry_node="play", is_published=True,
@@ -153,6 +234,12 @@ class QuickDialView(APIView):
                 phone_hash=phone_hash(e164), country_code="1", timezone="UTC",
             )
 
+            # Schedule: pin a start time and a daily window when given, else a
+            # wide window so a one-number test is not deferred to tomorrow by a
+            # default 09:00–17:00.
+            win_start = data.get("window_start") or dt.time(8, 0)
+            win_end = data.get("window_end") or dt.time(21, 0)
+
             campaign = Campaign.objects.create(
                 organization=org, name=name, flow_version=version, caller_id=caller,
                 provider=caller.provider or "twilio",
@@ -165,10 +252,9 @@ class QuickDialView(APIView):
                 dial_batch_size=data["dial_batch_size"],
                 dial_interval_seconds=data["dial_interval_seconds"],
                 cps_limit=data["cps_limit"],
-                # Wide window: a one-number test should not be silently deferred
-                # to tomorrow because of a default 09:00–17:00.
-                window_start_local="08:00",
-                window_end_local="21:00",
+                scheduled_start=data.get("schedule_start"),
+                window_start_local=win_start,
+                window_end_local=win_end,
                 respect_contact_timezone=False,
                 fallback_timezone="UTC",
                 max_attempts=1,
