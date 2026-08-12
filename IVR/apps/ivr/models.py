@@ -131,3 +131,33 @@ class TransferEndpoint(TenantModel):
 
     def __str__(self):
         return f"{self.name} ({self.kind})"
+
+
+class AudioPool(TenantModel):
+    """
+    A named set of sounds a job plays from, rotated across calls.
+
+    "WOW", "SIREN" in the reference. A pool lets a job vary what different
+    callees hear without re-authoring anything: the dispatcher picks a member
+    per call. A pool with one member behaves exactly like a single sound.
+    """
+
+    name = models.CharField(max_length=120)
+    description = models.CharField(max_length=255, blank=True)
+    # How a member is chosen per call.
+    class Rotation(models.TextChoices):
+        RANDOM = "random", "Random — a member at random each call"
+        SEQUENTIAL = "sequential", "In order — cycle through the members"
+
+    rotation = models.CharField(
+        max_length=12, choices=Rotation.choices, default=Rotation.RANDOM
+    )
+    members = models.ManyToManyField(
+        "ivr.AudioAsset", related_name="pools", blank=True
+    )
+
+    class Meta:
+        indexes = [models.Index(fields=["organization", "name"])]
+
+    def __str__(self):
+        return self.name

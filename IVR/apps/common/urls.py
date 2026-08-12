@@ -28,6 +28,12 @@ from apps.accounts.views import (
     LoginView,
     MeView,
 )
+from apps.campaigns.pool_views import (
+    AudioPoolViewSet,
+    CLIPoolViewSet,
+    TariffViewSet,
+    WalletViewSet,
+)
 from apps.campaigns.quickdial import QuickDialView
 from apps.campaigns.views import CallerIDViewSet, CampaignViewSet
 from apps.compliance.views import (
@@ -54,6 +60,10 @@ router.register("calling-windows", CallingWindowViewSet, basename="calling-windo
 router.register("api-keys", APIKeyViewSet, basename="api-key")
 router.register("employees", EmployeeViewSet, basename="employee")
 router.register("audio", AudioAssetViewSet, basename="audio")
+router.register("audio-pools", AudioPoolViewSet, basename="audio-pool")
+router.register("cli-pools", CLIPoolViewSet, basename="cli-pool")
+router.register("wallet", WalletViewSet, basename="wallet")
+router.register("tariffs", TariffViewSet, basename="tariff")
 
 urlpatterns = [
     # Not a viewset: there is no collection here, only the caller. Registered

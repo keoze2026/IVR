@@ -37,8 +37,12 @@ def _bad(message: str) -> Response:
 class QuickDialSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=120, required=False, allow_blank=True)
     target_number = serializers.CharField(max_length=32)
-    caller_id = serializers.UUIDField()
+    # A single caller ID, or a CLI pool to rotate across. One is required.
+    caller_id = serializers.UUIDField(required=False, allow_null=True)
+    cli_pool = serializers.UUIDField(required=False, allow_null=True)
+    # A single sound, an audio pool to rotate across, or spoken text.
     audio = serializers.UUIDField(required=False, allow_null=True)
+    audio_pool = serializers.UUIDField(required=False, allow_null=True)
     # Falls back to a spoken line when no recording is chosen, so a job can be
     # placed before anyone has uploaded a sound.
     say_text = serializers.CharField(required=False, allow_blank=True)
@@ -66,6 +70,20 @@ class QuickDialView(APIView):
     permission_classes = [IsOrganizationMember, HasCapability]
     required_capabilities = {"default": "campaign.edit", "post": "campaign.edit"}
 
+    @staticmethod
+    def _resolve_caller(org, data):
+        """A single caller ID, or the least-used member of a CLI pool."""
+        if data.get("caller_id"):
+            return CallerID.objects.filter(pk=data["caller_id"], organization=org).first()
+        if data.get("cli_pool"):
+            from apps.campaigns.models import CLIPool
+
+            pool = CLIPool.objects.filter(pk=data["cli_pool"], organization=org).first()
+            if pool:
+                # least-used-today spreads volume, which is the point of a pool.
+                return pool.members.order_by("calls_today", "?").first()
+        return None
+
     def post(self, request):
         body = QuickDialSerializer(data=request.data)
         body.is_valid(raise_exception=True)
@@ -79,18 +97,24 @@ class QuickDialView(APIView):
         except RowError as exc:
             return _bad(f"That number is not valid: {exc}")
 
-        try:
-            caller = CallerID.objects.get(pk=data["caller_id"], organization=org)
-        except CallerID.DoesNotExist:
-            return _bad("Choose a caller ID that exists.")
+        # Caller ID: a single number, or one drawn from a pool.
+        caller = self._resolve_caller(org, data)
+        if caller is None:
+            return _bad("Choose a caller ID or a CLI pool with at least one number.")
 
-        # What the caller hears: an uploaded recording if one was chosen, else a
-        # spoken line. Either way it is a single play-then-hang-up flow.
+        # What the caller hears: an uploaded sound (direct or from a pool), or
+        # spoken text. Either way it is a single play-then-hang-up flow.
+        from apps.ivr.models import AudioPool
+
+        asset = None
         if data.get("audio"):
-            try:
-                asset = AudioAsset.objects.get(pk=data["audio"], organization=org)
-            except AudioAsset.DoesNotExist:
-                return _bad("That sound was not found.")
+            asset = AudioAsset.objects.filter(pk=data["audio"], organization=org).first()
+        elif data.get("audio_pool"):
+            pool = AudioPool.objects.filter(pk=data["audio_pool"], organization=org).first()
+            if pool:
+                asset = pool.members.order_by("?").first()
+
+        if asset is not None:
             prompt = {"kind": "audio", "asset": str(asset.pk)}
         else:
             text = (data.get("say_text") or "").strip()

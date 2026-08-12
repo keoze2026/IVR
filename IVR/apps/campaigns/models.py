@@ -280,3 +280,112 @@ class CampaignStats(TenantModel):
     @property
     def human_answer_rate(self) -> float:
         return (self.human / self.dialed) if self.dialed else 0.0
+
+
+class CLIPool(TenantModel):
+    """
+    A named set of caller IDs a job dials from, rotated across calls.
+
+    "global-cli-pool" in the reference. Rotating the outbound number spreads
+    call volume so no single number gets labelled as spam for over-use — the
+    reason the reference has pools rather than one number per job. Each caller
+    ID already carries its own daily cap; the pool is what makes rotation a
+    property of the job rather than something an operator does by hand.
+    """
+
+    name = models.CharField(max_length=120)
+    description = models.CharField(max_length=255, blank=True)
+
+    class Rotation(models.TextChoices):
+        RANDOM = "random", "Random — a number at random each call"
+        SEQUENTIAL = "sequential", "In order — cycle through the numbers"
+        LEAST_USED = "least_used", "Spread — the number used least today"
+
+    rotation = models.CharField(
+        max_length=12, choices=Rotation.choices, default=Rotation.LEAST_USED
+    )
+    members = models.ManyToManyField(
+        "campaigns.CallerID", related_name="pools", blank=True
+    )
+
+    class Meta:
+        indexes = [models.Index(fields=["organization", "name"])]
+
+    def __str__(self):
+        return self.name
+
+
+class Wallet(TenantModel):
+    """
+    The organisation's calling credit.
+
+    One per organisation. Calls draw down against it as they complete and their
+    cost is reconciled; a job will not start dialing when the balance is
+    exhausted, which is the reference's $95.25 in the header made enforceable.
+    """
+
+    balance = models.DecimalField(max_digits=12, decimal_places=4, default=0)
+    currency = models.CharField(max_length=3, default="USD")
+    low_balance_threshold = models.DecimalField(
+        max_digits=12, decimal_places=2, default=0
+    )
+
+    def __str__(self):
+        return f"{self.currency} {self.balance}"
+
+
+class WalletEntry(TenantModel):
+    """
+    One movement on the wallet — a top-up or a call's cost.
+
+    Kept as an append-only ledger rather than only a running balance, because
+    "why is my balance what it is" needs an answer and a single mutable number
+    cannot give one.
+    """
+
+    class Kind(models.TextChoices):
+        TOPUP = "topup", "Top-up"
+        CHARGE = "charge", "Call charge"
+        ADJUSTMENT = "adjustment", "Manual adjustment"
+
+    wallet = models.ForeignKey(Wallet, on_delete=models.CASCADE, related_name="entries")
+    kind = models.CharField(max_length=12, choices=Kind.choices)
+    # Positive adds credit, negative spends it. Signed so the ledger sums to the
+    # balance with no special-casing per kind.
+    amount = models.DecimalField(max_digits=12, decimal_places=4)
+    description = models.CharField(max_length=255, blank=True)
+    call = models.ForeignKey(
+        "telephony.CallLog", null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="wallet_entries",
+    )
+
+    class Meta:
+        indexes = [models.Index(fields=["organization", "-created_at"])]
+
+
+class Tariff(TenantModel):
+    """
+    Per-minute price for calls to a destination prefix.
+
+    The longest matching prefix wins, so "+2547" (a Kenyan mobile range) can
+    price differently from "+254" (Kenya) which prices differently from "+2"
+    (a fallback). A call with no matching tariff is not billed, and that is
+    logged rather than silently free.
+    """
+
+    name = models.CharField(max_length=120)
+    # Matched against the destination's leading digits; longest match wins.
+    prefix = models.CharField(max_length=12, help_text="e.g. +2547 or +1")
+    per_minute = models.DecimalField(max_digits=10, decimal_places=4)
+    # Most carriers bill the first minute whole then per-second; expose both.
+    connect_fee = models.DecimalField(max_digits=10, decimal_places=4, default=0)
+    increment_seconds = models.PositiveIntegerField(default=60)
+    currency = models.CharField(max_length=3, default="USD")
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["organization", "prefix"])]
+        ordering = ["-prefix"]  # longest/most-specific first by string length proxy
+
+    def __str__(self):
+        return f"{self.name} ({self.prefix})"
