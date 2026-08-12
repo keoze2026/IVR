@@ -19,6 +19,8 @@ interface SessionValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   signIn: (apiKey: string) => Promise<void>;
+  /** Employee sign-in: their name and the short code they were issued. */
+  signInWithCode: (username: string, code: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -69,6 +71,28 @@ export function SessionProvider({ children }: { children: ReactNode }) {
        */
       signIn: async (apiKey: string) => {
         await postLogin(apiKey);
+        queryClient.clear();
+        await queryClient.fetchQuery({
+          queryKey: SESSION_KEY,
+          queryFn: fetchMe,
+        });
+      },
+
+      signInWithCode: async (username: string, code: string) => {
+        const response = await fetch("/bff/staff-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ username, code }),
+        });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => null);
+          throw new ApiError(
+            response.status,
+            payload?.error ?? null,
+            "Sign in failed.",
+          );
+        }
         queryClient.clear();
         await queryClient.fetchQuery({
           queryKey: SESSION_KEY,

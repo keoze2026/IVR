@@ -215,6 +215,22 @@ class APIKeyViewSet(TenantViewSetMixin, AuditedActionMixin, viewsets.ModelViewSe
         return Response(self.get_serializer(key).data)
 
 
+#: Failed sign-ins tolerated before an account is frozen. Five characters is
+#: only safe behind a counter like this.
+LOGIN_MAX_ATTEMPTS = 6
+
+#: The per-address limit is deliberately far looser than the per-account one.
+#:
+#: A whole office arrives from one address, and behind the portal every sign-in
+#: reaches this endpoint from the same place. A tight limit here would let one
+#: person fumbling their code lock out everybody sitting next to them — a
+#: denial of service anyone could trigger by accident. The account limit is the
+#: real protection; this one exists only to make a spray across many usernames
+#: expensive.
+LOGIN_MAX_ATTEMPTS_PER_ADDRESS = 60
+LOGIN_LOCKOUT_SECONDS = 15 * 60
+
+
 class LoginView(APIView):
     """
     `POST /api/v1/auth/login/` — username and password, for a person.
@@ -247,9 +263,50 @@ class LoginView(APIView):
         if not username or not password:
             return refused
 
+        # Rate limit before authenticating, not after.
+        #
+        # An employee access code is five characters, which is short enough to
+        # guess offline in seconds and therefore only safe behind a counter.
+        # Keyed on the username so one account being attacked cannot lock the
+        # rest of the office out, and on the source address so a spray across
+        # many usernames is caught too.
+        from django.core.cache import cache
+
+        source = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
+        source = source or request.META.get("REMOTE_ADDR", "")
+        buckets = [
+            (f"login-fail:user:{username.lower()}", LOGIN_MAX_ATTEMPTS),
+            (f"login-fail:ip:{source}", LOGIN_MAX_ATTEMPTS_PER_ADDRESS),
+        ]
+        if any((cache.get(name) or 0) >= limit for name, limit in buckets):
+            return Response(
+                {"error": {
+                    "code": "too_many_attempts",
+                    "message": (
+                        "Too many failed attempts. Wait 15 minutes, or ask an "
+                        "administrator to issue a new code."
+                    ),
+                }},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
         user = authenticate(request, username=username, password=password)
         if user is None or not user.is_active:
+            for name, _limit in buckets:
+                # add() then incr() so the window starts at the first failure
+                # and is not extended by later ones — a fixed cooling-off
+                # period rather than one an attacker can keep pushing back.
+                if cache.add(name, 1, LOGIN_LOCKOUT_SECONDS) is False:
+                    try:
+                        cache.incr(name)
+                    except ValueError:
+                        cache.set(name, 1, LOGIN_LOCKOUT_SECONDS)
             return refused
+
+        # Only the account's own counter is cleared. Leaving the address
+        # counter alone means an attacker cannot reset it by signing in
+        # successfully as themselves between attempts.
+        cache.delete(buckets[0][0])
 
         return Response(
             {
@@ -266,3 +323,117 @@ class LoginView(APIView):
                 },
             }
         )
+
+
+# ---------------------------------------------------------------------------
+# Employee accounts
+# ---------------------------------------------------------------------------
+
+#: Characters an access code is drawn from.
+#:
+#: No 0/O, 1/I/L, 5/S, 8/B. Codes get read aloud down a phone and copied off a
+#: screen by hand, and every one of those pairs is a support call waiting to
+#: happen. Losing eight symbols costs about a bit of entropy; the code is not
+#: the only credential, so that is the right trade.
+CODE_ALPHABET = "ACDEFGHJKMNPQRTUVWXY2346799"
+CODE_LENGTH = 5
+
+
+def generate_access_code() -> str:
+    import secrets
+
+    return "".join(secrets.choice(CODE_ALPHABET) for _ in range(CODE_LENGTH))
+
+
+class EmployeeSerializer(serializers.ModelSerializer):
+    """A person who signs in to the campaigns portal."""
+
+    full_name = serializers.SerializerMethodField()
+    has_code = serializers.SerializerMethodField()
+
+    class Meta:
+        from apps.accounts.models import User
+
+        model = User
+        fields = [
+            "id", "username", "first_name", "last_name", "email", "role",
+            "organization", "is_active", "last_seen_at", "full_name", "has_code",
+        ]
+        read_only_fields = ["id", "last_seen_at", "full_name", "has_code"]
+
+    def get_full_name(self, obj) -> str:
+        return f"{obj.first_name} {obj.last_name}".strip() or obj.username
+
+    def get_has_code(self, obj) -> bool:
+        return bool(obj.password)
+
+
+class EmployeeViewSet(TenantViewSetMixin, AuditedActionMixin, viewsets.ModelViewSet):
+    """
+    /api/v1/employees/ — the people in this organisation who can sign in.
+
+    An access code is issued once, when the account is created, and shown once.
+    Only its hash is kept, so "show me their code again" has no answer — the
+    only remedy for a lost code is issuing a new one, which is deliberate: a
+    code that can be looked up later is a code that can be looked up by the
+    wrong person.
+    """
+
+    serializer_class = EmployeeSerializer
+    permission_classes = [IsOrganizationMember, HasCapability]
+    pagination_class = SmallPageNumberPagination
+    http_method_names = ["get", "post", "patch", "head", "options"]
+
+    required_capabilities = {
+        "list": "org.manage",
+        "retrieve": "org.manage",
+        "create": "org.manage",
+        "partial_update": "org.manage",
+        "reset_code": "org.manage",
+        "default": "org.manage",
+    }
+
+    def get_queryset(self):
+        from apps.accounts.models import User
+
+        return (
+            User.objects.filter(
+                organization=self.request.organization, is_superuser=False
+            )
+            .order_by("first_name", "username")
+        )
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        from apps.accounts.models import User
+
+        code = generate_access_code()
+        user = User.objects.create_user(
+            username=serializer.validated_data["username"],
+            email=serializer.validated_data.get("email", ""),
+            first_name=serializer.validated_data.get("first_name", ""),
+            last_name=serializer.validated_data.get("last_name", ""),
+            password=code,
+            organization=request.organization,
+            role=serializer.validated_data.get("role", Role.OPERATOR),
+        )
+        self.audit("employee.create", user, role=user.role)
+
+        body = self.get_serializer(user).data
+        body["access_code"] = code
+        return Response(body, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="reset-code")
+    def reset_code(self, request, pk=None):
+        """Issue a replacement code. The previous one stops working at once."""
+        user = self.get_object()
+        code = generate_access_code()
+        user.set_password(code)
+        user.save(update_fields=["password"])
+        self.audit("employee.reset_code", user)
+
+        body = self.get_serializer(user).data
+        body["access_code"] = code
+        return Response(body)

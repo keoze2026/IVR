@@ -22,7 +22,12 @@ from apps.accounts.platform import (
     platform_overview,
     platform_schema,
 )
-from apps.accounts.views import APIKeyViewSet, LoginView, MeView
+from apps.accounts.views import (
+    APIKeyViewSet,
+    EmployeeViewSet,
+    LoginView,
+    MeView,
+)
 from apps.campaigns.views import CallerIDViewSet, CampaignViewSet
 from apps.compliance.views import (
     CallingWindowViewSet,
@@ -45,6 +50,7 @@ router.register("dnc", DNCEntryViewSet, basename="dnc")
 router.register("consent", ConsentRecordViewSet, basename="consent")
 router.register("calling-windows", CallingWindowViewSet, basename="calling-window")
 router.register("api-keys", APIKeyViewSet, basename="api-key")
+router.register("employees", EmployeeViewSet, basename="employee")
 
 urlpatterns = [
     # Not a viewset: there is no collection here, only the caller. Registered

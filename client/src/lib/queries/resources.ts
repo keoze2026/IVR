@@ -571,3 +571,68 @@ export function useRevokeAccessKey() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["api-keys"] }),
   });
 }
+
+// --- people -----------------------------------------------------------
+
+/**
+ * Employees of this organisation.
+ *
+ * `access_code` appears on exactly two responses — creating a person, and
+ * issuing them a replacement — because only its hash is stored. There is no
+ * endpoint that can return it again, by design.
+ */
+export interface Employee {
+  id: string;
+  username: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  role: Role;
+  organization: string;
+  is_active: boolean;
+  last_seen_at: string | null;
+  full_name: string;
+  has_code: boolean;
+}
+
+export interface IssuedEmployee extends Employee {
+  access_code: string;
+}
+
+export function useEmployees() {
+  return useQuery<PagedResponse<Employee>, ApiError>({
+    queryKey: ["employees"],
+    queryFn: () => request<PagedResponse<Employee>>("employees/"),
+  });
+}
+
+export function useCreateEmployee() {
+  const qc = useQueryClient();
+  return useMutation<
+    IssuedEmployee,
+    ApiError,
+    { username: string; first_name: string; last_name: string; role: Role }
+  >({
+    mutationFn: (body) =>
+      request<IssuedEmployee>("employees/", { method: "POST", body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["employees"] }),
+  });
+}
+
+export function useResetEmployeeCode() {
+  const qc = useQueryClient();
+  return useMutation<IssuedEmployee, ApiError, string>({
+    mutationFn: (id) =>
+      request<IssuedEmployee>(`employees/${id}/reset-code/`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["employees"] }),
+  });
+}
+
+export function useUpdateEmployee() {
+  const qc = useQueryClient();
+  return useMutation<Employee, ApiError, { id: string } & Partial<Employee>>({
+    mutationFn: ({ id, ...body }) =>
+      request<Employee>(`employees/${id}/`, { method: "PATCH", body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["employees"] }),
+  });
+}

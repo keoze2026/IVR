@@ -1,0 +1,319 @@
+================================================================================
+WEEKLY STATUS REPORT - WEEK 2
+Outbound IVR Blasting & Voice Automation Platform (Backend)
+================================================================================
+
+Project        : Outbound IVR / Voice Automation Platform
+Client         : Keoze (ZDFRS)
+Reference doc  : Backend Engineering Specification v1.0, 30 July 2026
+Period covered : Mon 3 Aug 2026 - Fri 8 Aug 2026
+Prepared by    : Backend Engineer (solo)
+Prepared for   : Engineering lead / project sponsor
+Status         : ON TRACK. First live call completed. One external dependency
+                 now on the critical path (section 6)
+
+
+--------------------------------------------------------------------------------
+1. SUMMARY
+--------------------------------------------------------------------------------
+
+Week 1 was the data model and the compliance layer. Week 2 was the call path -
+and, more importantly, proving it against a real carrier rather than against
+test doubles.
+
+The headline: an outbound call was placed, answered, traversed the IVR, captured
+a keypress, recorded an opt-out, and released its channel. That path is now
+evidenced end to end rather than assumed.
+
+Two defects were found in the process. Both were invisible to the test suite and
+both would have been serious in production - one of them would have silently
+broken every call. Details in section 4. That is the argument for doing carrier
+testing before launch rather than after, and it is the main reason this week was
+worth spending on integration rather than new features.
+
+Completed this week:
+  - Full local topology running: Postgres 16, Redis 7, web, three Celery worker
+    roles, beat scheduler.
+  - Continuous integration on GitHub Actions, running the full tiered
+    verification suite against real Postgres and Redis.
+  - Migrations brought under version control; schema drift now caught by CI.
+  - Backup, restore and restore-verification tooling.
+  - Load harness measuring the two components that set throughput.
+  - External suppression (DNC) loading implemented and tested.
+  - First live carrier call, with the full compliance path verified.
+
+Rough completion against the spec as a whole: I would call it 85-90%. What
+remains is largely external dependency rather than engineering (section 6).
+
+
+--------------------------------------------------------------------------------
+2. DAILY LOG
+--------------------------------------------------------------------------------
+
+[Fill in your own hours before submitting.]
+
+MONDAY 3 AUG                                                          (   hrs)
+
+  - Brought the full local topology up: Postgres and Redis in containers, web
+    process, pacer / dispatch / events workers, beat scheduler.
+  - Ran the complete verification suite against real infrastructure for the
+    first time. All tiers green: 17 checks, 180 tests.
+  - Migrations were being generated per environment rather than checked in.
+    Changed that. Two environments running makemigrations at different times
+    can derive different schemas from the same models, and a data migration has
+    nowhere to live. Now committed, with makemigrations --check in CI to catch
+    drift.
+  - Rotated the development secrets and removed the environment file from
+    version control.
+
+TUESDAY 4 AUG                                                         (   hrs)
+
+  - Continuous integration on GitHub Actions: Postgres and Redis as services,
+    running the tiered verification script.
+    One detail worth noting: the script exits zero when those services are
+    merely absent, so a naive workflow would go green without having run the
+    database or boot tiers. The workflow now fails the build on any skipped
+    tier.
+  - Backup tooling. The verify path restores into a scratch database and
+    compares table and row counts against the live one, because a dump that
+    restores an empty schema passes every cheaper check while losing every
+    suppression record. Confirmed it exits non-zero on a deliberately
+    schema-only dump.
+  - Loaded NANPA area-code reference data. Flagged in the file's own
+    documentation that this is community-sourced and must be replaced with the
+    official export before any per-state calling windows are configured.
+
+WEDNESDAY 5 AUG                                                       (   hrs)
+
+  - Load harness against the two components that actually set throughput.
+    Results in section 3.
+  - The useful number is the callback ingest ceiling: roughly 95 requests per
+    second on a single process, against a sustained requirement of 80. Under
+    20% headroom. Production needs several ASGI workers, and the risk noted in
+    DECISIONS.md - that the events queue falls behind first - is now measured
+    rather than predicted.
+
+THURSDAY 7 AUG                                                        (   hrs)
+
+  - Built the Tier 5 carrier harness: a seed script that constructs the minimal
+    tenant through the real service layer, a place-call script that starts the
+    campaign and watches channel release and opt-out, and a reset script so the
+    cycle can be repeated.
+  - Deliberately small per the spec's own guidance: one contact, one attempt,
+    minimum pacing.
+
+FRIDAY 8 AUG                                                          (   hrs)
+
+  - Live carrier testing. Several iterations, each surfacing a different
+    problem, which is the point of the exercise.
+  - Two defects found and fixed, both with regression tests (section 4).
+  - Implemented external suppression loading (section 3).
+  - Full loop verified: call placed, answered, IVR traversed, keypress
+    captured, opt-out recorded and durable, channel released, pre-dial gate
+    subsequently refusing the number.
+
+
+--------------------------------------------------------------------------------
+3. DELIVERED THIS WEEK
+--------------------------------------------------------------------------------
+
+3.1  Live carrier integration - VERIFIED
+
+     Every item below is backed by an observed live call, not a test double.
+     None of it had ever been executed before this week.
+
+       Call placement          created at carrier, correct caller ID
+       Signature verification  8 callbacks accepted, 0 rejected
+       Status lifecycle        ringing -> in_progress -> completed
+       IVR audio and menu      node_path: [greeting, menu, optout]
+       DTMF capture            digit '9' captured at the menu node
+       Opt-out durability      suppression row committed 18ms after the
+                               keypress and 1.3s BEFORE the call ended
+       Pre-dial gate           subsequently refused the same number
+       Channel accounting      returned to zero, no leak
+       Calling-window gate     correctly deferred an out-of-hours call to the
+                               following morning rather than dialling
+       Lost-callback recovery  after an induced ingress outage, the sweep
+                               queried the carrier and the reconciler reclaimed
+                               the held channel
+
+     The opt-out timing is the one I would draw attention to. The requirement is
+     that the suppression is durable before the caller hears the confirmation,
+     not after. Measured at 18 milliseconds after the keypress, with the call
+     continuing for a further 1.3 seconds.
+
+3.2  Throughput measurements
+
+       Token bucket        ~11,800 grants/sec, ceiling held under 32 threads
+       Channel semaphore   ~7,300 ops/sec, ceiling never exceeded, no leaks
+       Callback ingest     80/sec sustained, all accepted, mean latency 120ms
+       Callback ceiling    saturates at ~95/sec on one process
+
+     The limiters are nowhere near being the bottleneck. The callback ingest
+     ceiling is the number to plan capacity against.
+
+3.3  External suppression (DNC) loading
+
+     Previously an unimplemented integration point. The vendor-specific parts -
+     which registry, whose credential, how often - remain configuration, because
+     they differ per contract. What every source has in common is that it ends
+     in a file of phone numbers, and that part is now implemented and tested:
+     CSV, plain text, zip archives, headerless files, and the byte-order marks
+     that appear in vendor exports.
+
+     Configure one of:
+       SCRUB_SOURCE_DIR   directory the vendor's own downloader writes into
+                          (preferred - no credential held in this codebase)
+       SCRUB_SOURCE_URL   HTTPS URL with an optional bearer token
+
+     With neither set the job still fails loudly and records the failure, so
+     "when did you last scrub?" keeps an honest answer rather than reporting a
+     successful scrub of nothing.
+
+     The parser refuses to guess on ambiguous input. The two failure directions
+     are not symmetric: a missed number means calling somebody who opted out,
+     but an invented one silently suppresses a customer who never asked to be,
+     and nothing downstream ever flags it. 31 tests cover both directions.
+
+3.4  Operational tooling
+
+     - CI on GitHub Actions with real Postgres and Redis, failing on skipped
+       tiers as well as failed ones.
+     - Migrations under version control with drift detection.
+     - Backup, restore and restore-verification, proven to reject a bad backup.
+     - Load harness.
+     - Carrier test harness, repeatable.
+
+
+--------------------------------------------------------------------------------
+4. DEFECTS FOUND AND FIXED
+--------------------------------------------------------------------------------
+
+4.1  Webhook signature verification dropped blank parameters   [SERIOUS]
+
+     Callback bodies were parsed with a function whose default behaviour
+     silently discards any parameter with an empty value. The carrier signs
+     over every parameter it sends, and real callbacks carry several blanks -
+     CalledCity, CalledState and CallerName are all empty for an international
+     destination.
+
+     The verifier therefore rebuilt a different string than the carrier had
+     signed, and every live webhook was rejected with a 403. In production that
+     means no call statuses, no DTMF, and - most seriously - no opt-outs would
+     ever have been recorded, while the application logged nothing more
+     alarming than a rejected signature.
+
+     Every test in the suite passed throughout, because hand-built test
+     payloads contain no empty fields. Fixed, with a regression test that fails
+     when the bug is reintroduced. Confirmed afterwards against the live
+     carrier: 8 callbacks, all accepted.
+
+     This is the defect that justifies the whole week. It is not reachable
+     without a real carrier.
+
+4.2  Scrub job counters reported the wrong quantity
+
+     The suppression routine returned the number of contacts flagged, which the
+     job then stored in the field meaning "suppression entries added", while
+     the contacts field was never written at all.
+
+     Those are different quantities. A scrub can add fifty thousand entries and
+     match none of your contacts, which means it worked. As written, a healthy
+     scrub looked like a broken one. Both counts are now reported separately,
+     and derived from an explicit index lookup rather than from a bulk-insert
+     return value, which is unusable for counting on PostgreSQL.
+
+4.3  Lost-callback recovery took 90 minutes
+
+     Not a defect exactly, but a default worth revisiting. When callbacks are
+     lost, each affected call holds a channel until a sweep asks the carrier
+     what happened - and that sweep only considered calls older than 90
+     minutes. An ingress outage loses every callback at once, so a campaign
+     would stall for an hour and a half with no error surfaced anywhere.
+     Observed directly during testing. Now configurable, defaulting to 15
+     minutes.
+
+
+--------------------------------------------------------------------------------
+5. NOT YET EXERCISED
+--------------------------------------------------------------------------------
+
+Implemented, but never run against real conditions. Listing them explicitly so
+they are not mistaken for verified:
+
+  - Answering-machine detection. Never met a real voicemail greeting.
+  - Call transfer. No transfer endpoint exercised.
+  - Recording and prompt pre-rendering. Requires object storage, which is not
+    yet configured. Calls currently use live speech synthesis, which is
+    slower and more expensive per call but has one less moving part.
+  - Behaviour at volume against a carrier. The limiters and the ingest path
+    have been measured locally; the carrier has not.
+
+
+--------------------------------------------------------------------------------
+6. BLOCKERS AND DEPENDENCIES
+--------------------------------------------------------------------------------
+
+6.1  Federal DNC registration - ON THE CRITICAL PATH
+
+     This is now the single hard blocker to dialling US numbers, and it is
+     procurement rather than engineering. The loading code is implemented and
+     tested; it needs a subscription account number and a source to read from.
+
+     Registration is at telemarketing.donotcall.gov. There is a waiting period,
+     which is why this should start immediately regardless of where the rest of
+     the work stands. Please confirm who is opening the account and against
+     which entity.
+
+6.2  State calling-hour restrictions - NEEDS LEGAL REVIEW
+
+     Every call currently defaults to the federal 08:00-21:00 ceiling. That is
+     safe but not correct: several states are stricter. Configuring per-state
+     windows requires the official NANPA dataset and a legal review of the
+     rules themselves. A wrong entry in a shipped table is worse than no entry,
+     because it reads as authoritative.
+
+6.3  Caller ID attestation is C
+
+     Observed during preflight on the test caller ID. US carriers are
+     substantially more likely to label or block calls below full attestation.
+     This is a carrier and number-provisioning question rather than a code one,
+     but it will affect answer rates materially and is worth resolving before
+     any volume.
+
+
+--------------------------------------------------------------------------------
+7. DECISIONS REQUESTED
+--------------------------------------------------------------------------------
+
+  1. DNC source. Direct federal registration, or a compliance aggregator that
+     bundles the federal registry, state registries and litigator lists behind
+     one interface? Direct is cheaper; an aggregator removes three separate
+     integrations and the "did anyone renew the state subscription" problem.
+
+  2. Object storage. Prompt pre-rendering and call recording both need an
+     S3-compatible bucket. Any S3-compatible endpoint works, including
+     self-hosted. Needed before recording can be offered at all.
+
+  3. Default campaign calling window. The current default is 09:00-17:00 local,
+     which is narrower than the law requires and cuts off legitimate evening
+     calling. Confirm the intended default before campaigns are created against
+     it.
+
+
+--------------------------------------------------------------------------------
+8. PLAN FOR WEEK 3
+--------------------------------------------------------------------------------
+
+  - Answering-machine detection against real voicemail, including measuring
+    detection latency, which is the number that decides whether AMD is worth
+    its cost.
+  - Transfer path against a real endpoint.
+  - Object storage configured; prompt pre-rendering and recording exercised.
+  - Multi-worker deployment and a load test against the carrier's test
+    endpoints rather than locally.
+  - Sentry alerting on the three failures that are otherwise silent: a failed
+    scrub job, a tenancy-guard violation, and a spike in webhook rejections.
+  - DNC integration completed, subject to 6.1.
+
+================================================================================

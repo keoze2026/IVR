@@ -25,6 +25,7 @@ import { ApiError } from "@/lib/errors";
 import { SessionProvider, useSession } from "@/lib/session";
 
 import { AccessKeysPage } from "@/features/admin/AccessKeysPage";
+import { PeoplePage } from "@/features/admin/PeoplePage";
 import { AdminLoginPage } from "@/features/platform/AdminLoginPage";
 import {
   AdminCreatePage,
@@ -189,6 +190,7 @@ export function App() {
               {/* --- admin ----------------------------------------- */}
               <Route path="/caller-ids" element={<CallerIdsPage />} />
               <Route path="/access-keys" element={<AccessKeysPage />} />
+              <Route path="/people" element={<PeoplePage />} />
               <Route path="/settings" element={<SettingsPage />} />
 
               <Route

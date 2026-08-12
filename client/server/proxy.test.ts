@@ -18,7 +18,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("./auth/session.js", () => ({
   readSession: async () => ({
     id: "test-session",
-    apiKey: "ivrk_test",
+    credential: "ivrk_test",
+    kind: "key" as const,
     createdAt: 0,
     lastSeenAt: 0,
   }),

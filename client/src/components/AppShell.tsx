@@ -41,7 +41,8 @@ const NAV: NavEntry[] = [
   { to: "/compliance/consent", label: "Consent", group: "govern" },
   { to: "/compliance/windows", label: "Calling hours", group: "govern" },
   { to: "/caller-ids", label: "Caller IDs", group: "govern" },
-  { to: "/access-keys", label: "Access keys", group: "govern" },
+  { to: "/people", label: "People", group: "govern" },
+  { to: "/access-keys", label: "Machine keys", group: "govern" },
 ];
 
 /** Four, because a fifth stops being thumb-reachable and starts being a menu. */

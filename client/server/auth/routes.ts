@@ -10,10 +10,25 @@
 import { Hono } from "hono";
 
 import { getWebSocketToken } from "./provider.js";
+
 import { createSession, destroySession, readSession } from "./session.js";
 import { apiUrl, probeCredential } from "../upstream.js";
 
 const KEY_PATTERN = /^ivrk_[A-Za-z0-9_-]{20,}$/;
+
+/**
+ * The caller's own address, for the upstream sign-in rate limiter.
+ *
+ * Without this, every employee's attempt looks to Django like it came from
+ * this process, and the per-address counter would be shared by the whole
+ * company. Taken from the socket rather than the request, for the same reason
+ * the proxy does: a client-supplied value is a client-chosen value.
+ */
+function callerAddress(env: unknown): string {
+  const incoming = (env as { incoming?: { socket?: { remoteAddress?: string } } })
+    ?.incoming;
+  return incoming?.socket?.remoteAddress ?? "";
+}
 
 export const authRoutes = new Hono();
 
@@ -89,7 +104,10 @@ authRoutes.post("/admin/login", async (c) => {
   try {
     upstream = await fetch(apiUrl("auth/login/"), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Forwarded-For": callerAddress(c.env),
+      },
       body: JSON.stringify({ username, password }),
     });
   } catch {
@@ -141,6 +159,76 @@ authRoutes.post("/admin/login", async (c) => {
   }
 
   await createSession(c, payload.token, "admin", payload.user.username);
+  return c.json({ user: payload.user });
+});
+
+/**
+ * Employee sign-in: their name and the short code they were issued.
+ *
+ * The 429 from upstream is passed through rather than flattened into the
+ * generic refusal. Being locked out is the one failure a person can actually
+ * do something about — waiting, or asking for a new code — and hiding it just
+ * has them retrying into a wall.
+ */
+authRoutes.post("/staff-login", async (c) => {
+  const body = await c.req
+    .json<{ username?: string; code?: string }>()
+    .catch(() => ({}) as never);
+  const username = (body.username ?? "").trim();
+  const code = (body.code ?? "").trim();
+
+  const rejected = c.json(
+    {
+      error: {
+        code: "invalid_credentials",
+        message: "That name and code were not accepted.",
+      },
+    },
+    401,
+  );
+  if (!username || !code) return rejected;
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(apiUrl("auth/login/"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Forwarded-For": callerAddress(c.env),
+      },
+      body: JSON.stringify({ username, password: code }),
+    });
+  } catch {
+    return c.json(
+      {
+        error: {
+          code: "upstream_unreachable",
+          message: "The service is not responding. Try again shortly.",
+        },
+      },
+      502,
+    );
+  }
+
+  if (upstream.status === 429) {
+    return c.json(
+      {
+        error: {
+          code: "too_many_attempts",
+          message:
+            "Too many attempts. Wait 15 minutes, or ask your administrator for a new code.",
+        },
+      },
+      429,
+    );
+  }
+  if (!upstream.ok) return rejected;
+
+  const payload = (await upstream.json()) as {
+    token: string;
+    user: { username: string; is_superuser: boolean };
+  };
+  await createSession(c, payload.token, "key", payload.user.username);
   return c.json({ user: payload.user });
 });
 
