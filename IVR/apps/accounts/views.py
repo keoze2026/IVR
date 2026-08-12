@@ -290,7 +290,20 @@ class LoginView(APIView):
                 status=status.HTTP_429_TOO_MANY_REQUESTS,
             )
 
-        user = authenticate(request, username=username, password=password)
+        # Names are matched without regard to case.
+        #
+        # People capitalise their own name — "Jane" is what somebody types when
+        # asked for it — and being refused for holding shift is an entirely
+        # self-inflicted support call. The stored spelling is resolved first,
+        # then handed to authenticate() so password checking is untouched.
+        from apps.accounts.models import User
+
+        stored = (
+            User.objects.filter(username__iexact=username)
+            .values_list("username", flat=True)
+            .first()
+        )
+        user = authenticate(request, username=stored or username, password=password)
         if user is None or not user.is_active:
             for name, _limit in buckets:
                 # add() then incr() so the window starts at the first failure
@@ -411,7 +424,10 @@ class EmployeeViewSet(TenantViewSetMixin, AuditedActionMixin, viewsets.ModelView
 
         code = generate_access_code()
         user = User.objects.create_user(
-            username=serializer.validated_data["username"],
+            # Stored lower case so two people cannot be created as "Jane" and
+            # "jane" and then both fail the case-insensitive sign-in lookup as
+            # ambiguous.
+            username=serializer.validated_data["username"].strip().lower(),
             email=serializer.validated_data.get("email", ""),
             first_name=serializer.validated_data.get("first_name", ""),
             last_name=serializer.validated_data.get("last_name", ""),
