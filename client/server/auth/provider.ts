@@ -22,7 +22,7 @@ export interface Credential {
 }
 
 export function getUpstreamCredential(session: Session): Credential {
-  return { token: session.apiKey, scheme: "Bearer" };
+  return { token: session.credential, scheme: "Bearer" };
 }
 
 export function authorizationHeader(session: Session): string {
@@ -45,7 +45,7 @@ export function getWebSocketToken(session: Session): {
   expiresAt: string;
 } {
   return {
-    token: session.apiKey,
+    token: session.credential,
     expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
   };
 }

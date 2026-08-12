@@ -22,9 +22,25 @@ export const SESSION_COOKIE = "ivr_session";
 /** Idle lifetime. Re-login is one paste, so this can be short. */
 const TTL_MS = 12 * 60 * 60 * 1000;
 
+/**
+ * Two kinds of person sign in here and the difference matters downstream.
+ *
+ *   "key"   an employee holding an access key issued to them
+ *   "admin" a platform administrator who signed in with a password
+ *
+ * Both end up as a bearer credential the proxy forwards, so nothing below the
+ * session layer has to branch — but the portal needs to know which it is
+ * holding to decide whether the administration area exists at all.
+ */
+export type SessionKind = "key" | "admin";
+
 export interface Session {
   id: string;
-  apiKey: string;
+  /** Bearer credential for the upstream API. Never sent to the browser. */
+  credential: string;
+  kind: SessionKind;
+  /** Present for administrators; shown in the UI so they know who they are. */
+  username?: string;
   createdAt: number;
   lastSeenAt: number;
 }
@@ -63,12 +79,19 @@ export function secret(): string {
   return ephemeral;
 }
 
-export async function createSession(c: Context, apiKey: string): Promise<Session> {
+export async function createSession(
+  c: Context,
+  credential: string,
+  kind: SessionKind = "key",
+  username?: string,
+): Promise<Session> {
   sweep();
   const now = Date.now();
   const session: Session = {
     id: randomBytes(24).toString("base64url"),
-    apiKey,
+    credential,
+    kind,
+    username,
     createdAt: now,
     lastSeenAt: now,
   };

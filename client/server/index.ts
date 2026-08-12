@@ -56,7 +56,7 @@ app.get("/bff/me", async (c) => {
   }
 
   const upstream = await fetch(apiUrl("me/"), {
-    headers: { Authorization: `Bearer ${session.apiKey}`, Accept: "application/json" },
+    headers: { Authorization: `Bearer ${session.credential}`, Accept: "application/json" },
   });
 
   if (upstream.status === 404) {
@@ -70,7 +70,18 @@ app.get("/bff/me", async (c) => {
       degraded: "backend has no /me endpoint (see docs/API-GAPS.md G-04)",
     });
   }
-  return c.json((await safeJson(upstream)) as object, upstream.status as 200);
+  const body = (await safeJson(upstream)) as Record<string, unknown> | null;
+  return c.json(
+    {
+      ...(body ?? {}),
+      // Which door they came in by. The administration area is rendered from
+      // this rather than from a capability, because a platform administrator
+      // has no organisation and therefore no capability list to read.
+      session_kind: session.kind,
+      session_username: session.username ?? null,
+    },
+    upstream.status as 200,
+  );
 });
 
 // --- API passthrough --------------------------------------------------

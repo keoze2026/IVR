@@ -11,7 +11,7 @@ import { Hono } from "hono";
 
 import { getWebSocketToken } from "./provider.js";
 import { createSession, destroySession, readSession } from "./session.js";
-import { probeCredential } from "../upstream.js";
+import { apiUrl, probeCredential } from "../upstream.js";
 
 const KEY_PATTERN = /^ivrk_[A-Za-z0-9_-]{20,}$/;
 
@@ -57,6 +57,91 @@ authRoutes.post("/login", async (c) => {
 
   await createSession(c, apiKey);
   return c.json({ me: probe.me });
+});
+
+/**
+ * Administrator sign-in: a username and a password, like anything else.
+ *
+ * Separate from /login because the credentials are a different shape and the
+ * failure messages differ — an employee is told their access key was refused,
+ * an administrator is told their password was. Both are deliberately vague
+ * about *which* half was wrong.
+ */
+authRoutes.post("/admin/login", async (c) => {
+  const body = await c.req
+    .json<{ username?: string; password?: string }>()
+    .catch(() => ({}) as never);
+  const username = (body.username ?? "").trim();
+  const password = body.password ?? "";
+
+  const rejected = c.json(
+    {
+      error: {
+        code: "invalid_credentials",
+        message: "That username and password were not accepted.",
+      },
+    },
+    401,
+  );
+  if (!username || !password) return rejected;
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(apiUrl("auth/login/"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+  } catch {
+    return c.json(
+      {
+        error: {
+          code: "upstream_unreachable",
+          message: "The service is not responding. Try again shortly.",
+        },
+      },
+      502,
+    );
+  }
+
+  if (!upstream.ok) {
+    if (upstream.status >= 500) {
+      return c.json(
+        {
+          error: {
+            code: "upstream_unavailable",
+            message: "The service is unavailable. Try again shortly.",
+          },
+        },
+        503,
+      );
+    }
+    return rejected;
+  }
+
+  const payload = (await upstream.json()) as {
+    token: string;
+    user: { username: string; is_superuser: boolean };
+  };
+
+  // Only platform administrators may hold an admin session. An ordinary user
+  // with a password would otherwise be handed a session the portal renders the
+  // administration area for — the server would refuse every call behind it,
+  // but showing somebody a door that never opens is its own kind of broken.
+  if (!payload.user?.is_superuser) {
+    return c.json(
+      {
+        error: {
+          code: "not_an_administrator",
+          message: "That account is not a system administrator.",
+        },
+      },
+      403,
+    );
+  }
+
+  await createSession(c, payload.token, "admin", payload.user.username);
+  return c.json({ user: payload.user });
 });
 
 authRoutes.post("/logout", async (c) => {

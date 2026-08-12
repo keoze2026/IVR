@@ -25,6 +25,15 @@ import { ApiError } from "@/lib/errors";
 import { SessionProvider, useSession } from "@/lib/session";
 
 import { AccessKeysPage } from "@/features/admin/AccessKeysPage";
+import { AdminLoginPage } from "@/features/platform/AdminLoginPage";
+import {
+  AdminCreatePage,
+  AdminEditPage,
+  AdminListPage,
+  AdminOverviewPage,
+  AdminShell,
+  RequireAdmin,
+} from "@/features/platform/AdminPortal";
 import { CallerIdsPage, SettingsPage } from "@/features/admin/CallerIdsPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { CallDetailPage } from "@/features/calls/CallDetailPage";
@@ -110,6 +119,26 @@ export function App() {
         <SessionProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/admin/login" element={<AdminLoginPage />} />
+
+            {/* System administration. A separate area with its own sign-in:
+                a platform administrator has no organisation, so none of the
+                tenant-scoped screens below would have anything to show. */}
+            <Route
+              path="/admin"
+              element={
+                <RequireAdmin>
+                  <AdminShell>
+                    <Outlet />
+                  </AdminShell>
+                </RequireAdmin>
+              }
+            >
+              <Route index element={<AdminOverviewPage />} />
+              <Route path=":resource" element={<AdminListPage />} />
+              <Route path=":resource/new" element={<AdminCreatePage />} />
+              <Route path=":resource/:id" element={<AdminEditPage />} />
+            </Route>
 
             <Route
               element={

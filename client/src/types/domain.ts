@@ -127,6 +127,9 @@ export interface Me {
   } | null;
   /** Set only when talking to a backend that predates /api/v1/me/. */
   degraded?: string;
+  /** Which door this session came in by: an access key, or an admin password. */
+  session_kind?: "key" | "admin";
+  session_username?: string | null;
 }
 
 // --- campaigns --------------------------------------------------------
