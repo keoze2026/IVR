@@ -91,6 +91,48 @@ def fake_redis(redis_client):
     return redis_client
 
 
+@pytest.fixture(autouse=True)
+def isolated_django_cache(settings):
+    """
+    Give every test its own Django cache.
+
+    The `redis_client` fixture above redirects the raw clients to a scratch
+    database, but Django's cache framework was left pointing at the real one —
+    logical DB 1, shared with whatever is running locally. Anything cached
+    there leaks into the suite.
+
+    That is not hypothetical. `windows._state_for_npa` memoises area code to
+    state for an hour, so a developer who had loaded the NANPA table found
+    `npa:212` resolving to "NY" inside tests whose database contains no such
+    row. The contact's jurisdiction became US-NY instead of US, a different
+    statutory window applied, and six dial-path tests began failing — but only
+    outside New York business hours, which made it look like flakiness rather
+    than shared state.
+
+    Local memory rather than another Redis database: nothing under test needs
+    Redis semantics from this cache, and an in-process one cannot outlive the
+    test that filled it.
+    """
+    # Every alias, not just `default`. The `dnc` alias is the suppression gate
+    # and is looked up by name, so replacing the dict wholesale would remove a
+    # cache the application requires and fail with InvalidCacheBackendError.
+    settings.CACHES = {
+        alias: {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": f"test-{alias}",
+            **({"TIMEOUT": config["TIMEOUT"]} if "TIMEOUT" in config else {}),
+        }
+        for alias, config in settings.CACHES.items()
+    }
+    from django.core.cache import caches
+
+    for alias in settings.CACHES:
+        caches[alias].clear()
+    yield
+    for alias in settings.CACHES:
+        caches[alias].clear()
+
+
 @pytest.fixture
 def organization(db):
     from apps.accounts.models import Organization

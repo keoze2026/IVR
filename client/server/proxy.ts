@@ -103,14 +103,32 @@ proxyRoutes.all("/*", async (c) => {
   const method = c.req.method;
   const hasBody = method !== "GET" && method !== "HEAD";
 
+  /*
+   * The body is buffered rather than streamed, and content-length is set
+   * explicitly.
+   *
+   * Forwarding `c.req.raw.body` as a stream drops content-length, so fetch
+   * falls back to Transfer-Encoding: chunked — and Django reads an empty body
+   * from a chunked request. Every POST and PATCH then failed validation as
+   * though no fields had been sent, which reads as a client bug and is not:
+   * the bytes arrive, Django just does not consume them.
+   *
+   * Buffering is acceptable here because this proxy carries JSON only; nginx
+   * caps request bodies at 1 MB and file uploads go straight to object
+   * storage, so there is no large payload to hold.
+   */
+  let payload: ArrayBuffer | undefined;
+  if (hasBody) {
+    payload = await c.req.arrayBuffer();
+    headers.set("Content-Length", String(payload.byteLength));
+  }
+
   let upstream: Response;
   try {
     upstream = await fetch(target, {
       method,
       headers,
-      body: hasBody ? c.req.raw.body : undefined,
-      // Node needs this to stream a request body without buffering it.
-      ...(hasBody ? { duplex: "half" } : {}),
+      body: payload,
       redirect: "manual",
     } as RequestInit);
   } catch (cause) {

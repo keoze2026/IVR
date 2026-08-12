@@ -16,6 +16,26 @@ was called *at all*, and whether the channel reservation was given back.
 import datetime as dt
 
 import pytest
+from freezegun import freeze_time
+
+
+@pytest.fixture(autouse=True)
+def _inside_the_calling_window():
+    """
+    Pin the clock to the middle of the day.
+
+    These fixtures dial a +1 212 number, so the statutory US federal window of
+    08:00-21:00 applies on top of the campaign's own 00:00-23:59. Without a
+    fixed clock the suite passes during the working day and fails overnight —
+    the gate refusing correctly, but reading as flakiness because nothing in
+    the failure mentions the time.
+
+    Frozen rather than widened: the federal ceiling is exactly the behaviour
+    these tests exist to exercise, so removing it from the path would test a
+    configuration that never runs in production.
+    """
+    with freeze_time("2026-08-12 12:00:00"):
+        yield
 
 pytestmark = pytest.mark.django_db
 

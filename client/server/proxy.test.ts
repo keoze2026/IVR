@@ -82,3 +82,41 @@ describe("X-Forwarded-For", () => {
     expect(received?.get("authorization")).toBe("Bearer ivrk_test");
   });
 });
+
+describe("request bodies", () => {
+  it("forwards a JSON body with an explicit Content-Length", async () => {
+    let seen: { body: unknown; headers: Headers } | undefined;
+    vi.stubGlobal("fetch", async (_u: string, init: RequestInit) => {
+      seen = { body: init.body, headers: init.headers as Headers };
+      return new Response("{}", { status: 201 });
+    });
+
+    await app.request(
+      "/bff/api/api-keys/",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Jane", role: "operator" }),
+      },
+      ENV,
+    );
+
+    // Streaming the body drops Content-Length, which makes fetch fall back to
+    // Transfer-Encoding: chunked — and Django reads an empty body from that,
+    // failing every POST as though no fields were sent.
+    expect(seen?.headers.get("content-length")).toBe("33");
+    const text = new TextDecoder().decode(seen?.body as ArrayBuffer);
+    expect(JSON.parse(text)).toEqual({ name: "Jane", role: "operator" });
+  });
+
+  it("sends no body or Content-Length on a GET", async () => {
+    let seen: RequestInit | undefined;
+    vi.stubGlobal("fetch", async (_u: string, init: RequestInit) => {
+      seen = init;
+      return new Response("{}", { status: 200 });
+    });
+    await app.request("/bff/api/campaigns/", {}, ENV);
+    expect(seen?.body).toBeUndefined();
+    expect((seen?.headers as Headers).get("content-length")).toBeNull();
+  });
+});
