@@ -27,7 +27,8 @@ import { SessionProvider, useSession } from "@/lib/session";
 import { AccessKeysPage } from "@/features/admin/AccessKeysPage";
 import { PeoplePage } from "@/features/admin/PeoplePage";
 import { TariffsPage, WalletPage } from "@/features/billing/BillingPages";
-import { CdrPage, DashboardPage } from "@/features/dashboard/DashboardPage";
+import { CallsBreakdownPage, CdrPage, DashboardPage } from "@/features/dashboard/DashboardPage";
+import { ActiveJobsPage } from "@/features/jobs/ActiveJobsPage";
 import { JobsPage } from "@/features/jobs/JobsPage";
 import { AudioPoolsPage, CliPoolsPage } from "@/features/telephony/PoolsPage";
 import { AdminLoginPage } from "@/features/platform/AdminLoginPage";
@@ -157,7 +158,9 @@ export function App() {
               {/* --- campaigns ------------------------------------- */}
               <Route path="/campaigns" element={<CampaignsPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/dashboard/breakdown" element={<CallsBreakdownPage />} />
               <Route path="/jobs" element={<JobsPage />} />
+              <Route path="/jobs/active" element={<ActiveJobsPage />} />
               <Route path="/cdr" element={<CdrPage />} />
               <Route path="/audio-pools" element={<AudioPoolsPage />} />
               <Route path="/cli-pools" element={<CliPoolsPage />} />

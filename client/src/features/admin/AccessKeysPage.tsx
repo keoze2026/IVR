@@ -130,7 +130,7 @@ export function AccessKeysPage() {
 
       {/* --- the reveal, shown once ------------------------------------ */}
       {issued && (
-        <Panel className="border-live-bright/50 bg-live-bright/5">
+        <Panel className="border-live-bright/50 bg-panel">
           <div className="space-y-4">
             <div>
               <h2 className="display text-base font-semibold text-chalk">
@@ -145,7 +145,7 @@ export function AccessKeysPage() {
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <code
-                className="flex-1 overflow-x-auto rounded border border-live-bright/30 bg-ink px-3 py-2 font-mono text-sm text-live-bright"
+                className="flex-1 overflow-x-auto rounded border border-live-bright/30 bg-void px-3 py-2 font-mono text-sm text-live-bright"
                 data-testid="issued-key"
               >
                 {issued.secret}
@@ -194,7 +194,7 @@ export function AccessKeysPage() {
                 placeholder="e.g. Jane, reception desk"
                 required
                 maxLength={80}
-                className="w-full rounded border border-steel bg-ink px-3 py-2 text-sm text-chalk placeholder:text-ash/60 focus:border-live-bright focus:outline-none"
+                className="w-full rounded border border-edge bg-void px-3 py-2 text-sm text-chalk placeholder:text-ash/60 focus:border-live-bright focus:outline-none"
               />
               <span className="mt-1 block text-xs text-ash">
                 A name you will recognise later, so you know whose access to
@@ -209,7 +209,7 @@ export function AccessKeysPage() {
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as Role)}
-                className="w-full rounded border border-steel bg-ink px-3 py-2 text-sm text-chalk focus:border-live-bright focus:outline-none"
+                className="w-full rounded border border-edge bg-void px-3 py-2 text-sm text-chalk focus:border-live-bright focus:outline-none"
               >
                 {ROLES.map((r) => (
                   <option key={r.value} value={r.value}>
@@ -253,7 +253,7 @@ export function AccessKeysPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-steel text-left text-xs uppercase tracking-wider text-ash">
+                <tr className="border-b border-edge text-left text-xs uppercase tracking-wider text-ash">
                   <th className="py-2 pr-4">Name</th>
                   <th className="py-2 pr-4">Access</th>
                   <th className="py-2 pr-4">Created</th>
@@ -264,7 +264,7 @@ export function AccessKeysPage() {
               </thead>
               <tbody>
                 {rows.map((key) => (
-                  <tr key={key.id} className="border-b border-steel/50">
+                  <tr key={key.id} className="border-b border-edge/50">
                     <td className="py-2 pr-4 text-chalk">
                       {key.name}
                       <span className="ml-2 font-mono text-xs text-ash">
@@ -315,7 +315,7 @@ export function AccessKeysPage() {
 
       {/* --- revoke confirmation --------------------------------------- */}
       {confirmRevoke && (
-        <Panel className="border-rust/50 bg-rust/5">
+        <Panel className="border-rust/50 bg-panel">
           <div className="space-y-3">
             <h2 className="display text-base font-semibold text-chalk">
               Remove access for {confirmRevoke.name}?

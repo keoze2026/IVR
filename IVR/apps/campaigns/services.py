@@ -90,10 +90,14 @@ def preflight(campaign) -> dict:
             "code": "consent_gate_disabled",
             "message": "A marketing campaign cannot disable the consent gate.",
         })
-    if org.require_consent_for_marketing and not campaign.requires_consent:
+    if (
+        org.require_consent_for_marketing
+        and campaign.consent_scope == ConsentScope.MARKETING
+        and not campaign.requires_consent
+    ):
         errors.append({
             "code": "org_requires_consent",
-            "message": "This organisation requires a consent gate on every campaign.",
+            "message": "This organisation requires a consent gate on marketing campaigns.",
         })
 
     # --- Targeting ------------------------------------------------------

@@ -105,7 +105,7 @@ export function NewCampaignPage() {
               className={cx(
                 "press flex min-h-11 items-center gap-2 rounded-full border px-4 text-xs disabled:opacity-40",
                 i === step
-                  ? "border-signal bg-signal/10 text-chalk"
+                  ? "border-signal bg-panel text-chalk"
                   : complete[i]
                     ? "border-edge-bright bg-panel text-ash hover:text-chalk"
                     : "border-edge bg-panel text-ash-dim",
@@ -227,7 +227,7 @@ export function NewCampaignPage() {
                     className={cx(
                       "flex cursor-pointer items-center gap-3 rounded border px-3 py-2.5 transition-colors",
                       checked
-                        ? "border-signal/40 bg-signal/[0.06]"
+                        ? "border-signal/40 bg-panel"
                         : "border-edge bg-void hover:border-edge-bright",
                     )}
                   >
@@ -284,7 +284,7 @@ export function NewCampaignPage() {
                     className={cx(
                       "rounded border px-3 py-2 text-left text-sm",
                       dialMode === value
-                        ? "border-signal bg-signal/10 text-chalk"
+                        ? "border-signal bg-panel text-chalk"
                         : "border-edge text-ash hover:text-chalk",
                     )}
                   >

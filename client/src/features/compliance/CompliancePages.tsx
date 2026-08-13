@@ -110,8 +110,8 @@ export function DncPage() {
             className={cx(
               "mt-4 rounded border px-4 py-3",
               check.data.suppressed
-                ? "border-rust/40 bg-rust/[0.07]"
-                : "border-live-bright/40 bg-live/10",
+                ? "border-rust/40 bg-panel"
+                : "border-live-bright/40 bg-live",
             )}
           >
             <p className="num text-sm text-chalk">{check.data.phone_e164}</p>
@@ -356,7 +356,7 @@ export function ConsentPage() {
         {lookup.data && (
           <div className="mt-4">
             {lookup.data.length === 0 ? (
-              <p className="rounded border border-rust/40 bg-rust/[0.07] px-4 py-3 text-sm text-rust">
+              <p className="rounded border border-rust/40 bg-panel px-4 py-3 text-sm text-rust">
                 No consent on file for this number.
               </p>
             ) : (
@@ -558,7 +558,7 @@ function ConsentCard({
       {canEdit && record.is_active && (
         <div className="mt-3">
           {confirming ? (
-            <div className="rounded border border-amber/40 bg-amber/[0.07] px-3 py-2">
+            <div className="rounded border border-amber/40 bg-panel px-3 py-2">
               <p className="text-xs text-amber">
                 Revoking also adds this number to suppression. Both happen at
                 once and neither can be undone from here.

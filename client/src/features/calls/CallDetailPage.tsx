@@ -87,7 +87,7 @@ export function CallDetailPage() {
                       <span
                         className={cx(
                           "w-px flex-1",
-                          at ? "bg-signal/30" : "bg-edge",
+                          at ? "bg-signal" : "bg-edge",
                         )}
                         aria-hidden
                       />
@@ -168,7 +168,7 @@ export function CallDetailPage() {
                         className={cx(
                           "num rounded border px-2 py-1 text-xs",
                           node === call.terminal_node
-                            ? "border-signal/50 bg-signal/10 text-signal"
+                            ? "border-signal/50 bg-panel text-signal"
                             : "border-edge bg-void text-chalk",
                         )}
                       >

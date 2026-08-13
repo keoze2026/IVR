@@ -49,7 +49,7 @@ export function CampaignDetailLayout() {
         </div>
 
         {campaign.status === "throttled" && (
-          <p className="mt-2 max-w-2xl rounded border border-amber/30 bg-amber/10 px-3 py-2 text-sm text-amber">
+          <p className="mt-2 max-w-2xl rounded border border-amber/30 bg-panel px-3 py-2 text-sm text-amber">
             <strong className="font-semibold">Stopped dialing.</strong> The
             carrier is refusing traffic, so no calls are going out.
             {campaign.pause_reason && (

@@ -143,7 +143,7 @@ export function LivePage() {
       </div>
 
       {kpi.rates.answer < 0.08 && kpi.dialed > 200 && (
-        <p className="rounded border border-amber/30 bg-amber/[0.07] px-3 py-2 text-sm text-amber">
+        <p className="rounded border border-amber/30 bg-panel px-3 py-2 text-sm text-amber">
           Answer rate under 8% usually means the caller ID is being labelled,
           not that the list is bad. Check the number's reputation before blaming
           the data.

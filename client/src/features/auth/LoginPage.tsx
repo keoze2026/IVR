@@ -10,7 +10,6 @@
  */
 
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
 
 import { ClipButton } from "@/components/styled/ClipButton";
 import { Field, Input } from "@/components/ui";
@@ -22,7 +21,6 @@ export function LoginPage() {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const navigate = useNavigate();
   const { signInWithCode } = useSession();
 
   async function onSubmit(event: FormEvent) {
@@ -30,10 +28,13 @@ export function LoginPage() {
     setError(null);
     setBusy(true);
     try {
-      // Resolves the session before returning, so the guarded route we are
-      // about to land on already knows who we are.
       await signInWithCode(username.trim(), code.trim().toUpperCase());
-      navigate("/campaigns", { replace: true });
+      // Full reload rather than a client navigation. The session is resolved
+      // once at boot; a client redirect here can render the guarded route
+      // before the refreshed session propagates, and the guard then bounces
+      // straight back to this login form. Reloading re-resolves it cleanly —
+      // the same approach the admin sign-in uses.
+      window.location.assign("/campaigns");
     } catch (cause) {
       // One message for every rejection, except being locked out — that one a
       // person can act on, and withholding it just has them retrying into a

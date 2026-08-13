@@ -116,6 +116,19 @@ class Campaign(TenantModel):
         help_text="Seconds between batches, in pulse and ramp modes.",
     )
 
+    # --- Job facing (reference dialer) -----------------------------------
+    # A single-number job records what it was built from so the Jobs list can
+    # show it. A list campaign leaves these blank.
+    target_number = models.CharField(max_length=32, blank=True)
+    audio_pool = models.ForeignKey(
+        "ivr.AudioPool", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="+",
+    )
+    cli_pool = models.ForeignKey(
+        "campaigns.CLIPool", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="+",
+    )
+
     # --- Scheduling ------------------------------------------------------
     scheduled_start = models.DateTimeField(null=True, blank=True)
     scheduled_end = models.DateTimeField(null=True, blank=True)
@@ -306,6 +319,10 @@ class CLIPool(TenantModel):
     )
     members = models.ManyToManyField(
         "campaigns.CallerID", related_name="pools", blank=True
+    )
+    created_by = models.ForeignKey(
+        "accounts.User", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="+",
     )
 
     class Meta:

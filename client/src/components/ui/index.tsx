@@ -93,7 +93,7 @@ export function Panel({
       className={cx(
         "rounded-[--radius-card] border",
         accent
-          ? "border-signal/30 bg-signal/6"
+          ? "border-signal/30 bg-panel"
           : "border-edge bg-panel",
         className,
       )}
@@ -192,7 +192,7 @@ export function Stat({
             aria-hidden
             className={cx(
               "size-1.5 rounded-full",
-              accent ? "bg-signal/60" : "bg-edge-bright",
+              accent ? "bg-panel0" : "bg-edge-bright",
             )}
           />
           {denominator}
@@ -204,7 +204,7 @@ export function Stat({
   const shell = cx(
     "block rounded-[--radius-card] border px-4 py-4 transition-colors",
     accent
-      ? "border-signal/30 bg-signal/7"
+      ? "border-signal/30 bg-panel"
       : "border-edge bg-panel",
     to && "group hover:border-edge-bright",
   );
@@ -451,17 +451,17 @@ export function Select({
  * places no calls at all.
  */
 const STATUS: Record<string, { className: string; label?: string }> = {
-  running: { className: "border-live-bright/40 bg-live/20 text-live-bright" },
+  running: { className: "border-live-bright/40 bg-live text-live-bright" },
   throttled: {
-    className: "border-amber/40 bg-amber/10 text-amber",
+    className: "border-amber/40 bg-panel text-amber",
     label: "throttled",
   },
-  paused: { className: "border-amber/30 bg-amber/[0.07] text-amber" },
-  failed: { className: "border-rust/40 bg-rust/10 text-rust" },
-  stopped: { className: "border-rust/25 bg-rust/[0.07] text-rust" },
+  paused: { className: "border-amber/30 bg-panel text-amber" },
+  failed: { className: "border-rust/40 bg-panel text-rust" },
+  stopped: { className: "border-rust/25 bg-panel text-rust" },
   completed: { className: "border-edge-bright bg-raised text-ash" },
   draft: { className: "border-edge bg-void text-ash-dim" },
-  scheduled: { className: "border-signal/30 bg-signal/7 text-signal-dim" },
+  scheduled: { className: "border-signal/30 bg-panel text-signal-dim" },
 };
 
 export function StatusPill({ status }: { status: string }) {
@@ -492,7 +492,7 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="rounded-[--radius-card] border border-dashed border-edge bg-panel/40 px-6 py-14 text-center">
+    <div className="rounded-[--radius-card] border border-dashed border-edge bg-panel px-6 py-14 text-center">
       <p className="display text-sm font-semibold text-chalk">{title}</p>
       {description && (
         <p className="mx-auto mt-1.5 max-w-md text-sm text-ash">{description}</p>
@@ -519,7 +519,7 @@ export function ErrorState({
   return (
     <div
       role="alert"
-      className="rounded-[--radius-card] border border-rust/40 bg-rust/[0.07] px-4 py-3.5"
+      className="rounded-[--radius-card] border border-rust/40 bg-panel px-4 py-3.5"
     >
       <p className="display text-sm font-semibold text-rust">
         {api?.isForbidden
@@ -569,8 +569,8 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
       {Array.from({ length: rows }, (_, i) => (
         <div key={i} className="flex items-center gap-4 px-4 py-3.5">
           <div className="h-3 w-1/4 rounded bg-edge" />
-          <div className="h-3 w-16 rounded bg-edge/60" />
-          <div className="ml-auto h-3 w-20 rounded bg-edge/60" />
+          <div className="h-3 w-16 rounded bg-edge" />
+          <div className="ml-auto h-3 w-20 rounded bg-edge" />
         </div>
       ))}
     </div>

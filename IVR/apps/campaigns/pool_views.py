@@ -20,15 +20,19 @@ from apps.ivr.models import AudioPool
 
 class AudioPoolSerializer(serializers.ModelSerializer):
     member_count = serializers.SerializerMethodField()
+    user = serializers.SerializerMethodField()
 
     class Meta:
         model = AudioPool
         fields = ["id", "name", "description", "rotation", "members",
-                  "member_count", "created_at"]
-        read_only_fields = ["id", "created_at", "member_count"]
+                  "member_count", "user", "created_at"]
+        read_only_fields = ["id", "created_at", "member_count", "user"]
 
     def get_member_count(self, obj) -> int:
         return obj.members.count()
+
+    def get_user(self, obj) -> str:
+        return getattr(obj.created_by, "username", "") or ""
 
     def validate_members(self, value):
         org = self.context["request"].organization
@@ -52,17 +56,25 @@ class AudioPoolViewSet(TenantViewSetMixin, AuditedActionMixin, viewsets.ModelVie
         "default": "flow.view",
     }
 
+    def perform_create(self, serializer):
+        user = self.request.user if hasattr(self.request.user, "_meta") else None
+        serializer.save(organization=self.request.organization, created_by=user)
+
 class CLIPoolSerializer(serializers.ModelSerializer):
     member_count = serializers.SerializerMethodField()
+    user = serializers.SerializerMethodField()
 
     class Meta:
         model = CLIPool
         fields = ["id", "name", "description", "rotation", "members",
-                  "member_count", "created_at"]
-        read_only_fields = ["id", "created_at", "member_count"]
+                  "member_count", "user", "created_at"]
+        read_only_fields = ["id", "created_at", "member_count", "user"]
 
     def get_member_count(self, obj) -> int:
         return obj.members.count()
+
+    def get_user(self, obj) -> str:
+        return getattr(obj.created_by, "username", "") or ""
 
     def validate_members(self, value):
         org = self.context["request"].organization

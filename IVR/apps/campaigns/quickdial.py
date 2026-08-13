@@ -23,6 +23,7 @@ from rest_framework.views import APIView
 
 from apps.accounts.permissions import HasCapability, IsOrganizationMember
 from apps.campaigns.models import CallerID, Campaign
+from apps.common.enums import ConsentScope
 from apps.common.utils import phone_hash
 from apps.contacts.ingest import RowError, normalise_phone
 from apps.contacts.models import Contact, ContactList
@@ -247,6 +248,12 @@ class QuickDialView(APIView):
                 # does not sit behind the marketing consent gate the way a bulk
                 # list campaign does.
                 requires_consent=False,
+                # A single-number job is a manual, informational dial, not a
+                # bulk marketing blast, so it is not consent-gated. Marketing
+                # scope here would make preflight refuse to start it.
+                consent_scope=ConsentScope.INFORMATIONAL,
+                # Record every call so the CDR's recording control is live.
+                record_calls=True,
                 dial_mode=data["dial_mode"],
                 max_concurrent_channels=data["max_concurrent_channels"],
                 dial_batch_size=data["dial_batch_size"],
@@ -259,6 +266,11 @@ class QuickDialView(APIView):
                 fallback_timezone="UTC",
                 max_attempts=1,
                 created_by=request.user if hasattr(request.user, "_meta") else None,
+                # Recorded so the Jobs list can show what this job dials and
+                # which pools it draws from.
+                target_number=e164,
+                audio_pool_id=data.get("audio_pool"),
+                cli_pool_id=data.get("cli_pool"),
             )
             campaign.contact_lists.add(contact_list)
 

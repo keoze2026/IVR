@@ -155,6 +155,10 @@ class AudioPool(TenantModel):
     members = models.ManyToManyField(
         "ivr.AudioAsset", related_name="pools", blank=True
     )
+    created_by = models.ForeignKey(
+        "accounts.User", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="+",
+    )
 
     class Meta:
         indexes = [models.Index(fields=["organization", "name"])]

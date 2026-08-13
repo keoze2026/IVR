@@ -152,7 +152,7 @@ export function CampaignsPage() {
           <>
             <table className="hidden w-full text-sm md:table">
               <thead>
-                <tr className="border-b border-edge bg-void/40 text-left">
+                <tr className="border-b border-edge bg-void text-left">
                   {["Campaign", "State", "Flow", "Dialed", "Answer", "Updated"].map(
                     (h, i) => (
                       <th
@@ -221,7 +221,7 @@ function MobileRow({ campaign }: { campaign: Campaign }) {
     <li>
       <Link
         to={`/campaigns/${campaign.id}`}
-        className="press block px-4 py-3.5 active:bg-raised/60"
+        className="press block px-4 py-3.5 active:bg-raised"
       >
         <div className="flex items-start justify-between gap-3">
           <span className="display font-medium text-chalk">{campaign.name}</span>
@@ -274,7 +274,7 @@ function Row({ campaign }: { campaign: Campaign }) {
   const stats = campaign.stats;
 
   return (
-    <tr className="group transition-colors hover:bg-raised/50">
+    <tr className="group transition-colors hover:bg-raised">
       <td className="px-4 py-3">
         <Link
           to={`/campaigns/${campaign.id}`}

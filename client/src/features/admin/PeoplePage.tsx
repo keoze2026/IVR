@@ -54,7 +54,7 @@ const ROLES: { value: Role; label: string; blurb: string }[] = [
 ];
 
 const inputClass =
-  "w-full rounded border border-steel bg-ink px-3 py-2 text-sm text-chalk placeholder:text-ash/60 focus:border-live-bright focus:outline-none";
+  "w-full rounded border border-edge bg-void px-3 py-2 text-sm text-chalk placeholder:text-ash/60 focus:border-live-bright focus:outline-none";
 
 /** The one-time reveal. Blocking, because a code missed here is a code lost. */
 function CodeReveal({
@@ -67,7 +67,7 @@ function CodeReveal({
   const [copied, setCopied] = useState(false);
 
   return (
-    <Panel className="border-live-bright/50 bg-live-bright/5">
+    <Panel className="border-live-bright/50 bg-panel">
       <div className="space-y-4">
         <div>
           <h2 className="display text-base font-semibold text-chalk">
@@ -81,7 +81,7 @@ function CodeReveal({
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <code className="rounded border border-live-bright/30 bg-ink px-5 py-3 text-center font-mono text-3xl tracking-[0.35em] text-live-bright">
+          <code className="rounded border border-live-bright/30 bg-void px-5 py-3 text-center font-mono text-3xl tracking-[0.35em] text-live-bright">
             {issued.access_code}
           </code>
           <Button
@@ -249,7 +249,7 @@ export function PeoplePage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-steel text-left text-xs uppercase tracking-wider text-ash">
+                <tr className="border-b border-edge text-left text-xs uppercase tracking-wider text-ash">
                   <th className="py-2 pr-4">Name</th>
                   <th className="py-2 pr-4">Signs in as</th>
                   <th className="py-2 pr-4">Can do</th>
@@ -260,7 +260,7 @@ export function PeoplePage() {
               </thead>
               <tbody>
                 {rows.map((person) => (
-                  <tr key={person.id} className="border-b border-steel/50">
+                  <tr key={person.id} className="border-b border-edge/50">
                     <td className="py-2 pr-4 text-chalk">{person.full_name}</td>
                     <td className="py-2 pr-4 font-mono text-ash">{person.username}</td>
                     <td className="py-2 pr-4 text-ash">
@@ -308,7 +308,7 @@ export function PeoplePage() {
       </Panel>
 
       {confirmReset && (
-        <Panel className="border-amber/50 bg-amber/5">
+        <Panel className="border-amber/50 bg-panel">
           <div className="space-y-3">
             <h2 className="display text-base font-semibold text-chalk">
               Issue a new code for {confirmReset.full_name}?

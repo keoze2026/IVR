@@ -22,7 +22,7 @@ import {
 import type { DialMode } from "@/lib/queries/resources";
 
 const input =
-  "w-full rounded border border-steel bg-ink px-3 py-2 text-sm text-chalk placeholder:text-ash/50 focus:border-live-bright focus:outline-none";
+  "w-full rounded border border-edge bg-void px-3 py-2 text-sm text-chalk placeholder:text-ash/50 focus:border-live-bright focus:outline-none";
 const label = "mb-1 block text-xs uppercase tracking-wider text-ash";
 
 export function CreateJobModal({ onClose }: { onClose: () => void }) {
@@ -45,10 +45,10 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) =>
     setF((p) => ({ ...p, [k]: v }));
 
-  // Keys the caller can press. Off by default — a plain broadcast just plays.
+  // DTMF steps — Order / Digit / Delay(s), exactly as the reference modal.
   const [dtmfOn, setDtmfOn] = useState(false);
-  const [steps, setSteps] = useState<{ digit: string; action: string }[]>([
-    { digit: "1", action: "confirm" },
+  const [steps, setSteps] = useState<{ digit: string; delay: string }[]>([
+    { digit: "1", delay: "2.5" },
   ]);
 
   // Schedule. Off by default — a job runs as soon as it is started.
@@ -72,7 +72,11 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
       ? {
           dtmf_steps: steps
             .filter((s) => s.digit.trim())
-            .map((s, i) => ({ order: i + 1, digit: s.digit.trim(), action: s.action })),
+            .map((s, i) => ({
+              order: i + 1,
+              digit: s.digit.trim(),
+              delay: Number(s.delay) || 0,
+            })),
         }
       : {};
     const schedule = scheduleOn
@@ -112,7 +116,7 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
-        className="my-8 w-full max-w-lg rounded-lg border border-steel bg-graphite p-6"
+        className="my-8 w-full max-w-lg rounded-lg border border-edge bg-panel p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-5 flex items-start justify-between">
@@ -203,7 +207,7 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
           </div>
 
           {/* concurrency */}
-          <div className="border-t border-steel pt-4">
+          <div className="border-t border-edge pt-4">
             <span className={label}>Concurrency</span>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -266,71 +270,89 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
             </p>
           </div>
 
-          {/* DTMF steps */}
-          <div className="border-t border-steel pt-4">
-            <label className="flex items-center gap-2 text-sm text-chalk">
-              <input
-                type="checkbox"
-                checked={dtmfOn}
-                onChange={(e) => setDtmfOn(e.target.checked)}
-                className="accent-live-bright"
-              />
-              Let the caller press a key
+          {/* DTMF — exact duplicate of the reference modal. */}
+          <div className="border-t border-edge pt-4">
+            <label className="flex items-center justify-between text-sm text-chalk">
+              <span>DTMF Enabled</span>
+              {/* toggle */}
+              <button
+                type="button"
+                onClick={() => setDtmfOn((v) => !v)}
+                className={`relative h-5 w-9 rounded-full transition-colors ${dtmfOn ? "bg-live-bright" : "bg-edge"}`}
+                aria-pressed={dtmfOn}
+              >
+                <span className={`absolute top-0.5 size-4 rounded-full bg-white transition-all ${dtmfOn ? "left-[18px]" : "left-0.5"}`} />
+              </button>
             </label>
+
             {dtmfOn && (
-              <div className="mt-3 space-y-2">
-                {steps.map((s, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <span className="w-6 text-xs text-ash">{i + 1}</span>
-                    <input
-                      value={s.digit}
-                      maxLength={1}
-                      onChange={(e) =>
-                        setSteps(steps.map((x, j) => (j === i ? { ...x, digit: e.target.value } : x)))
-                      }
-                      placeholder="1"
-                      className={`${input} w-16 text-center font-mono`}
-                    />
-                    <select
-                      value={s.action}
-                      onChange={(e) =>
-                        setSteps(steps.map((x, j) => (j === i ? { ...x, action: e.target.value } : x)))
-                      }
-                      className={input}
-                    >
-                      <option value="confirm">Confirm / count them in</option>
-                      <option value="opt_out">Opt out — stop calling them</option>
-                      <option value="repeat">Repeat the message</option>
-                      <option value="hangup">Hang up</option>
-                    </select>
-                    <button
-                      type="button"
-                      onClick={() => setSteps(steps.filter((_, j) => j !== i))}
-                      className="text-rust"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setSteps([...steps, { digit: "", action: "confirm" }])}
-                >
-                  + Add key
-                </Button>
+              <div className="mt-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-sm font-medium text-chalk">DTMF Steps</span>
+                  <button
+                    type="button"
+                    onClick={() => setSteps([...steps, { digit: "", delay: "2.5" }])}
+                    className="inline-flex items-center gap-1 rounded border border-edge px-2 py-1 text-xs text-chalk hover:border-live-bright"
+                  >
+                    + Add Step
+                  </button>
+                </div>
+
+                {/* column headers, matching the reference */}
+                <div className="grid grid-cols-[64px_1fr_96px_28px] gap-2 pb-1 text-xs text-ash">
+                  <span>Order</span>
+                  <span>Digit</span>
+                  <span>Delay (s)</span>
+                  <span />
+                </div>
+
+                <div className="space-y-2">
+                  {steps.map((s, i) => (
+                    <div key={i} className="grid grid-cols-[64px_1fr_96px_28px] items-center gap-2">
+                      <input
+                        value={i + 1}
+                        readOnly
+                        className={`${input} text-center`}
+                      />
+                      <input
+                        value={s.digit}
+                        onChange={(e) =>
+                          setSteps(steps.map((x, j) => (j === i ? { ...x, digit: e.target.value } : x)))
+                        }
+                        placeholder="e.g. 1"
+                        className={input}
+                      />
+                      <input
+                        value={s.delay}
+                        onChange={(e) =>
+                          setSteps(steps.map((x, j) => (j === i ? { ...x, delay: e.target.value } : x)))
+                        }
+                        placeholder="2.5"
+                        className={input}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSteps(steps.filter((_, j) => j !== i))}
+                        className="text-rust hover:text-rust/80"
+                        aria-label="Remove step"
+                      >
+                        🗑
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
 
           {/* Schedule */}
-          <div className="border-t border-steel pt-4">
+          <div className="border-t border-edge pt-4">
             <label className="flex items-center gap-2 text-sm text-chalk">
               <input
                 type="checkbox"
                 checked={scheduleOn}
                 onChange={(e) => setScheduleOn(e.target.checked)}
-                className="accent-live-bright"
+                className="accent-signal"
               />
               Schedule it for later
             </label>
@@ -371,7 +393,7 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
             <p className="text-sm text-rust">{quickDial.error.message}</p>
           )}
 
-          <div className="flex justify-end gap-3 border-t border-steel pt-4">
+          <div className="flex justify-end gap-3 border-t border-edge pt-4">
             <Button type="button" variant="ghost" onClick={() => submit(false)} disabled={!ready || quickDial.isPending}>
               Save as draft
             </Button>

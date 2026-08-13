@@ -138,7 +138,7 @@ export function ContactListsPage() {
               <li key={list.id}>
                 <Link
                   to={`/contact-lists/${list.id}`}
-                  className="press block px-4 py-3.5 active:bg-raised/60"
+                  className="press block px-4 py-3.5 active:bg-raised"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <span className="display font-medium text-chalk">
@@ -182,7 +182,7 @@ export function ContactListsPage() {
         {rows.length > 0 && (
           <table className="hidden w-full text-sm md:table">
             <thead>
-              <tr className="border-b border-edge bg-void/40 text-left">
+              <tr className="border-b border-edge bg-void text-left">
                 {["List", "Import", "Rows", "Reachable", "Suppressed", "Added"].map(
                   (h, i) => (
                     <th
@@ -200,7 +200,7 @@ export function ContactListsPage() {
             </thead>
             <tbody className="divide-y divide-edge">
               {rows.map((list) => (
-                <tr key={list.id} className="group hover:bg-raised/50">
+                <tr key={list.id} className="group hover:bg-raised">
                   <td className="px-4 py-3">
                     <Link
                       to={`/contact-lists/${list.id}`}

@@ -53,6 +53,16 @@ class CampaignSerializer(serializers.ModelSerializer):
     flow_version_number = serializers.IntegerField(
         source="flow_version.version", read_only=True
     )
+    # Job-facing columns for the Jobs list (reference dialer).
+    audio_pool_name = serializers.CharField(
+        source="audio_pool.name", read_only=True, default=""
+    )
+    cli_pool_name = serializers.CharField(
+        source="cli_pool.name", read_only=True, default=""
+    )
+    user = serializers.CharField(
+        source="created_by.username", read_only=True, default=""
+    )
 
     class Meta:
         model = Campaign
@@ -60,6 +70,8 @@ class CampaignSerializer(serializers.ModelSerializer):
             "id", "name", "status", "flow_version", "flow_name",
             "flow_version_number", "caller_id", "caller_id_detail",
             "contact_lists", "provider",
+            "target_number", "audio_pool", "cli_pool",
+            "audio_pool_name", "cli_pool_name", "user",
             "requires_consent", "consent_scope",
             "cps_limit", "max_concurrent_channels", "ring_timeout_seconds",
             "dial_mode", "dial_batch_size", "dial_interval_seconds",

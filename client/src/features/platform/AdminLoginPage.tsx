@@ -43,7 +43,7 @@ export function AdminLoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-ink px-4">
+    <main className="flex min-h-screen items-center justify-center bg-void px-4">
       <div className="w-full max-w-sm">
         <h1 className="display text-2xl font-semibold text-chalk">
           System administration
@@ -68,7 +68,7 @@ export function AdminLoginPage() {
               autoComplete="username"
               autoFocus
               required
-              className="w-full rounded border border-steel bg-graphite px-3 py-2 text-sm text-chalk focus:border-live-bright focus:outline-none"
+              className="w-full rounded border border-edge bg-panel px-3 py-2 text-sm text-chalk focus:border-live-bright focus:outline-none"
             />
           </label>
 
@@ -82,7 +82,7 @@ export function AdminLoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="current-password"
               required
-              className="w-full rounded border border-steel bg-graphite px-3 py-2 text-sm text-chalk focus:border-live-bright focus:outline-none"
+              className="w-full rounded border border-edge bg-panel px-3 py-2 text-sm text-chalk focus:border-live-bright focus:outline-none"
             />
           </label>
 
@@ -91,7 +91,7 @@ export function AdminLoginPage() {
           <button
             type="submit"
             disabled={busy || !username || !password}
-            className="w-full rounded bg-live-bright px-4 py-2.5 text-sm font-semibold uppercase tracking-wider text-ink disabled:opacity-50"
+            className="w-full rounded bg-live-bright px-4 py-2.5 text-sm font-semibold uppercase tracking-wider text-void disabled:opacity-50"
           >
             {busy ? "Signing in…" : "Sign in"}
           </button>

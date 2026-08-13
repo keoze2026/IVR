@@ -167,7 +167,7 @@ export function FlowsPage() {
               <li key={flow.id}>
                 <Link
                   to={`/flows/${flow.id}`}
-                  className="group flex items-center gap-4 px-4 py-3.5 hover:bg-raised/50"
+                  className="group flex items-center gap-4 px-4 py-3.5 hover:bg-raised"
                 >
                   <div className="min-w-0 flex-1">
                     <span className="display font-medium text-chalk group-hover:text-signal">
@@ -280,11 +280,11 @@ function VersionRow({
       <span className="num text-lg text-chalk">v{version.version}</span>
 
       {version.is_published ? (
-        <span className="rounded border border-live-bright/40 bg-live/15 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-live-bright">
+        <span className="rounded border border-live-bright/40 bg-live px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-live-bright">
           published
         </span>
       ) : (
-        <span className="rounded border border-signal/40 bg-signal/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-signal">
+        <span className="rounded border border-signal/40 bg-panel px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-signal">
           draft
         </span>
       )}

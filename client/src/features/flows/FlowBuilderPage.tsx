@@ -166,11 +166,11 @@ export function FlowBuilderPage() {
           <h1 className="display mt-2 flex items-center gap-3 text-xl font-semibold text-chalk">
             Version {version.data.version}
             {published ? (
-              <span className="rounded border border-live-bright/40 bg-live/15 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-live-bright">
+              <span className="rounded border border-live-bright/40 bg-live px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-live-bright">
                 published · immutable
               </span>
             ) : (
-              <span className="rounded border border-signal/40 bg-signal/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-signal">
+              <span className="rounded border border-signal/40 bg-panel px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-signal">
                 draft
               </span>
             )}
@@ -206,7 +206,7 @@ export function FlowBuilderPage() {
       </header>
 
       {publish.error instanceof ApiError && publish.error.isInvalidFlow && (
-        <div className="rounded border border-rust/40 bg-rust/10 px-4 py-3">
+        <div className="rounded border border-rust/40 bg-panel px-4 py-3">
           <p className="text-sm font-medium text-rust">
             Publish refused. These must be fixed first.
           </p>
@@ -266,7 +266,7 @@ export function FlowBuilderPage() {
                     className={cx(
                       "w-full rounded border px-3 py-2.5 text-left transition-colors",
                       selected === id
-                        ? "border-signal bg-signal/[0.08]"
+                        ? "border-signal bg-panel"
                         : "border-edge bg-void hover:border-edge-bright",
                       unreachable && "opacity-45",
                     )}
@@ -345,7 +345,7 @@ export function FlowBuilderPage() {
         </div>
 
         {!graphChecksRan && (
-          <p className="border-b border-amber/30 bg-amber/[0.07] px-4 py-2 text-xs text-amber">
+          <p className="border-b border-amber/30 bg-panel px-4 py-2 text-xs text-amber">
             Fix the {structural.length} field error
             {structural.length > 1 ? "s" : ""} below to see reachability and
             dangling-transition checks — they do not run until the document
@@ -382,7 +382,7 @@ function IssueRow({
     <li>
       <button
         onClick={() => issue.node && onSelect(issue.node)}
-        className="flex w-full items-start gap-3 px-4 py-2 text-left hover:bg-raised/50"
+        className="flex w-full items-start gap-3 px-4 py-2 text-left hover:bg-raised"
       >
         <span
           className={cx(

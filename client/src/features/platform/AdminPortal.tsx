@@ -65,9 +65,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   }, {});
 
   return (
-    <div className="flex min-h-screen bg-ink text-chalk">
-      <aside className="hidden w-60 shrink-0 border-r border-steel bg-graphite md:block">
-        <div className="border-b border-steel px-4 py-4">
+    <div className="flex min-h-screen bg-void text-chalk">
+      <aside className="hidden w-60 shrink-0 border-r border-edge bg-panel md:block">
+        <div className="border-b border-edge px-4 py-4">
           <Link to="/admin" className="display text-sm font-semibold text-chalk">
             System administration
           </Link>
@@ -86,7 +86,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 <Link
                   key={r.resource}
                   to={`/admin/${r.resource}`}
-                  className="block rounded px-2 py-1.5 text-sm text-ash hover:bg-ink hover:text-chalk"
+                  className="block rounded px-2 py-1.5 text-sm text-ash hover:bg-void hover:text-chalk"
                 >
                   {r.label}
                 </Link>
@@ -95,7 +95,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className="border-t border-steel px-3 py-3">
+        <div className="border-t border-edge px-3 py-3">
           <Link
             to="/campaigns"
             className="block rounded px-2 py-1.5 text-sm text-ash hover:text-chalk"
@@ -148,7 +148,7 @@ export function AdminOverviewPage() {
               <Link
                 key={r.resource}
                 to={`/admin/${r.resource}`}
-                className="rounded border border-steel bg-graphite p-4 hover:border-live-bright"
+                className="rounded border border-edge bg-panel p-4 hover:border-live-bright"
               >
                 <p className="text-sm font-semibold text-chalk">{r.label}</p>
                 <p className="mt-1 text-2xl tabular-nums text-live-bright">
@@ -198,7 +198,7 @@ export function AdminListPage() {
           <button
             type="button"
             onClick={() => navigate(`/admin/${resource}/new`)}
-            className="rounded bg-live-bright px-4 py-2 text-sm font-semibold uppercase tracking-wider text-ink"
+            className="rounded bg-live-bright px-4 py-2 text-sm font-semibold uppercase tracking-wider text-void"
           >
             Add {schema.label.replace(/s$/, "").toLowerCase()}
           </button>
@@ -210,7 +210,7 @@ export function AdminListPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={`Search by ${schema.search.map(humanise).join(", ")}`}
-          className="w-full max-w-md rounded border border-steel bg-graphite px-3 py-2 text-sm text-chalk placeholder:text-ash/60 focus:border-live-bright focus:outline-none"
+          className="w-full max-w-md rounded border border-edge bg-panel px-3 py-2 text-sm text-chalk placeholder:text-ash/60 focus:border-live-bright focus:outline-none"
         />
       )}
 
@@ -218,15 +218,15 @@ export function AdminListPage() {
       {error && <p className="text-sm text-rust">{error.message}</p>}
 
       {!isLoading && rows.length === 0 && (
-        <p className="rounded border border-dashed border-steel px-4 py-8 text-center text-sm text-ash">
+        <p className="rounded border border-dashed border-edge px-4 py-8 text-center text-sm text-ash">
           {search ? "Nothing matched that search." : "There is nothing here yet."}
         </p>
       )}
 
       {rows.length > 0 && (
-        <div className="overflow-x-auto rounded border border-steel">
+        <div className="overflow-x-auto rounded border border-edge">
           <table className="w-full text-sm">
-            <thead className="bg-graphite">
+            <thead className="bg-panel">
               <tr className="text-left text-xs uppercase tracking-wider text-ash">
                 {schema.columns.map((c) => (
                   <th key={c} className="whitespace-nowrap px-3 py-2">
@@ -238,7 +238,7 @@ export function AdminListPage() {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.id} className="border-t border-steel/60 hover:bg-graphite/50">
+                <tr key={row.id} className="border-t border-edge/60 hover:bg-raised">
                   {schema.columns.map((c) => (
                     <td key={c} className="whitespace-nowrap px-3 py-2 text-ash">
                       {cell(row[c])}
@@ -350,7 +350,7 @@ export function AdminEditPage() {
       )}
 
       {schema.readonly ? (
-        <dl className="grid gap-3 rounded border border-steel bg-graphite p-4 sm:grid-cols-2">
+        <dl className="grid gap-3 rounded border border-edge bg-panel p-4 sm:grid-cols-2">
           {schema.fields.map((f) => (
             <div key={f.name}>
               <dt className="text-xs uppercase tracking-wider text-ash">{f.label}</dt>
@@ -374,7 +374,7 @@ export function AdminEditPage() {
       )}
 
       {!schema.readonly && (
-        <section className="rounded border border-rust/40 bg-rust/5 p-4">
+        <section className="rounded border border-rust/40 bg-panel p-4">
           <h2 className="text-sm font-semibold text-chalk">Delete this record</h2>
           {!confirming ? (
             <>
@@ -385,7 +385,7 @@ export function AdminEditPage() {
               <button
                 type="button"
                 onClick={() => setConfirming(true)}
-                className="mt-3 rounded border border-rust px-3 py-1.5 text-sm text-rust hover:bg-rust hover:text-ink"
+                className="mt-3 rounded border border-rust px-3 py-1.5 text-sm text-rust hover:bg-rust hover:text-void"
               >
                 Delete
               </button>
@@ -407,14 +407,14 @@ export function AdminEditPage() {
                     await remove.mutateAsync(id);
                     navigate(`/admin/${resource}`);
                   }}
-                  className="rounded bg-rust px-3 py-1.5 text-sm font-semibold text-ink disabled:opacity-50"
+                  className="rounded bg-rust px-3 py-1.5 text-sm font-semibold text-void disabled:opacity-50"
                 >
                   {remove.isPending ? "Deleting…" : "Yes, delete it"}
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirming(false)}
-                  className="rounded border border-steel px-3 py-1.5 text-sm text-ash hover:text-chalk"
+                  className="rounded border border-edge px-3 py-1.5 text-sm text-ash hover:text-chalk"
                 >
                   Keep it
                 </button>

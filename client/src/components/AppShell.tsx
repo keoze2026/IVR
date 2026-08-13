@@ -29,31 +29,47 @@ import type { Campaign, KpiFrame } from "@/types/domain";
 interface NavEntry {
   to: string;
   label: string;
-  group: "general" | "telephony" | "billing" | "govern";
+  group: "general" | "management" | "telephony";
+  /** Sub-items shown indented under the parent, matching the reference. */
+  children?: { to: string; label: string }[];
 }
 
+// Ordered and grouped exactly as the reference dialer's sidebar:
+// General (Dashboard, Jobs, CDR) · Management (Wallets, Tariffs) ·
+// Telephony (Audio Pools, CLI Pools). The platform's own compliance and
+// access screens follow under Govern.
 const NAV: NavEntry[] = [
-  // General — what you do daily, in the reference's order.
-  { to: "/dashboard", label: "Dashboard", group: "general" },
-  { to: "/jobs", label: "Jobs", group: "general" },
-  { to: "/cdr", label: "Call records", group: "general" },
-  { to: "/campaigns", label: "Campaigns", group: "general" },
-  { to: "/contact-lists", label: "Contacts", group: "general" },
-  { to: "/flows", label: "Flows", group: "general" },
-  // Telephony — the pools a job dials from.
-  { to: "/audio-pools", label: "Audio pools", group: "telephony" },
-  { to: "/cli-pools", label: "CLI pools", group: "telephony" },
+  {
+    to: "/dashboard",
+    label: "Dashboard",
+    group: "general",
+    children: [
+      { to: "/dashboard", label: "Calls Insights" },
+      { to: "/dashboard/breakdown", label: "Calls Breakdown" },
+    ],
+  },
+  {
+    to: "/jobs",
+    label: "Jobs",
+    group: "general",
+    children: [
+      { to: "/jobs", label: "All Jobs" },
+      { to: "/jobs/active", label: "Active Jobs" },
+    ],
+  },
+  { to: "/cdr", label: "CDR", group: "general" },
+
+  { to: "/wallet", label: "Wallets", group: "management" },
+  { to: "/tariffs", label: "Tariffs", group: "management" },
+
+  { to: "/audio-pools", label: "Audio Pools", group: "telephony" },
+  { to: "/cli-pools", label: "CLI Pools", group: "telephony" },
   { to: "/caller-ids", label: "Caller IDs", group: "telephony" },
-  // Billing.
-  { to: "/wallet", label: "Wallet", group: "billing" },
-  { to: "/tariffs", label: "Tariffs", group: "billing" },
-  // Govern — compliance and access.
-  { to: "/compliance/dnc", label: "Suppression", group: "govern" },
-  { to: "/compliance/consent", label: "Consent", group: "govern" },
-  { to: "/compliance/windows", label: "Calling hours", group: "govern" },
-  { to: "/people", label: "People", group: "govern" },
-  { to: "/access-keys", label: "Machine keys", group: "govern" },
 ];
+// The staff portal shows only what the reference does: General, Management,
+// Telephony. Compliance, People and access keys are administration and live in
+// the /admin portal, not here. Their routes still exist for a direct link, but
+// they are deliberately off the operator's sidebar.
 
 /** Four, because a fifth stops being thumb-reachable and starts being a menu. */
 const TABS = [
@@ -319,20 +335,14 @@ function Rail({
           onNavigate={onNavigate}
         />
         <NavGroup
+          label="Management"
+          items={NAV.filter((n) => n.group === "management")}
+          counts={counts}
+          onNavigate={onNavigate}
+        />
+        <NavGroup
           label="Telephony"
           items={NAV.filter((n) => n.group === "telephony")}
-          counts={counts}
-          onNavigate={onNavigate}
-        />
-        <NavGroup
-          label="Billing"
-          items={NAV.filter((n) => n.group === "billing")}
-          counts={counts}
-          onNavigate={onNavigate}
-        />
-        <NavGroup
-          label="Govern"
-          items={NAV.filter((n) => n.group === "govern")}
           counts={counts}
           onNavigate={onNavigate}
         />
@@ -393,13 +403,28 @@ function NavGroup({
       <div className="eyebrow px-4 pb-2">{label}</div>
       <div className="space-y-0.5">
         {items.map((item) => (
-          <NavItem
-            key={item.to}
-            to={item.to}
-            label={item.label}
-            count={counts[item.to]}
-            onNavigate={onNavigate}
-          />
+          <div key={item.to}>
+            <NavItem
+              to={item.to}
+              label={item.label}
+              count={counts[item.to]}
+              onNavigate={onNavigate}
+            />
+            {/* Sub-items, indented, exactly like the reference's expandable
+                Dashboard and Jobs groups. */}
+            {item.children && (
+              <div className="mb-1 ml-4 space-y-0.5 border-l border-edge pl-2">
+                {item.children.map((child) => (
+                  <NavItem
+                    key={child.to}
+                    to={child.to}
+                    label={child.label}
+                    onNavigate={onNavigate}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         ))}
       </div>
     </div>
@@ -426,7 +451,7 @@ function NavItem({
           "press relative flex min-h-11 items-center gap-2 rounded-full pl-4 pr-3 text-sm",
           isActive
             ? "bg-raised font-medium text-chalk"
-            : "text-ash hover:bg-raised/60 hover:text-chalk",
+            : "text-ash hover:bg-raised hover:text-chalk",
         )
       }
     >
@@ -525,8 +550,8 @@ function Banner({ tone, children }: { tone: "rust" | "amber"; children: ReactNod
       className={cx(
         "border-b px-4 py-2.5 text-center text-sm lg:px-6",
         tone === "rust"
-          ? "border-rust/30 bg-rust/10 text-rust"
-          : "border-amber/30 bg-amber/10 text-amber",
+          ? "border-rust/30 bg-panel text-rust"
+          : "border-amber/30 bg-panel text-amber",
       )}
     >
       {children}

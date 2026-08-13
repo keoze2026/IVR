@@ -95,7 +95,7 @@ export function CallsTable({
           <>
             <table className="hidden w-full text-sm md:table">
               <thead>
-                <tr className="border-b border-edge bg-void/40 text-left">
+                <tr className="border-b border-edge bg-void text-left">
                   {["To", "State", "Outcome", "Answered by", "Duration", "Cost", "When"].map(
                     (h, i) => (
                       <th
@@ -169,7 +169,7 @@ function MobileCallRow({ call }: { call: CallSummary }) {
     <li>
       <Link
         to={`/calls/${call.id}`}
-        className="press block px-4 py-3.5 active:bg-raised/60"
+        className="press block px-4 py-3.5 active:bg-raised"
       >
         <div className="flex items-center justify-between gap-3">
           <span className="num text-sm text-chalk">{call.to_masked}</span>
@@ -215,7 +215,7 @@ function CallRow({ call }: { call: CallSummary }) {
   const machine = call.answered_by.startsWith("machine");
 
   return (
-    <tr className="group transition-colors hover:bg-raised/50">
+    <tr className="group transition-colors hover:bg-raised">
       <td className="px-4 py-2.5">
         <Link
           to={`/calls/${call.id}`}

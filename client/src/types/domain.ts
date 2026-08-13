@@ -200,6 +200,10 @@ export interface Campaign {
   dial_mode: "fixed" | "pulse" | "ramp";
   dial_batch_size: number;
   dial_interval_seconds: number;
+  target_number: string;
+  audio_pool_name: string;
+  cli_pool_name: string;
+  user: string;
   ring_timeout_seconds: number;
   scheduled_start: string | null;
   scheduled_end: string | null;
@@ -537,6 +541,8 @@ export interface CallSummary {
   ring_seconds: number;
   cost: string | null;
   terminal_node: string;
+  billable_seconds: number;
+  has_recording: boolean;
   created_at: string;
   ended_at: string | null;
 }

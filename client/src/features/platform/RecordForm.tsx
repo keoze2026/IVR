@@ -67,7 +67,7 @@ function ReferencePicker({
 }
 
 const inputClass =
-  "w-full rounded border border-steel bg-ink px-3 py-2 text-sm text-chalk placeholder:text-ash/50 focus:border-live-bright focus:outline-none";
+  "w-full rounded border border-edge bg-void px-3 py-2 text-sm text-chalk placeholder:text-ash/50 focus:border-live-bright focus:outline-none";
 
 function Field({
   field,
@@ -91,7 +91,7 @@ function Field({
             type="checkbox"
             checked={Boolean(value)}
             onChange={(e) => onChange(e.target.checked)}
-            className="mt-1 h-4 w-4 accent-live-bright"
+            className="mt-1 h-4 w-4 accent-signal"
           />
           <span>
             <span className="text-sm text-chalk">{field.label}</span>
@@ -259,14 +259,14 @@ export function RecordForm({
         <button
           type="submit"
           disabled={submitting}
-          className="rounded bg-live-bright px-4 py-2 text-sm font-semibold uppercase tracking-wider text-ink disabled:opacity-50"
+          className="rounded bg-live-bright px-4 py-2 text-sm font-semibold uppercase tracking-wider text-void disabled:opacity-50"
         >
           {submitting ? "Saving…" : submitLabel}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="rounded border border-steel px-4 py-2 text-sm text-ash hover:text-chalk"
+          className="rounded border border-edge px-4 py-2 text-sm text-ash hover:text-chalk"
         >
           Cancel
         </button>

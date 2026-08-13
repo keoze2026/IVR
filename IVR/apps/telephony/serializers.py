@@ -47,13 +47,16 @@ class CallLogListSerializer(serializers.ModelSerializer):
     """
 
     to_masked = serializers.SerializerMethodField()
+    has_recording = serializers.SerializerMethodField()
+    billable_seconds = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = CallLog
         fields = [
             "id", "campaign", "provider_call_sid", "to_masked", "status",
             "answered_by", "disposition", "attempt_number", "duration_seconds",
-            "ring_seconds", "cost", "terminal_node", "created_at", "ended_at",
+            "billable_seconds", "ring_seconds", "cost", "terminal_node",
+            "has_recording", "created_at", "ended_at",
         ]
         read_only_fields = fields
 
@@ -61,3 +64,10 @@ class CallLogListSerializer(serializers.ModelSerializer):
         from apps.common.utils import mask_phone
 
         return mask_phone(obj.to_number)
+
+    def get_has_recording(self, obj) -> bool:
+        # A recording exists and can still be fetched. The CDR's play control is
+        # active only when this is true; otherwise there is nothing to play.
+        return bool(
+            (obj.recording_key or obj.recording_url) and not obj.recording_purged_at
+        )

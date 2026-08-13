@@ -157,7 +157,7 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
 
       {/* --- actions ---------------------------------------------------- */}
       {canControl && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-edge bg-void/40 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2 border-t border-edge bg-void px-4 py-3">
           {can.start && (
             <ClipButton
               onClick={() => void launch(false)}
@@ -202,7 +202,7 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
           {can.stop && (
             <Button
               variant="ghost"
-              className="ml-auto text-rust hover:bg-rust/10 hover:text-rust"
+              className="ml-auto text-rust hover:bg-panel hover:text-rust"
               onClick={() => setConfirmStop(true)}
             >
               Stop permanently
@@ -212,7 +212,7 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
       )}
 
       {start.error && !start.error.isComplianceBlock && (
-        <p className="border-t border-rust/30 bg-rust/10 px-4 py-2.5 text-sm text-rust">
+        <p className="border-t border-rust/30 bg-panel px-4 py-2.5 text-sm text-rust">
           {start.error.message}
         </p>
       )}
@@ -235,7 +235,7 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
             {ack.warnings.map((issue) => (
               <li
                 key={issue.code}
-                className="rounded border border-amber/30 bg-amber/[0.07] px-3 py-2.5"
+                className="rounded border border-amber/30 bg-panel px-3 py-2.5"
               >
                 <p className="text-sm text-chalk">{explain(issue)}</p>
               </li>

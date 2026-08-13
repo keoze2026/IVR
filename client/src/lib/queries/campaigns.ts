@@ -223,3 +223,23 @@ export const FROZEN_WHILE_RUNNING = [
   "requires_consent",
   "consent_scope",
 ] as const;
+
+/**
+ * Job control from a list row, where the hooks keyed by id cannot be called.
+ * One mutation that takes the id and the action.
+ */
+export function useJobAction() {
+  const qc = useQueryClient();
+  return useMutation<
+    Campaign,
+    ApiError,
+    { id: string; action: "start" | "pause" | "stop" }
+  >({
+    mutationFn: ({ id, action }) =>
+      request<Campaign>(`campaigns/${id}/${action}/`, {
+        method: "POST",
+        body: action === "start" ? { force: true } : {},
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: campaignKeys.all }),
+  });
+}

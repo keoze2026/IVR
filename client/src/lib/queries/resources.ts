@@ -734,6 +734,7 @@ export interface Pool {
   rotation: string;
   members: string[];
   member_count: number;
+  user: string;
   created_at: string;
 }
 
