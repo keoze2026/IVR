@@ -107,6 +107,22 @@ export function useCreateRow(resource: string) {
   });
 }
 
+/**
+ * Issue a fresh sign-in code for a person, returned once.
+ *
+ * The old code is a one-way hash and cannot be shown again, so "see the code"
+ * is really "mint a new one and read it here." The response carries the new
+ * code exactly once.
+ */
+export function useResetCode(resource: string) {
+  const qc = useQueryClient();
+  return useMutation<{ username: string; access_code: string }, ApiError, string>({
+    mutationFn: (id) =>
+      request(`platform/${resource}/${id}/reset-code/`, { method: "POST" }),
+    onSuccess: () => invalidate(qc, resource),
+  });
+}
+
 export function useUpdateRow(resource: string) {
   const qc = useQueryClient();
   return useMutation<Row, ApiError, { id: string; body: Record<string, unknown> }>({

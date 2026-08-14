@@ -82,6 +82,11 @@ urlpatterns = [
         name="platform-list",
     ),
     path(
+        "platform/<str:resource>/<str:pk>/reset-code/",
+        PlatformViewSet.as_view({"post": "reset_code"}),
+        name="platform-reset-code",
+    ),
+    path(
         "platform/<str:resource>/<str:pk>/",
         PlatformViewSet.as_view(
             {"get": "retrieve", "patch": "partial_update",

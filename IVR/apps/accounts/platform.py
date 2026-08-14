@@ -517,6 +517,26 @@ class PlatformViewSet(viewsets.ModelViewSet):
             response.data["access_code"] = code
         return response
 
+    def reset_code(self, request, *args, **kwargs):
+        """
+        Issue a fresh sign-in code for a person, shown once.
+
+        The existing code is a one-way hash and cannot be read back, so the
+        only way to hand an administrator a code they can pass on is to mint a
+        new one — which invalidates the old. Only people have codes.
+        """
+        if self.resource != "users":
+            raise PermissionDenied("Only people have sign-in codes.")
+        from apps.accounts.views import generate_access_code
+
+        user = self.get_object()
+        code = generate_access_code()
+        user.set_password(code)
+        user.is_active = True
+        user.save(update_fields=["password", "is_active"])
+        self._record("update", user)
+        return Response({"username": user.username, "access_code": code})
+
     def _refuse_if_readonly(self):
         if _entry(self.resource).get("readonly"):
             raise PermissionDenied(

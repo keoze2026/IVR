@@ -25,6 +25,7 @@ import {
   usePlatformOverview,
   usePlatformRow,
   usePlatformSchema,
+  useResetCode,
   useUpdateRow,
   type ResourceSchema,
 } from "@/lib/queries/platform";
@@ -393,7 +394,9 @@ export function AdminEditPage() {
   const { data: row, isLoading } = usePlatformRow(resource, id);
   const update = useUpdateRow(resource);
   const remove = useDeleteRow(resource);
+  const resetCode = useResetCode(resource);
   const [confirming, setConfirming] = useState(false);
+  const [newCode, setNewCode] = useState<string | null>(null);
 
   if (!schema || isLoading) return <p className="text-sm text-ash">Loading…</p>;
   if (!row) return <p className="text-sm text-rust">That record was not found.</p>;
@@ -436,6 +439,45 @@ export function AdminEditPage() {
             navigate(`/admin/${resource}`);
           }}
         />
+      )}
+
+      {resource === "users" && (
+        <section className="rounded border border-edge bg-panel p-4">
+          <h2 className="text-sm font-semibold text-chalk">Sign-in code</h2>
+          <p className="mt-1 text-sm text-ash">
+            A code can't be read back — it's stored hashed. Reset to issue a new
+            one and show it here once; the old code stops working immediately.
+          </p>
+          {newCode ? (
+            <div className="mt-3 flex items-center gap-3">
+              <span className="font-mono text-2xl tracking-[0.3em] text-live-bright">
+                {newCode}
+              </span>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard?.writeText(newCode)}
+                className="rounded border border-edge px-2 py-1 text-xs text-ash hover:text-chalk"
+              >
+                Copy
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={resetCode.isPending}
+              onClick={async () => {
+                const r = await resetCode.mutateAsync(id);
+                setNewCode(r.access_code);
+              }}
+              className="mt-3 rounded border border-edge px-3 py-1.5 text-sm text-chalk hover:bg-raised disabled:opacity-50"
+            >
+              {resetCode.isPending ? "Issuing…" : "Reset sign-in code"}
+            </button>
+          )}
+          {resetCode.error && (
+            <p className="mt-2 text-sm text-rust">{resetCode.error.message}</p>
+          )}
+        </section>
       )}
 
       {!schema.readonly && (
