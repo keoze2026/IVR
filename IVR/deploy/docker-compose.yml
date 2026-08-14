@@ -55,9 +55,11 @@ services:
       timeout: 3s
       retries: 10
     # Host port is configurable so this can coexist with a system Postgres
-    # already holding 5432. The in-container port is always 5432.
+    # already holding 5432, and defaults to a localhost-only bind so the
+    # database is never reachable from outside the machine. The in-container
+    # port is always 5432.
     ports:
-      - "${POSTGRES_HOST_PORT:-5432}:5432"
+      - "${POSTGRES_HOST_PORT:-127.0.0.1:5434}:5432"
 
   redis:
     image: redis:7-alpine
@@ -77,15 +79,17 @@ services:
       timeout: 3s
       retries: 10
     # Configurable for the same reason as Postgres: a host Redis may already
-    # hold 6379. In-container it is always 6379 (see container.env).
+    # hold 6379. Defaults to a localhost-only bind on a non-clashing port.
+    # In-container it is always 6379 (see container.env).
     ports:
-      - "${REDIS_HOST_PORT:-6379}:6379"
+      - "${REDIS_HOST_PORT:-127.0.0.1:6380}:6379"
 
   web:
     <<: *app
     command: ["web"]
+    # Localhost-only: the public entrypoint is nginx, never Django direct.
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
   asgi:
     <<: *app
@@ -93,7 +97,7 @@ services:
     environment:
       RUN_MIGRATIONS: "0"
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8001:8000"
 
   beat:
     <<: *app
@@ -140,8 +144,9 @@ services:
     command: ["flower"]
     environment:
       RUN_MIGRATIONS: "0"
+    # Localhost-only: reach it over an SSH tunnel, never the open internet.
     ports:
-      - "5555:5555"
+      - "127.0.0.1:5555:5555"
 
   # Operator portal: the BFF plus the built SPA in one image. It holds the API
   # key server-side so the browser never sees a credential, and nginx gives it
@@ -176,8 +181,11 @@ services:
       - web
       - asgi
       - client
+    # The one public port: the operator portal. Configurable so it can be
+    # placed on a port free of the host's other projects. When a domain and
+    # TLS land, front this with the host's nginx and bind it to localhost.
     ports:
-      - "8080:80"
+      - "${WEB_PORT:-8080}:80"
     restart: unless-stopped
 
   # Object storage for uploaded sounds, pre-rendered prompts and recordings.
@@ -191,9 +199,11 @@ services:
       MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY:?set AWS_SECRET_ACCESS_KEY}
     volumes:
       - miniodata:/data
+    # Localhost-only: object storage and its console are internal. Uploaded
+    # sound is served to the app over the compose network, not the public port.
     ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # web console
+      - "127.0.0.1:9000:9000"   # S3 API
+      - "127.0.0.1:9001:9001"   # web console
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 10s
