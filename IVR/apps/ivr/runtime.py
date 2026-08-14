@@ -174,22 +174,16 @@ def _say(prompt: dict, context: dict, locale: str) -> Verb:
 
 
 def _asset_url(asset_id) -> str:
+    # Served through the app's own public URL, not a presigned MinIO link.
+    #
+    # The carrier fetches <Play> URLs from the public internet, where an
+    # internal endpoint (http://minio:9000/...) is unreachable. The app streams
+    # the object instead, at a path that is already public and HTTPS. See
+    # apps/telephony/media.PromptMediaView.
     if not asset_id:
         return ""
-    from apps.common.storage import signed_url
-    from apps.ivr.models import AudioAsset
-
-    key = cache.get(f"asset:{asset_id}")
-    if key is None:
-        key = (
-            AudioAsset.objects.unscoped()
-            .filter(pk=asset_id)
-            .values_list("storage_key", flat=True)
-            .first()
-            or ""
-        )
-        cache.set(f"asset:{asset_id}", key, 3600)
-    return signed_url(settings.S3_BUCKET_PROMPTS, key) if key else ""
+    base = (getattr(settings, "PUBLIC_BASE_URL", "") or "").rstrip("/")
+    return f"{base}/webhooks/media/prompt/{asset_id}/" if base else ""
 
 
 # ---------------------------------------------------------------------------
