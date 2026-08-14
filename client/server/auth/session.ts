@@ -100,7 +100,14 @@ export async function createSession(
   await setSignedCookie(c, SESSION_COOKIE, session.id, secret(), {
     httpOnly: true,
     sameSite: "Lax",
-    secure: process.env.NODE_ENV === "production",
+    // Secure by default in production, but overridable: a pre-domain staging
+    // box is reached over plain HTTP by IP, where a Secure cookie is silently
+    // dropped by the browser and every login bounces back. Set
+    // SESSION_COOKIE_SECURE=false there; leave it unset (or "true") once TLS
+    // is in front.
+    secure:
+      (process.env.SESSION_COOKIE_SECURE ??
+        String(process.env.NODE_ENV === "production")) === "true",
     path: "/",
     maxAge: Math.floor(TTL_MS / 1000),
   });

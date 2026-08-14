@@ -172,6 +172,9 @@ services:
       # container's address to Django and APIKey.allowed_cidrs would never
       # match a real operator.
       TRUST_PROXY_XFF: "1"
+      # HTTPS-only session cookie by default; set false for a pre-domain
+      # HTTP-by-IP staging box, or the login cookie is dropped and sign-in loops.
+      SESSION_COOKIE_SECURE: "${SESSION_COOKIE_SECURE:-true}"
     depends_on:
       - web
     restart: unless-stopped

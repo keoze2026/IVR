@@ -36,6 +36,7 @@ from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 
 from apps.accounts.models import AuditLogEntry
+from apps.common.pagination import SmallPageNumberPagination
 
 # ---------------------------------------------------------------------------
 # What the administrator can manage
@@ -439,6 +440,11 @@ class PlatformViewSet(viewsets.ModelViewSet):
     """
 
     permission_classes = [IsPlatformAdministrator]
+    # Page-number, not cursor: the default cursor paginator forces an ordering
+    # by created_at, which several registered models (User, area codes) do not
+    # have. These are small, human-sized admin lists, so offset paging is fine
+    # and it respects each queryset's own ordering (see get_queryset).
+    pagination_class = SmallPageNumberPagination
 
     @property
     def resource(self) -> str:
@@ -487,6 +493,29 @@ class PlatformViewSet(viewsets.ModelViewSet):
 
     def get_serializer_class(self):
         return serializer_for(_model(self.resource), _entry(self.resource))
+
+    def create(self, request, *args, **kwargs):
+        """
+        Creating a person issues their sign-in code, once, in the response.
+
+        A person signs in with their name and a five-character code. The code
+        is stored only as a hash, so it can be shown exactly once — here, at
+        the moment it is generated. The administrator reads it from this
+        response and hands it over; afterwards it can only be reset, never read
+        back. This is what makes "add a person" actually produce someone who
+        can sign in, rather than an account with no way in.
+        """
+        response = super().create(request, *args, **kwargs)
+        if self.resource == "users" and response.status_code == status.HTTP_201_CREATED:
+            from apps.accounts.models import User
+            from apps.accounts.views import generate_access_code
+
+            code = generate_access_code()
+            user = User.objects.get(pk=response.data["id"])
+            user.set_password(code)
+            user.save(update_fields=["password"])
+            response.data["access_code"] = code
+        return response
 
     def _refuse_if_readonly(self):
         if _entry(self.resource).get("readonly"):

@@ -270,8 +270,62 @@ export function AdminCreatePage() {
   const { data } = usePlatformSchema();
   const schema = data?.resources.find((r) => r.resource === resource);
   const create = useCreateRow(resource);
+  // A person's sign-in code is generated on creation and can be read exactly
+  // once. When the server returns one, hold the create page open and show it
+  // rather than navigating straight back to the list, where it would be lost.
+  const [issued, setIssued] = useState<{ name: string; code: string } | null>(null);
 
   if (!schema) return <p className="text-sm text-ash">Loading…</p>;
+
+  if (issued) {
+    return (
+      <div className="max-w-lg space-y-5">
+        <h1 className="display text-2xl font-semibold">Person added</h1>
+        <div className="rounded-lg border border-live-bright/40 bg-panel p-6">
+          <p className="text-sm text-ash">
+            Give this person their sign-in details. The code is shown{" "}
+            <span className="text-chalk">once</span> — it cannot be read again,
+            only reset.
+          </p>
+          <div className="mt-4 space-y-3">
+            <p className="text-sm">
+              <span className="text-ash">Name:</span>{" "}
+              <span className="text-chalk">{issued.name}</span>
+            </p>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-ash">Code:</span>
+              <span className="font-mono text-2xl tracking-[0.3em] text-live-bright">
+                {issued.code}
+              </span>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard?.writeText(issued.code)}
+                className="rounded border border-edge px-2 py-1 text-xs text-ash hover:text-chalk"
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => navigate(`/admin/${resource}`)}
+            className="rounded bg-live-bright px-4 py-2 text-sm font-semibold uppercase tracking-wider text-void"
+          >
+            Done
+          </button>
+          <button
+            type="button"
+            onClick={() => setIssued(null)}
+            className="rounded border border-edge px-4 py-2 text-sm text-ash hover:text-chalk"
+          >
+            Add another
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl space-y-5">
@@ -295,8 +349,19 @@ export function AdminCreatePage() {
         fieldErrors={create.error?.fieldErrors}
         onCancel={() => navigate(`/admin/${resource}`)}
         onSubmit={async (values) => {
-          await create.mutateAsync(stripEmpty(values));
-          navigate(`/admin/${resource}`);
+          const row = (await create.mutateAsync(stripEmpty(values))) as Record<
+            string,
+            unknown
+          >;
+          const code = row?.access_code;
+          if (resource === "users" && typeof code === "string") {
+            setIssued({
+              name: String(row.username ?? values.username ?? "the new person"),
+              code,
+            });
+          } else {
+            navigate(`/admin/${resource}`);
+          }
         }}
       />
     </div>
