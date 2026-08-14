@@ -87,17 +87,20 @@ services:
   web:
     <<: *app
     command: ["web"]
-    # Localhost-only: the public entrypoint is nginx, never Django direct.
-    ports:
-      - "127.0.0.1:8000:8000"
+    # No host port: the only public entrypoint is nginx, which reaches this
+    # over the compose network. Not published, so it cannot clash with a
+    # service the host already runs on 8000.
+    expose:
+      - "8000"
 
   asgi:
     <<: *app
     command: ["asgi"]
     environment:
       RUN_MIGRATIONS: "0"
-    ports:
-      - "127.0.0.1:8001:8000"
+    # No host port, same reason as web. nginx reaches it as channels:8000.
+    expose:
+      - "8000"
 
   beat:
     <<: *app
