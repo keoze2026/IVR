@@ -15,6 +15,7 @@ operator would otherwise have to do by hand.
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 
 from django.db import transaction
 from rest_framework import serializers, status
@@ -36,15 +37,36 @@ from apps.ivr.models import AudioAsset, IVRFlow, IVRFlowVersion
 _DTMF_ACTIONS = {"confirm", "opt_out", "repeat", "hangup"}
 
 
-def _build_definition(prompt: dict, dtmf_steps: list) -> dict:
+def _with_disclosure(defn: dict, record: bool) -> dict:
+    """
+    Prepend a spoken recording disclosure when the call is recorded.
+
+    Recording a call legally requires announcing it, and preflight refuses to
+    start a recorded campaign that has no disclosure node. This adds one at the
+    front and repoints the entry at it, so recording can be on without blocking.
+    """
+    if not record:
+        return defn
+    original_entry = defn["entry"]
+    defn["nodes"]["disclosure"] = {
+        "type": "play",
+        "prompt": {"kind": "say", "text": "This call may be recorded."},
+        "next": original_entry,
+    }
+    defn["entry"] = "disclosure"
+    return defn
+
+
+def _build_definition(prompt: dict, dtmf_steps: list, record: bool = False) -> dict:
     """
     A play-then-hangup flow, or play-then-listen when there are DTMF steps.
 
     Each step is a digit the caller can press and what it does. Without steps
-    the sound simply plays and the call ends — the plain broadcast.
+    the sound simply plays and the call ends — the plain broadcast. When
+    `record` is set, a spoken disclosure is prepended (see _with_disclosure).
     """
     if not dtmf_steps:
-        return {
+        return _with_disclosure({
             "schema_version": "1.0",
             "entry": "play",
             "default_locale": "en",
@@ -54,7 +76,7 @@ def _build_definition(prompt: dict, dtmf_steps: list) -> dict:
                 "done": {"type": "hangup",
                          "prompt": {"kind": "say", "text": "Goodbye."}},
             },
-        }
+        }, record)
 
     options: dict[str, str] = {}
     nodes: dict[str, dict] = {
@@ -95,14 +117,14 @@ def _build_definition(prompt: dict, dtmf_steps: list) -> dict:
     if not options:
         # Steps were supplied but none was usable; fall back to plain playback
         # rather than a menu that accepts nothing.
-        return _build_definition(prompt, [])
-    return {
+        return _build_definition(prompt, [], record)
+    return _with_disclosure({
         "schema_version": "1.0",
         "entry": "menu",
         "default_locale": "en",
         "locales": ["en"],
         "nodes": nodes,
-    }
+    }, record)
 
 
 def _bad(message: str) -> Response:
@@ -215,15 +237,23 @@ class QuickDialView(APIView):
             prompt = {"kind": "say", "text": text}
 
         name = (data.get("name") or "").strip() or f"Quick dial {e164}"
+        # The flow name is unique per organisation, so two quick dials to the
+        # same number (a common thing to do while testing) would collide on
+        # "<number> — sound". A short token keeps each job's flow distinct.
+        flow_name = f"{name} — sound {uuid.uuid4().hex[:8]}"
 
         with transaction.atomic():
             flow = IVRFlow.objects.create(
-                organization=org, name=f"{name} — sound", description="Quick dial"
+                organization=org, name=flow_name, description="Quick dial"
             )
-            definition = _build_definition(prompt, data.get("dtmf_steps") or [])
+            # Record by default, with the spoken disclosure the flow now carries.
+            record = True
+            definition = _build_definition(
+                prompt, data.get("dtmf_steps") or [], record=record
+            )
             version = IVRFlowVersion.objects.create(
                 organization=org, flow=flow, version=1, definition=definition,
-                entry_node="play", is_published=True,
+                entry_node=definition["entry"], is_published=True,
             )
 
             contact_list = ContactList.objects.create(
@@ -252,8 +282,11 @@ class QuickDialView(APIView):
                 # bulk marketing blast, so it is not consent-gated. Marketing
                 # scope here would make preflight refuse to start it.
                 consent_scope=ConsentScope.INFORMATIONAL,
-                # Record every call so the CDR's recording control is live.
-                record_calls=True,
+                # Recording is on, and the flow now carries the spoken
+                # disclosure preflight requires (see _with_disclosure), so the
+                # CDR's recording control has audio to play.
+                record_calls=record,
+                recording_disclosure_node="disclosure" if record else "",
                 dial_mode=data["dial_mode"],
                 max_concurrent_channels=data["max_concurrent_channels"],
                 dial_batch_size=data["dial_batch_size"],

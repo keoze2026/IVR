@@ -91,6 +91,18 @@ export function useCreateCampaign() {
 }
 
 /**
+ * Delete a job. The backend refuses a running/throttled one, so the caller
+ * should stop it first; the thrown ApiError carries that message.
+ */
+export function useDeleteJob() {
+  const queryClient = useQueryClient();
+  return useMutation<void, ApiError, string>({
+    mutationFn: (id) => request<void>(`campaigns/${id}/`, { method: "DELETE" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: campaignKeys.all }),
+  });
+}
+
+/**
  * Patch a campaign.
  *
  * Five fields are refused while running or throttled — the serializer 400s on

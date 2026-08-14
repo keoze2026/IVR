@@ -12,7 +12,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Button, EmptyState, Panel, TableSkeleton } from "@/components/ui";
-import { useCampaigns, useJobAction } from "@/lib/queries/campaigns";
+import { useCampaigns, useDeleteJob, useJobAction } from "@/lib/queries/campaigns";
 import type { Campaign } from "@/types/domain";
 
 import { CreateJobModal } from "./CreateJobModal";
@@ -31,6 +31,7 @@ export function JobsPage() {
   // progress shows without a manual reload.
   const { data, isLoading } = useCampaigns({}, { refetchInterval: 4000 });
   const action = useJobAction();
+  const del = useDeleteJob();
   const [creating, setCreating] = useState(false);
   const [filter, setFilter] = useState("");
 
@@ -82,9 +83,9 @@ export function JobsPage() {
       />
 
       {/* A failed status change is no longer silent — the reason shows here. */}
-      {action.error && (
+      {(action.error || del.error) && (
         <div className="rounded border border-rust/40 bg-panel px-4 py-3 text-sm text-rust">
-          {action.error.message || "That action could not be completed."}
+          {(action.error ?? del.error)?.message || "That action could not be completed."}
         </div>
       )}
 
@@ -120,6 +121,11 @@ export function JobsPage() {
                     job={j}
                     busy={action.isPending && action.variables?.id === j.id}
                     onAction={(a) => action.mutate({ id: j.id, action: a })}
+                    onDelete={() => {
+                      if (confirm(`Delete job "${j.name}"? This cannot be undone.`)) {
+                        del.mutate(j.id);
+                      }
+                    }}
                   />
                 ))}
               </tbody>
@@ -148,10 +154,12 @@ function JobRow({
   job,
   busy,
   onAction,
+  onDelete,
 }: {
   job: Campaign;
   busy: boolean;
   onAction: (a: "start" | "pause" | "stop") => void;
+  onDelete: () => void;
 }) {
   const mode = job.dial_mode ?? "fixed";
   const canStart = ["draft", "scheduled", "paused"].includes(job.status);
@@ -206,6 +214,15 @@ function JobRow({
         <Link to={`/campaigns/${job.id}`} className="px-2 text-ash hover:text-chalk">
           ⋯
         </Link>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="px-2 text-ash hover:text-rust"
+          title="Delete job"
+          aria-label="Delete job"
+        >
+          🗑
+        </button>
       </td>
     </tr>
   );
