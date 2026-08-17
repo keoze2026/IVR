@@ -16,7 +16,10 @@ TENANCY_STRICT = env_bool("TENANCY_STRICT", False)  # log + alert, don't 500 in 
 WEBHOOK_VERIFY_SIGNATURES = True
 
 # --- TLS / headers ---------------------------------------------------------
-SECURE_SSL_REDIRECT = True
+# Configurable, and off when TLS is terminated and redirected at the edge
+# (the host nginx already does http->https). Left on, Django would 301 the
+# portal's internal HTTP calls to the backend and the login would never land.
+SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", True)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_HSTS_SECONDS = 31_536_000
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
