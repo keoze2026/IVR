@@ -274,11 +274,51 @@ def persist_recording(provider_name: str, sid: str, payload: dict):
     call = CallLog.objects.unscoped().filter(provider_call_sid=sid).first()
     if call is None:
         return
+    rec_url = payload.get("RecordingUrl") or ""
+    key = ""
+    if rec_url and provider_name == "twilio":
+        try:
+            key = _copy_twilio_recording(call, rec_url)
+        except Exception:
+            logger.exception("could not copy recording into storage",
+                             extra={"call": str(call.pk)})
     CallLog.objects.unscoped().filter(pk=call.pk).update(
-        recording_url=(payload.get("RecordingUrl") or "")[:512],
+        recording_url=rec_url[:512],
+        recording_key=key,
         recording_duration=_int(payload.get("RecordingDuration")),
     )
     _record_event(call, "recording", None, payload)
+
+
+def _copy_twilio_recording(call, rec_url: str) -> str:
+    """
+    Fetch the carrier's recording (authenticated) into our own bucket.
+
+    The carrier hosts the audio behind carrier credentials; copying it here is
+    what lets the CDR play it back from our origin without an operator ever
+    logging in to the carrier. Returns the storage key.
+    """
+    import base64
+    import urllib.request
+
+    from django.conf import settings
+
+    from apps.common.storage import s3_client
+
+    url = rec_url if rec_url.endswith((".mp3", ".wav")) else rec_url + ".mp3"
+    token = base64.b64encode(
+        f"{settings.TWILIO_ACCOUNT_SID}:{settings.TWILIO_AUTH_TOKEN}".encode()
+    ).decode()
+    request = urllib.request.Request(url, headers={"Authorization": f"Basic {token}"})
+    with urllib.request.urlopen(request, timeout=30) as resp:
+        data = resp.read()
+
+    key = f"{call.organization_id}/{call.pk}/recording.mp3"
+    s3_client().put_object(
+        Bucket=settings.S3_BUCKET_RECORDINGS, Key=key, Body=data,
+        ContentType="audio/mpeg",
+    )
+    return key
 
 
 @shared_task(name="telephony.record_opt_out", queue="events", acks_late=True,

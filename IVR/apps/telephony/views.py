@@ -34,6 +34,7 @@ class CallLogViewSet(TenantViewSetMixin, AuditedActionMixin,
         "retrieve": "campaign.view",
         "events": "campaign.view",
         "recording": "recordings.listen",
+        "recording_stream": "recordings.listen",
         "export": "contacts.export",
         "default": "campaign.view",
     }
@@ -82,16 +83,44 @@ class CallLogViewSet(TenantViewSetMixin, AuditedActionMixin,
         self.audit("call.recording_access", call)
 
         if call.recording_key:
-            from django.conf import settings
-
-            from apps.common.storage import signed_url
-
+            # A same-origin URL the browser can play directly: it streams back
+            # through this API (see recording_stream), so no MinIO endpoint and
+            # no carrier login are ever exposed to the operator.
             return Response({
-                "url": signed_url(settings.S3_BUCKET_RECORDINGS, call.recording_key),
+                "url": f"/bff/api/calls/{call.pk}/recording/stream/",
                 "duration": call.recording_duration,
             })
-        # Still hosted by the carrier; the URL requires carrier credentials and
-        # is deliberately not proxied through this API.
-        return Response({"url": call.recording_url,
+        # Not yet copied into our storage — the copy job may still be running.
+        # We do not hand back the carrier URL, since it requires a carrier login.
+        return Response({"url": None,
                          "duration": call.recording_duration,
-                         "requires_carrier_auth": True})
+                         "pending": True})
+
+    @action(detail=True, methods=["get"], url_path="recording/stream")
+    def recording_stream(self, request, pk=None):
+        """
+        Stream the stored recording, so the browser plays it from our own
+        origin instead of following a carrier link that demands a carrier login.
+        """
+        from django.conf import settings
+        from django.http import Http404, StreamingHttpResponse
+
+        from apps.common.storage import s3_client
+
+        call = self.get_object()
+        if call.recording_purged_at or not call.recording_key:
+            raise Http404("No recording.")
+
+        self.audit("call.recording_access", call)
+        obj = s3_client().get_object(
+            Bucket=settings.S3_BUCKET_RECORDINGS, Key=call.recording_key
+        )
+        response = StreamingHttpResponse(
+            obj["Body"].iter_chunks(),
+            content_type=obj.get("ContentType") or "audio/mpeg",
+        )
+        length = obj.get("ContentLength")
+        if length is not None:
+            response["Content-Length"] = str(length)
+        response["Cache-Control"] = "private, max-age=600"
+        return response
