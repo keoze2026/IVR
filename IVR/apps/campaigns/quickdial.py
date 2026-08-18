@@ -268,8 +268,11 @@ class QuickDialView(APIView):
             # Schedule: pin a start time and a daily window when given, else a
             # wide window so a one-number test is not deferred to tomorrow by a
             # default 09:00–17:00.
-            win_start = data.get("window_start") or dt.time(8, 0)
-            win_end = data.get("window_end") or dt.time(21, 0)
+            # A quick dial is a manual, deliberate single call, so it is not
+            # held to business hours by default — an operator dialing at 1 AM
+            # means to dial at 1 AM. A window can still be set explicitly.
+            win_start = data.get("window_start") or dt.time(0, 0)
+            win_end = data.get("window_end") or dt.time(23, 59)
 
             campaign = Campaign.objects.create(
                 organization=org, name=name, flow_version=version, caller_id=caller,

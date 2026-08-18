@@ -5,7 +5,8 @@
  * is not an application — no business logic lives here, and anything that
  * looks like a decision belongs in Django where it can be audited.
  *
- * In production it also serves the built SPA, so the whole portal is one
+ * In production it also serves the built SP
+ * A, so the whole portal is one
  * origin and CORS never enters the picture.
  */
 
