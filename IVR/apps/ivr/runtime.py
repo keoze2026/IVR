@@ -139,7 +139,10 @@ def prompt_verbs(prompt: dict, flow: dict, node_id: str, context: dict,
 
     if kind == "audio":
         url = _asset_url(prompt.get("asset"))
-        return [Verb("Play", {"url": url})] if url else []
+        # The URL is the <Play> tag's body, not a `url` attribute: Twilio (and
+        # Telnyx) read <Play>URL</Play> and ignore <Play url="URL"/>, which is
+        # why an audio prompt was silent while a bare server-placed Play worked.
+        return [Verb("Play", {}, url)] if url else []
 
     if kind == "tts":
         from apps.ivr.prompts import DYNAMIC
