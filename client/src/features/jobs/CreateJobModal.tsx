@@ -122,7 +122,7 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
         <div className="mb-5 flex items-start justify-between">
           <div>
             <h2 className="display text-lg font-semibold text-chalk">Create job</h2>
-            <p className="text-sm text-ash">Dial one number with a sound.</p>
+            <p className="text-sm text-ash">Dial one or many numbers with a sound.</p>
           </div>
           <button onClick={onClose} className="text-ash hover:text-chalk">✕</button>
         </div>
@@ -140,13 +140,18 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
           </div>
 
           <div>
-            <span className={label}>Target number</span>
-            <input
+            <span className={label}>Target numbers</span>
+            <textarea
               value={f.target_number}
               onChange={(e) => set("target_number", e.target.value)}
-              placeholder="+254700000000"
+              placeholder={"+254700000000\n+254711111111\n+254722222222"}
+              rows={4}
               className={`${input} font-mono`}
             />
+            <p className="mt-1 text-xs text-ash">
+              One per line (or comma-separated). All dial from this one job —
+              set Max concurrency to how many should ring at once.
+            </p>
           </div>
 
           {/* pools */}

@@ -136,7 +136,8 @@ def _bad(message: str) -> Response:
 
 class QuickDialSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=120, required=False, allow_blank=True)
-    target_number = serializers.CharField(max_length=32)
+    # One or many destinations, entered one per line or comma-separated.
+    target_number = serializers.CharField(max_length=20000)
     # A single caller ID, or a CLI pool to rotate across. One is required.
     caller_id = serializers.UUIDField(required=False, allow_null=True)
     cli_pool = serializers.UUIDField(required=False, allow_null=True)
@@ -204,12 +205,26 @@ class QuickDialView(APIView):
         data = body.validated_data
         org = request.organization
 
-        # Validate the destination before building anything, so a typo is a
-        # clean 400 rather than a half-created campaign.
-        try:
-            e164, _cc, _tz = normalise_phone(data["target_number"], "US")
-        except RowError as exc:
-            return _bad(f"That number is not valid: {exc}")
+        # One or many destinations, split on newlines, commas or spaces.
+        # Validate them all before building anything, so a typo is a clean 400
+        # rather than a half-created campaign. Duplicates are collapsed.
+        import re
+
+        seen: set[str] = set()
+        numbers: list[str] = []
+        for token in re.split(r"[\s,;]+", data["target_number"].strip()):
+            if not token:
+                continue
+            try:
+                e164, _cc, _tz = normalise_phone(token, "US")
+            except RowError:
+                return _bad(f"That number is not valid: {token}")
+            if e164 not in seen:
+                seen.add(e164)
+                numbers.append(e164)
+        if not numbers:
+            return _bad("Enter at least one number to dial.")
+        e164 = numbers[0]  # first number: used for naming and the list label
 
         # Caller ID: a single number, or one drawn from a pool.
         caller = self._resolve_caller(org, data)
@@ -257,13 +272,16 @@ class QuickDialView(APIView):
             )
 
             contact_list = ContactList.objects.create(
-                organization=org, name=f"{name} — target", ingest_status="completed",
-                total_rows=1, valid_rows=1, default_region="US",
+                organization=org, name=f"{name} — targets",
+                ingest_status="completed",
+                total_rows=len(numbers), valid_rows=len(numbers),
+                default_region="US",
             )
-            Contact.objects.create(
-                organization=org, contact_list=contact_list, phone_e164=e164,
-                phone_hash=phone_hash(e164), country_code="1", timezone="UTC",
-            )
+            Contact.objects.bulk_create([
+                Contact(organization=org, contact_list=contact_list, phone_e164=n,
+                        phone_hash=phone_hash(n), country_code="1", timezone="UTC")
+                for n in numbers
+            ])
 
             # Schedule: pin a start time and a daily window when given, else a
             # wide window so a one-number test is not deferred to tomorrow by a
@@ -303,8 +321,10 @@ class QuickDialView(APIView):
                 max_attempts=1,
                 created_by=request.user if hasattr(request.user, "_meta") else None,
                 # Recorded so the Jobs list can show what this job dials and
-                # which pools it draws from.
-                target_number=e164,
+                # which pools it draws from. With many numbers it shows the
+                # first and how many more, within the field's 32 chars.
+                target_number=(e164 if len(numbers) == 1
+                               else f"{e164} +{len(numbers) - 1}"),
                 audio_pool_id=data.get("audio_pool"),
                 cli_pool_id=data.get("cli_pool"),
             )
