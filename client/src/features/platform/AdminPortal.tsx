@@ -16,7 +16,7 @@
  */
 
 import { useState } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams, useLocation } from "react-router-dom";
 
 import {
   useCreateRow,
@@ -77,22 +77,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </p>
         </div>
 
-        <nav className="space-y-5 px-3 py-4" aria-label="Administration sections">
+        <nav className="space-y-2 px-3 py-4" aria-label="Administration sections">
           {Object.entries(groups).map(([group, items]) => (
-            <div key={group}>
-              <p className="px-2 pb-1 text-[0.65rem] uppercase tracking-widest text-ash">
-                {group}
-              </p>
-              {items.map((r) => (
-                <Link
-                  key={r.resource}
-                  to={`/admin/${r.resource}`}
-                  className="block rounded px-2 py-1.5 text-sm text-ash hover:bg-void hover:text-chalk"
-                >
-                  {r.label}
-                </Link>
-              ))}
-            </div>
+            <AdminNavGroup key={group} group={group} items={items} />
           ))}
         </nav>
 
@@ -119,6 +106,39 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 }
 
 // ---------------------------------------------------------------- overview
+
+function AdminNavGroup({ group, items }: { group: string; items: ResourceSchema[] }) {
+  const location = useLocation();
+  // Open the group by default if it contains the currently active page.
+  const isActive = items.some((r) => location.pathname.startsWith(`/admin/${r.resource}`));
+  
+  return (
+    <details open={isActive} className="group">
+      <summary className="cursor-pointer list-none px-2 py-1.5 text-[0.65rem] uppercase tracking-widest text-ash hover:text-chalk [&::-webkit-details-marker]:hidden flex items-center justify-between select-none">
+        {group}
+        <span className="text-[10px] text-ash/50 transition-transform group-open:rotate-180">▼</span>
+      </summary>
+      <div className="mt-1 space-y-0.5 pb-2">
+        {items.map((r) => {
+          const isCurrent = location.pathname.startsWith(`/admin/${r.resource}`);
+          return (
+            <Link
+              key={r.resource}
+              to={`/admin/${r.resource}`}
+              className={`block rounded px-2 py-1.5 text-sm ${
+                isCurrent
+                  ? "bg-void font-medium text-chalk"
+                  : "text-ash hover:bg-void hover:text-chalk"
+              }`}
+            >
+              {r.label}
+            </Link>
+          );
+        })}
+      </div>
+    </details>
+  );
+}
 
 export function AdminOverviewPage() {
   const { data: schema } = usePlatformSchema();

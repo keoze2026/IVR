@@ -18,7 +18,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
-import { ChannelMeter } from "@/components/styled/ChannelMeter";
+
 import { PulseLoader } from "@/components/styled/PulseLoader";
 import { cx } from "@/components/ui";
 import { request, type PagedResponse } from "@/lib/api";
@@ -29,42 +29,25 @@ import type { Campaign, KpiFrame } from "@/types/domain";
 interface NavEntry {
   to: string;
   label: string;
-  group: "general" | "management" | "telephony";
+  group: "operations" | "analytics" | "infrastructure";
   /** Sub-items shown indented under the parent, matching the reference. */
   children?: { to: string; label: string }[];
 }
 
-// Ordered and grouped exactly as the reference dialer's sidebar:
-// General (Dashboard, Jobs, CDR) · Management (Wallets, Tariffs) ·
-// Telephony (Audio Pools, CLI Pools). The platform's own compliance and
-// access screens follow under Govern.
 const NAV: NavEntry[] = [
-  {
-    to: "/dashboard",
-    label: "Dashboard",
-    group: "general",
-    children: [
-      { to: "/dashboard", label: "Calls Insights" },
-      { to: "/dashboard/breakdown", label: "Calls Breakdown" },
-    ],
-  },
-  {
-    to: "/jobs",
-    label: "Jobs",
-    group: "general",
-    children: [
-      { to: "/jobs", label: "All Jobs" },
-      { to: "/jobs/active", label: "Active Jobs" },
-    ],
-  },
-  { to: "/cdr", label: "CDR", group: "general" },
+  { to: "/campaigns", label: "Campaigns", group: "operations" },
+  { to: "/flows", label: "Flows", group: "operations" },
+  { to: "/contact-lists", label: "Contact Lists", group: "operations" },
 
-  { to: "/wallet", label: "Wallets", group: "management" },
-  { to: "/tariffs", label: "Tariffs", group: "management" },
+  { to: "/dashboard", label: "Dashboard", group: "analytics" },
+  { to: "/calls", label: "Calls", group: "analytics" },
+  { to: "/jobs", label: "Jobs", group: "analytics" },
+  { to: "/cdr", label: "CDR", group: "analytics" },
 
-  { to: "/audio-pools", label: "Audio Pools", group: "telephony" },
-  { to: "/cli-pools", label: "CLI Pools", group: "telephony" },
-  { to: "/caller-ids", label: "Caller IDs", group: "telephony" },
+  { to: "/audio-pools", label: "Audio Pools", group: "infrastructure" },
+  { to: "/cli-pools", label: "CLI Pools", group: "infrastructure" },
+  { to: "/wallet", label: "Wallets", group: "infrastructure" },
+  { to: "/tariffs", label: "Tariffs", group: "infrastructure" },
 ];
 // The staff portal shows only what the reference does: General, Management,
 // Telephony. Compliance, People and access keys are administration and live in
@@ -204,29 +187,7 @@ export function AppShell() {
               <span className="display text-sm font-medium text-chalk">Outbound</span>
             </span>
 
-            {/* The full meter needs room to be countable. On a phone it
-                collapses to the two numbers that matter. */}
-            <div className="hidden w-64 lg:block xl:w-80">
-              <ChannelMeter
-                live={rollup.live}
-                ceiling={rollup.ceiling || 1}
-                label={rollup.dialing > 0 ? "channels in use" : "idle"}
-              />
-            </div>
-
             <div className="ml-auto flex items-center gap-2 lg:gap-3">
-              <span
-                className={cx(
-                  "num rounded-full border px-2.5 py-1 text-xs lg:hidden",
-                  rollup.dialing > 0
-                    ? "border-live-bright/40 text-live-bright"
-                    : "border-edge text-ash",
-                )}
-                title="Channels in use across the account"
-              >
-                {rollup.live}/{rollup.ceiling || "—"}
-              </span>
-
               {org && (
                 <>
                   <div className="hidden text-right leading-tight sm:block">
@@ -329,20 +290,20 @@ function Rail({
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-3" aria-label="All sections">
         <NavGroup
-          label="General"
-          items={NAV.filter((n) => n.group === "general")}
+          label="Operations"
+          items={NAV.filter((n) => n.group === "operations")}
           counts={counts}
           onNavigate={onNavigate}
         />
         <NavGroup
-          label="Management"
-          items={NAV.filter((n) => n.group === "management")}
+          label="Analytics"
+          items={NAV.filter((n) => n.group === "analytics")}
           counts={counts}
           onNavigate={onNavigate}
         />
         <NavGroup
-          label="Telephony"
-          items={NAV.filter((n) => n.group === "telephony")}
+          label="Infrastructure"
+          items={NAV.filter((n) => n.group === "infrastructure")}
           counts={counts}
           onNavigate={onNavigate}
         />
