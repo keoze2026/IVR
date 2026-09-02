@@ -239,6 +239,12 @@ breach the other. Both fail closed: if Redis is unreachable, nothing dials.
 Read the module docstring for why Celery's `rate_limit` cannot be the primary
 control.
 
+**`apps/dialer/circuit_breaker.py` & `apps/dialer/routing.py`** — dynamic multi-carrier
+failover & distributed circuit breaker. Outbound calls automatically route across
+healthy CPaaS carriers (Twilio and Telnyx). If a carrier returns 5xx server errors,
+rate limits (429), or connection timeouts, the circuit trips in Redis and dispatch
+workers transparently switch to the backup carrier with dynamic webhook URL rewriting.
+
 **`apps/campaigns/pacer.py`** — the whole pacing decision in one readable
 function. Channel headroom is checked before tokens are consumed, so a campaign
 sitting at its ceiling does not silently burn its CPS allowance.

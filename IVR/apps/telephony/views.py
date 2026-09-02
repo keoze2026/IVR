@@ -4,6 +4,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.accounts.permissions import HasCapability, IsOrganizationMember
 from apps.common.mixins import AuditedActionMixin, TenantViewSetMixin
@@ -124,3 +125,27 @@ class CallLogViewSet(TenantViewSetMixin, AuditedActionMixin,
             response["Content-Length"] = str(length)
         response["Cache-Control"] = "private, max-age=600"
         return response
+
+
+class CarrierHealthView(APIView):
+    """
+    /api/v1/carriers/health/
+
+    Operator visibility into carrier circuit breaker states, failure counts,
+    and automatic failover availability.
+    """
+
+    permission_classes = [IsOrganizationMember]
+
+    def get(self, request):
+        from django.conf import settings
+
+        from apps.dialer.circuit_breaker import circuit_breaker
+
+        return Response({
+            "failover_enabled": getattr(settings, "ENABLE_CARRIER_FAILOVER", True),
+            "primary_provider": getattr(settings, "DEFAULT_PROVIDER", "twilio"),
+            "fallback_provider": getattr(settings, "FALLBACK_PROVIDER", "telnyx"),
+            "carriers": circuit_breaker.get_all_health(),
+        })
+

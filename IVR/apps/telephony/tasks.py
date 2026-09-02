@@ -309,8 +309,10 @@ def _copy_twilio_recording(call, rec_url: str) -> str:
     token = base64.b64encode(
         f"{settings.TWILIO_ACCOUNT_SID}:{settings.TWILIO_AUTH_TOKEN}".encode()
     ).decode()
-    request = urllib.request.Request(url, headers={"Authorization": f"Basic {token}"})
-    with urllib.request.urlopen(request, timeout=30) as resp:
+    request = urllib.request.Request(  # noqa: S310
+        url, headers={"Authorization": f"Basic {token}"}
+    )
+    with urllib.request.urlopen(request, timeout=30) as resp:  # noqa: S310
         data = resp.read()
 
     key = f"{call.organization_id}/{call.pk}/recording.mp3"

@@ -30,7 +30,6 @@ from apps.common.enums import (
 from apps.dialer.limits import ChannelSemaphore
 from apps.dialer.providers import get_provider
 from apps.dialer.providers.base import (
-    OriginateRequest,
     ProviderCallError,
     ProviderRateLimited,
 )
@@ -111,13 +110,13 @@ def place_call(self, queue_row_id: str, reservation: str):
     # The CallLog row exists before the carrier is called so that a callback
     # arriving before our own response is processed still has something to
     # attach to (the carrier is genuinely that fast on short-code routes).
-    provider_name = campaign.effective_provider
+    initial_provider = campaign.effective_provider
     call = CallLog.objects.create(
         organization_id=campaign.organization_id,
         campaign=campaign,
         contact=contact,
         flow_version_id=campaign.flow_version_id,
-        provider=provider_name,
+        provider=initial_provider,
         provider_call_sid=f"pending:{row.pk}",
         from_number=campaign.caller_id.phone_e164,
         to_number=contact.phone_e164,
@@ -125,30 +124,15 @@ def place_call(self, queue_row_id: str, reservation: str):
         stir_attestation=campaign.caller_id.attestation,
     )
 
-    request = OriginateRequest(
-        to=contact.phone_e164,
-        from_=campaign.caller_id.phone_e164,
-        answer_url=_url(f"/webhooks/{provider_name}/ivr/entry/?call={call.pk}"),
-        status_callback_url=_url(f"/webhooks/{provider_name}/status/?call={call.pk}"),
-        ring_timeout=campaign.ring_timeout_seconds,
-        amd_enabled=campaign.amd_enabled,
-        amd_mode=campaign.amd_mode,
-        amd_async=campaign.amd_async,
-        amd_timeout=campaign.amd_timeout_seconds,
-        amd_callback_url=_url(f"/webhooks/{provider_name}/amd/?call={call.pk}"),
-        record=campaign.record_calls,
-        recording_callback_url=_url(
-            f"/webhooks/{provider_name}/recording/?call={call.pk}"
-        ),
-        caller_name=campaign.caller_id.cnam_display,
-    )
+    from apps.dialer.routing import originate_with_failover
 
-    provider = get_provider(provider_name)
     try:
-        handle = provider.place_call(request)
+        handle, provider_name, provider = originate_with_failover(
+            campaign, contact, call, row
+        )
     except ProviderRateLimited as exc:
-        # The carrier is telling us our pacing is wrong. Believe it.
-        logger.warning("carrier rate limited", extra={"campaign": str(campaign.pk)})
+        # All available carriers are throttling us.
+        logger.warning("all carriers rate limited", extra={"campaign": str(campaign.pk)})
         _mark_throttled(campaign, str(exc))
         call.delete()
         CampaignContact.objects.unscoped().filter(pk=row.pk).update(

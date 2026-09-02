@@ -15,7 +15,7 @@ internet long-term.
 import os
 
 from config.settings.base import *  # noqa: F401,F403
-from config.settings.base import env, env_bool
+from config.settings.base import env_bool
 
 DEBUG = False
 TENANCY_STRICT = env_bool("TENANCY_STRICT", False)

@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --color-kenya-black: #000000;
+  --color-kenya-red: #bb0000;
+  --color-kenya-green: #006600;
+  --color-kenya-white: #ffffff;
+  --color-kenya-gold: #eab308;
+  --font-sans: "Inter", "Outfit", system-ui, sans-serif;
+}
+
+body {
+  background-color: #fafaf9;
+  color: #1c1917;
+  font-family: var(--font-sans);
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.bg-gradient-kenya {
+  background: linear-gradient(90deg, var(--color-kenya-black) 0%, var(--color-kenya-red) 33%, var(--color-kenya-green) 66%, var(--color-kenya-black) 100%);
+}

@@ -347,6 +347,12 @@ TELNYX_API_KEY = env("TELNYX_API_KEY", "")
 TELNYX_PUBLIC_KEY = env("TELNYX_PUBLIC_KEY", "")
 TELNYX_CONNECTION_ID = env("TELNYX_CONNECTION_ID", "")
 
+# Multi-Carrier Dynamic Routing & Failover
+ENABLE_CARRIER_FAILOVER = env_bool("ENABLE_CARRIER_FAILOVER", True)
+FALLBACK_PROVIDER = env("FALLBACK_PROVIDER", "telnyx")
+CARRIER_CIRCUIT_BREAKER_THRESHOLD = env_int("CARRIER_CIRCUIT_BREAKER_THRESHOLD", 3)
+CARRIER_CIRCUIT_BREAKER_COOLDOWN = env_int("CARRIER_CIRCUIT_BREAKER_COOLDOWN", 60)
+
 # Hard ceiling applied on top of any per-campaign cps_limit. Protects the
 # carrier account from a misconfigured campaign.
 GLOBAL_CPS_CEILING = float(env("GLOBAL_CPS_CEILING", "50"))

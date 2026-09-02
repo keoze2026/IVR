@@ -44,7 +44,7 @@ from apps.compliance.views import (
 from apps.contacts.views import ContactListViewSet, ContactViewSet
 from apps.ivr.audio_views import AudioAssetViewSet
 from apps.ivr.views import IVRFlowVersionViewSet, IVRFlowViewSet
-from apps.telephony.views import CallLogViewSet
+from apps.telephony.views import CallLogViewSet, CarrierHealthView
 
 router = DefaultRouter()
 router.register("campaigns", CampaignViewSet, basename="campaign")
@@ -71,6 +71,7 @@ urlpatterns = [
     path("me/", MeView.as_view(), name="me"),
     path("auth/login/", LoginView.as_view(), name="login"),
     path("quick-dial/", QuickDialView.as_view(), name="quick-dial"),
+    path("carriers/health/", CarrierHealthView.as_view(), name="carrier-health"),
 
     # Platform administration. Superuser-only and deliberately not
     # tenant-scoped; see apps/accounts/platform.py.

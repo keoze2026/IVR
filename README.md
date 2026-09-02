@@ -34,9 +34,9 @@ Eight apps, each mapping to a section of the specification:
 `accounts` (tenancy, RBAC, API keys, audit) · `contacts` (ingest, E.164
 normalisation, dedupe) · `compliance` (DNC, consent, calling windows) ·
 `ivr` (flow DSL, validator, runtime, TwiML rendering) · `campaigns` (lifecycle,
-pacer, work queue) · `dialer` (token bucket, channel semaphore, provider
-adapters) · `telephony` (webhooks, signature validation, AMD, call records) ·
-`telemetry` (KPI counters, WebSocket fan-out).
+pacer, work queue) · `dialer` (token bucket, channel semaphore, multi-carrier failover,
+circuit breaker, provider adapters) · `telephony` (webhooks, signature validation,
+carrier health API, AMD, call records) · `telemetry` (KPI counters, WebSocket fan-out).
 
 See [`IVR/README.md`](./IVR/README.md) for the reading order,
 [`IVR/DECISIONS.md`](./IVR/DECISIONS.md) for why things are the way they are,
