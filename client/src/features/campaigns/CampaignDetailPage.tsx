@@ -1,10 +1,10 @@
 /**
  * One campaign: what it is set to do, and whether it may start.
  *
- * Some fields freeze once the campaign is live — flow version, contact lists,
- * caller ID, and the two consent settings. They are shown labelled "Locked"
- * with the reason rather than merely disabled, because a greyed-out control
- * with no explanation reads as a bug.
+ * Five fields freeze once the campaign is live — flow version, contact lists,
+ * caller ID, and the two consent settings. They are shown locked with the
+ * reason rather than merely disabled, because a greyed-out control with no
+ * explanation reads as a bug.
  */
 
 import type { ReactNode } from "react";
@@ -56,7 +56,6 @@ export function CampaignDetailLayout() {
         <div className="[overflow-wrap:anywhere]">
           <PageHeader
             title={campaign.name}
-            subtitle={`${campaign.flow_name} · version ${campaign.flow_version_number}`}
             actions={<StatusPill status={campaign.status} />}
           />
         </div>
@@ -65,10 +64,10 @@ export function CampaignDetailLayout() {
       {campaign.status === "throttled" && (
         <div
           role="alert"
-          className="rounded-xl bg-[#fdf1dc] px-4 py-3 text-sm text-amber"
+          className="rounded-xl bg-warn-soft px-4 py-3 text-sm text-amber"
         >
-          <strong className="font-medium">No calls are going out.</strong> The
-          carrier is refusing them.
+          <strong className="font-medium">Stopped dialing.</strong> The carrier
+          is refusing traffic, so no calls are going out.
           {campaign.pause_reason && (
             <span className="num mt-1 block text-xs [overflow-wrap:anywhere]">
               {campaign.pause_reason}
@@ -87,7 +86,7 @@ export function CampaignDetailLayout() {
               cx(
                 "press inline-flex min-h-10 items-center rounded-full border px-4 text-sm",
                 isActive
-                  ? "border-forest bg-forest text-white"
+                  ? "neon border-transparent"
                   : "border-edge bg-panel text-ash hover:border-edge-bright",
               )
             }
@@ -114,10 +113,10 @@ export function CampaignOverview({ campaign }: { campaign: Campaign }) {
       {stats && (
         <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2 lg:grid-cols-4">
           <Stat label="Contacts" value={formatCount(stats.total_contacts)} />
-          <Stat label="Calls placed" value={formatCount(stats.dialed)} to="calls" />
+          <Stat label="Dialed" value={formatCount(stats.dialed)} />
           <Stat label="Answered" value={formatCount(stats.answered)} />
           <Stat
-            label="Answer rate"
+            label="Answer"
             value={formatRate(stats.answer_rate)}
             denominator="of calls placed"
             tone={stats.answer_rate <= 0.08 ? "amber" : "live"}
@@ -130,8 +129,12 @@ export function CampaignOverview({ campaign }: { campaign: Campaign }) {
 
         <div className="space-y-4">
           <Card
-            title="Setup"
-            hint={frozen ? "Pause or stop to change locked items." : undefined}
+            title="Configuration"
+            hint={
+              frozen
+                ? "Locked while dialing — stop or pause the campaign to change these."
+                : undefined
+            }
           >
             <Row label="Flow" locked={locked("flow_version")}>
               {campaign.flow_name}{" "}
@@ -151,12 +154,12 @@ export function CampaignOverview({ campaign }: { campaign: Campaign }) {
                   }
                   title="STIR/SHAKEN attestation, assigned by the carrier"
                 >
-                  Signs {campaign.caller_id_detail.attestation}
+                  {campaign.caller_id_detail.attestation}
                 </Badge>
               )}
             </Row>
 
-            <Row label="Contact lists" locked={locked("contact_lists")}>
+            <Row label="Lists" locked={locked("contact_lists")}>
               {campaign.contact_lists.length === 0
                 ? "None attached"
                 : `${campaign.contact_lists.length} attached`}
@@ -169,7 +172,7 @@ export function CampaignOverview({ campaign }: { campaign: Campaign }) {
             </Row>
           </Card>
 
-          <Card title="Schedule and speed">
+          <Card>
             <Row label="Calling hours">
               <span className="num">
                 {formatLocalTime(campaign.window_start_local)}–
@@ -177,18 +180,18 @@ export function CampaignOverview({ campaign }: { campaign: Campaign }) {
               </span>{" "}
               <span className="text-ash">
                 {campaign.respect_contact_timezone
-                  ? "contact's local time"
-                  : campaign.fallback_timezone}
+                  ? "in the contact's timezone"
+                  : `in ${campaign.fallback_timezone}`}
               </span>
               <div className="text-xs text-ash">
                 {formatWeekdays(campaign.active_weekdays)}
               </div>
             </Row>
 
-            <Row label="Speed">
-              <span className="num">{campaign.cps_limit}</span> calls per second,
-              up to <span className="num">{campaign.max_concurrent_channels}</span>{" "}
-              at once
+            <Row label="Pace">
+              <span className="num">{campaign.cps_limit}</span> calls/sec, up to{" "}
+              <span className="num">{campaign.max_concurrent_channels}</span>{" "}
+              channels
             </Row>
 
             <Row label="Retries">
@@ -196,25 +199,23 @@ export function CampaignOverview({ campaign }: { campaign: Campaign }) {
               <span className="num">{campaign.max_attempts_per_day}</span> per day
               <div className="text-xs text-ash">
                 {campaign.retry_on_statuses.length > 0
-                  ? `Retries when ${campaign.retry_on_statuses
-                      .map((s) => s.replace(/_/g, " "))
-                      .join(", ")}`
-                  : "No retry results chosen"}
+                  ? `Retries ${campaign.retry_on_statuses.join(", ")}`
+                  : "No retry statuses set"}
               </div>
             </Row>
           </Card>
 
-          <Card title="Call handling">
-            <Row label="Voicemail detection">
+          <Card>
+            <Row label="Machine detection">
               {campaign.amd_enabled ? (
                 <>
-                  <span title={campaign.amd_mode}>On</span>
+                  <span className="num">{campaign.amd_mode}</span>
                   <div className="text-xs text-ash">
                     {campaign.hangup_on_machine
-                      ? "Hangs up on voicemail"
+                      ? "Hangs up on a machine"
                       : campaign.voicemail_node
-                        ? `Voicemail goes to step "${campaign.voicemail_node}"`
-                        : "No voicemail step set"}
+                        ? `Drops to ${campaign.voicemail_node}`
+                        : "No voicemail branch set"}
                   </div>
                 </>
               ) : (
@@ -225,11 +226,11 @@ export function CampaignOverview({ campaign }: { campaign: Campaign }) {
             <Row label="Recording">
               <span className="mr-2">{campaign.record_calls ? "On" : "Off"}</span>
               {campaign.record_calls && !campaign.recording_disclosure_node && (
-                <Badge tone="bad">No recording notice set</Badge>
+                <Badge tone="bad">No disclosure node set</Badge>
               )}
             </Row>
 
-            <Row label="Call queue">
+            <Row label="Queue">
               {campaign.queue_built_at ? (
                 <>
                   Built {formatDateTime(campaign.queue_built_at)}
@@ -240,7 +241,9 @@ export function CampaignOverview({ campaign }: { campaign: Campaign }) {
                   )}
                 </>
               ) : (
-                <span className="text-ash">Not built yet (never started)</span>
+                <span className="text-ash">
+                  Not built — the campaign has never started
+                </span>
               )}
             </Row>
           </Card>
@@ -255,13 +258,13 @@ function Card({
   hint,
   children,
 }: {
-  title: string;
+  title?: string;
   hint?: string;
   children: ReactNode;
 }) {
   return (
     <Panel className="overflow-hidden">
-      <PanelHeader title={title} hint={hint} />
+      {title && <PanelHeader title={title} hint={hint} />}
       <dl className="divide-y divide-edge text-sm">{children}</dl>
     </Panel>
   );
@@ -281,7 +284,7 @@ function Row({
       <dt className="eyebrow flex flex-wrap items-center gap-2 self-start sm:flex-col sm:items-start sm:gap-1 sm:pt-0.5">
         {label}
         {locked && (
-          <Badge tone="warn" title="Cannot be changed while the campaign is calling">
+          <Badge tone="warn" title="Cannot be changed while the campaign is dialing">
             Locked
           </Badge>
         )}

@@ -157,13 +157,12 @@ export const FlowEdgesLayer: FC<FlowEdgesLayerProps> = ({
                   {!readOnly && (
                     <button
                       type="button"
-                      title="Disconnect"
-                      aria-label={`Disconnect ${edge.label}`}
+                      title="Disconnect transition"
                       onClick={(e) => {
                         e.stopPropagation();
                         onDisconnectEdge(edge.sourceNodeId, edge.sourcePortId);
                       }}
-                      className="relative flex size-6 items-center justify-center rounded-full text-xs text-ash after:absolute after:-inset-1.5 hover:bg-[#fdeaea] hover:text-rust"
+                      className="relative flex size-6 items-center justify-center rounded-full text-xs text-ash after:absolute after:-inset-1.5 hover:bg-bad-soft hover:text-rust"
                     >
                       ✕
                     </button>

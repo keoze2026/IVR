@@ -6,7 +6,7 @@ import { useRef, useEffect, type FC, type MouseEvent } from "react";
 import type { FlowNode, NodeSpec, ValidationIssue } from "@/types/domain";
 import { getOutputPorts, type OutputPort } from "../utils/graph";
 import { NODE_WIDTH, type Point } from "../utils/geometry";
-import { KIND_COLORS, NodeIcon, nodeLabel } from "./nodeMeta";
+import { KIND_COLORS, NodeIcon } from "./nodeMeta";
 
 interface FlowNodeCardProps {
   id: string;
@@ -100,7 +100,7 @@ export const FlowNodeCard: FC<FlowNodeCardProps> = ({
       }}
       className={`group absolute left-0 top-0 select-none rounded-xl border bg-panel shadow-[var(--shadow-card)] transition-shadow duration-150 ${
         isSelected
-          ? "border-signal shadow-[0_0_0_3px_rgba(11,132,87,0.22)]"
+          ? "border-signal shadow-[0_0_0_3px_rgba(46,230,197,0.3)]"
           : isConnectingTarget
             ? "border-signal ring-2 ring-signal"
             : isUnreachable
@@ -130,28 +130,26 @@ export const FlowNodeCard: FC<FlowNodeCardProps> = ({
             onDragStart(id, e);
           }
         }}
-        className={`flex items-center justify-between gap-2 border-b border-edge px-3 py-2.5 ${
+        className={`flex items-center justify-between gap-2 border-b border-edge px-3 py-2 ${
           readOnly ? "" : "cursor-grab active:cursor-grabbing"
         }`}
       >
         <div className="flex min-w-0 items-center gap-2.5">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-live text-signal">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-live text-signal">
             <NodeIcon type={node.type} />
           </span>
           <div className="min-w-0 leading-tight">
             <div className="num truncate text-sm font-semibold text-chalk" title={id}>
               {id}
             </div>
-            <div className="truncate text-[11px] text-ash-dim first-letter:uppercase">
-              {nodeLabel(node.type)}
-            </div>
+            <div className="num truncate text-[11px] text-ash-dim">{node.type}</div>
           </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
           {isEntry && (
-            <span className="rounded-full bg-signal px-2 py-0.5 text-[11px] font-medium text-white">
-              Start
+            <span className="rounded-full bg-signal px-2 py-0.5 text-[11px] font-medium text-ink">
+              Entry
             </span>
           )}
           {spec?.terminal && (
@@ -160,15 +158,15 @@ export const FlowNodeCard: FC<FlowNodeCardProps> = ({
             </span>
           )}
           {hasErrors ? (
-            <span className="size-2.5 rounded-full bg-rust" role="img" aria-label="Has errors" title="Has errors" />
+            <span className="size-2.5 rounded-full bg-rust" role="img" aria-label="Node has validation errors" title="Node has validation errors" />
           ) : hasWarnings ? (
-            <span className="size-2.5 rounded-full bg-amber" role="img" aria-label="Has warnings" title="Has warnings" />
+            <span className="size-2.5 rounded-full bg-amber" role="img" aria-label="Node has warnings" title="Node has warnings" />
           ) : null}
         </div>
       </div>
 
       {/* Node Content / Preview */}
-      <div className="space-y-2 px-3 py-2.5 empty:hidden">
+      <div className="space-y-2 px-3 py-2 empty:hidden">
         {/* Prompt snippet */}
         {node.prompt?.text ? (
           <p className="line-clamp-2 text-xs text-ash" title={node.prompt.text}>
@@ -179,27 +177,27 @@ export const FlowNodeCard: FC<FlowNodeCardProps> = ({
             Audio: {node.prompt.asset}
           </p>
         ) : node.type === "hangup" ? (
-          <p className="text-xs text-ash-dim">Ends the call</p>
+          <p className="text-xs text-ash-dim">Hangs up call</p>
         ) : null}
 
         {/* Collect variable */}
         {node.type === "collect" && (node as any).variable && (
           <div className="truncate rounded-lg bg-void px-2 py-1 text-[11px] text-ash">
-            Save as <span className="num text-signal">{`{{${(node as any).variable}}}`}</span>
+            Store into: <span className="num text-signal">{`{{${(node as any).variable}}}`}</span>
           </div>
         )}
 
         {/* Transfer endpoint */}
         {node.type === "transfer" && (node as any).endpoint && (
           <div className="truncate rounded-lg bg-void px-2 py-1 text-[11px] text-ash">
-            To <span className="num text-chalk">{(node as any).endpoint}</span>
+            Target: <span className="num text-chalk">{(node as any).endpoint}</span>
           </div>
         )}
 
         {/* Disposition pill */}
         {node.disposition && (
           <span className="inline-block rounded-full bg-raised px-2 py-0.5 text-[11px] text-ash">
-            Outcome: <span className="text-chalk">{node.disposition.replace(/_/g, " ")}</span>
+            outcome: <span className="text-chalk">{node.disposition}</span>
           </span>
         )}
       </div>
@@ -210,7 +208,7 @@ export const FlowNodeCard: FC<FlowNodeCardProps> = ({
           {ports.map((port) => (
             <div
               key={port.id}
-              className="group/port flex min-h-8 items-center justify-between rounded-lg px-2 text-xs hover:bg-raised"
+              className="group/port flex min-h-6 items-center justify-between rounded-lg px-2 text-xs hover:bg-raised"
             >
               <span className="num max-w-[200px] truncate text-ash group-hover/port:text-chalk">
                 {port.label}
@@ -221,16 +219,16 @@ export const FlowNodeCard: FC<FlowNodeCardProps> = ({
                 data-port-socket={port.id}
                 title={
                   readOnly
-                    ? `Goes to ${port.target || "nothing"}`
-                    : `Drag to connect ${port.label} to another step`
+                    ? `Transition: ${port.target || "none"}`
+                    : `Drag to connect ${port.label} → another node`
                 }
                 onMouseDown={(e) => handleSocketMouseDown(e, port)}
                 style={
                   port.target
-                    ? { backgroundColor: KIND_COLORS[port.kind], borderColor: "#fff" }
+                    ? { backgroundColor: KIND_COLORS[port.kind], borderColor: "var(--color-panel)" }
                     : undefined
                 }
-                className={`relative z-10 -mr-[17px] size-[18px] shrink-0 rounded-full border-2 border-ash-dim bg-panel shadow-sm transition-transform duration-150 after:absolute after:-inset-[7px] ${
+                className={`relative z-10 -mr-[17px] size-[18px] shrink-0 rounded-full border-2 border-ash-dim bg-panel shadow-sm transition-transform duration-150 after:absolute after:-inset-1 ${
                   readOnly ? "" : "cursor-crosshair hover:scale-125"
                 }`}
               />
@@ -239,12 +237,13 @@ export const FlowNodeCard: FC<FlowNodeCardProps> = ({
         </div>
       )}
 
-      {/* Actions float above the card so they do not change its height. Always
-          shown on the selected step, since touch screens have no hover. */}
+      {/* Actions float above the card, on hover, so they do not change its
+          height. Touch screens have no hover, so there they show on the selected
+          node. */}
       {!readOnly && (
         <div
-          className={`absolute bottom-full right-0 pb-1.5 ${
-            isSelected ? "visible" : "invisible group-hover:visible"
+          className={`invisible absolute bottom-full right-0 pb-1.5 group-hover:visible ${
+            isSelected ? "[@media(hover:none)]:visible" : ""
           }`}
         >
           <div className="flex items-center gap-1 rounded-xl border border-edge bg-panel p-1 shadow-md">
@@ -257,28 +256,28 @@ export const FlowNodeCard: FC<FlowNodeCardProps> = ({
                 }}
                 className="min-h-9 rounded-lg px-2.5 text-xs font-medium text-ash hover:bg-live hover:text-signal"
               >
-                Set as start
+                Make Entry
               </button>
             )}
             <button
               type="button"
-              title="Duplicate step"
+              title="Duplicate node"
               onClick={(e) => {
                 e.stopPropagation();
                 onDuplicate(id);
               }}
               className="min-h-9 rounded-lg px-2.5 text-xs font-medium text-ash hover:bg-raised hover:text-chalk"
             >
-              Duplicate
+              Copy
             </button>
             <button
               type="button"
-              title="Delete step"
+              title="Delete node"
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete(id);
               }}
-              className="min-h-9 rounded-lg px-2.5 text-xs font-medium text-ash hover:bg-[#fdeaea] hover:text-rust"
+              className="min-h-9 rounded-lg px-2.5 text-xs font-medium text-ash hover:bg-bad-soft hover:text-rust"
             >
               Delete
             </button>

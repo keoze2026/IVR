@@ -22,8 +22,6 @@ import { formatCost, formatDuration, formatRelative } from "@/lib/format";
 import { useCalls, type CallFilters } from "@/lib/queries/resources";
 import type { CallSummary } from "@/types/domain";
 
-import { answeredByLabel } from "./shared";
-
 const DISPOSITIONS = [
   "",
   "confirmed",
@@ -102,8 +100,8 @@ export function CallsTable({
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Number</th>
-                    <th>Status</th>
+                    <th>To</th>
+                    <th>State</th>
                     <th>Outcome</th>
                     <th>Answered by</th>
                     <th>Duration</th>
@@ -132,6 +130,10 @@ export function CallsTable({
           >
             Newer
           </Button>
+          {/* No count: cursor pagination omits it, so no "page 3 of 40". */}
+          <span className="text-center text-xs text-ash-dim">
+            Showing the most recent calls
+          </span>
           <Button
             disabled={!data.next}
             onClick={() => setFilters({ ...filters, cursor: cursorOf(data.next) })}
@@ -175,7 +177,13 @@ function CallRow({ call }: { call: CallSummary }) {
       <td>
         {call.disposition ? <DispositionBadge value={call.disposition} /> : "—"}
       </td>
-      <td>{answeredByLabel(call.answered_by)}</td>
+      <td>
+        {call.answered_by
+          ? call.answered_by.startsWith("machine")
+            ? "machine"
+            : call.answered_by
+          : "—"}
+      </td>
       <td className="num">
         {call.duration_seconds > 0 ? formatDuration(call.duration_seconds) : "—"}
       </td>

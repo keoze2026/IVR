@@ -13,7 +13,7 @@ import { getOutputPorts } from "./graph";
 
 export const HORIZONTAL_SPACING = 140;
 export const VERTICAL_SPACING = 60;
-export const ESTIMATED_NODE_HEIGHT = 220;
+export const ESTIMATED_NODE_HEIGHT = 160;
 
 /**
  * Computes optimal (x, y) canvas coordinates for all nodes in the flow using

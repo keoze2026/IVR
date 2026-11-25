@@ -43,7 +43,6 @@ import {
 import { useSession } from "@/lib/session";
 import type { Role } from "@/types/domain";
 
-import { AccessTabs } from "./PeoplePage";
 
 /**
  * What each role means to the person choosing it.
@@ -56,27 +55,27 @@ const ROLES: { value: Role; label: string; blurb: string }[] = [
   {
     value: "operator",
     label: "Operator",
-    blurb: "Starts and stops calling, and edits contact lists. Cannot change call scripts.",
+    blurb: "Runs campaigns day to day. Can start and stop calling, and edit contact lists. Cannot change call scripts.",
   },
   {
     value: "analyst",
     label: "Analyst",
-    blurb: "Can see everything and change nothing. Safest for someone new.",
+    blurb: "Can see everything and change nothing. Safest choice for reporting or for someone new.",
   },
   {
     value: "compliance",
     label: "Compliance",
-    blurb: "Can stop a campaign and add do-not-call numbers, but cannot start calling or edit a campaign.",
+    blurb: "Can stop a campaign and add numbers to the do-not-call list, but cannot start calling or edit a campaign.",
   },
   {
     value: "admin",
     label: "Administrator",
-    blurb: "Everything an operator can do, plus editing call scripts and settings.",
+    blurb: "Everything an operator can do, plus editing call scripts and managing settings.",
   },
   {
     value: "owner",
     label: "Owner",
-    blurb: "Full control, including issuing and revoking access keys.",
+    blurb: "Full control, including issuing and revoking access keys like this one.",
   },
 ];
 
@@ -133,21 +132,13 @@ export function AccessKeysPage() {
     <div className="space-y-6">
       <PageHeader
         title="Access keys"
-        subtitle="One key per person."
+        subtitle="Each person who signs in to this console uses their own access key. Issue one per person, never a shared one — a shared key cannot be taken away from one person without locking out everybody else."
         actions={
-          <Button
-            variant="primary"
-            onClick={() => {
-              create.reset();
-              setAdding(true);
-            }}
-          >
-            <PlusIcon className="size-4" /> New key
+          <Button variant="primary" onClick={() => setAdding(true)}>
+            <PlusIcon className="size-4" /> Give someone access
           </Button>
         }
       />
-
-      <AccessTabs />
 
       {/* --- the reveal, shown once ------------------------------------ */}
       {issued && (
@@ -156,8 +147,9 @@ export function AccessKeysPage() {
             <div>
               <h2 className="display text-base text-chalk">Key for {issued.name}</h2>
               <p className="mt-1 text-sm text-ash">
-                Copy this now and send it to them. It is shown only once. If it is
-                lost, revoke it and issue a new one.
+                Copy this now and send it to them. It cannot be shown again —
+                if it is lost you will have to revoke this key and issue a new
+                one.
               </p>
             </div>
 
@@ -190,7 +182,7 @@ export function AccessKeysPage() {
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Stat label="Active keys" value={show(live.length)} tone="live" />
+        <Stat label="Active" value={show(live.length)} tone="live" />
         {/* A key issued days ago and never used usually means it never arrived. */}
         <Stat label="Never used" value={show(live.filter((k) => !k.last_used_at).length)} />
         <Stat label="Revoked" value={show(rows.length - live.length)} />
@@ -206,7 +198,7 @@ export function AccessKeysPage() {
           <div className="p-4">
             <EmptyState
               title="Nobody has been given access yet"
-              description="Create a key and send it to the person who needs it."
+              description="Create a key above and send it to the person who needs it."
             />
           </div>
         )}
@@ -217,7 +209,7 @@ export function AccessKeysPage() {
               <thead>
                 <tr>
                   <th>Name</th>
-                  <th>Role</th>
+                  <th>Access</th>
                   <th>Created</th>
                   <th>Last used</th>
                   <th>Status</th>
@@ -246,11 +238,7 @@ export function AccessKeysPage() {
                           type="button"
                           variant="ghost"
                           className="hover:!text-rust"
-                          aria-label={`Remove access for ${key.name}`}
-                          onClick={() => {
-                            revoke.reset();
-                            setConfirmRevoke(key);
-                          }}
+                          onClick={() => setConfirmRevoke(key)}
                         >
                           Remove access
                         </Button>
@@ -266,26 +254,30 @@ export function AccessKeysPage() {
 
       {/* --- issue ----------------------------------------------------- */}
       {adding && (
-        <Modal title="New access key" onClose={() => setAdding(false)}>
+        <Modal
+          title="Give someone access"
+          onClose={() => setAdding(false)}
+          closeOnEscape={false}
+          closeOnBackdrop={false}
+        >
           <form onSubmit={submit} className="space-y-4">
             <Field
               label="Who is this for"
               htmlFor="k-name"
-              hint="Use a name you will recognise when removing access."
+              hint="A name you will recognise later, so you know whose access to remove when they leave."
             >
               <Input
                 id="k-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Jane, reception desk"
-                autoFocus
                 required
                 maxLength={80}
               />
             </Field>
 
             <Field
-              label="Role"
+              label="What they can do"
               htmlFor="k-role"
               hint={ROLES.find((r) => r.value === role)?.blurb}
             >
@@ -310,7 +302,7 @@ export function AccessKeysPage() {
                 loading={create.isPending}
                 disabled={!name.trim()}
               >
-                Create access key
+                {create.isPending ? "Creating…" : "Create access key"}
               </Button>
             </div>
           </form>
@@ -322,11 +314,14 @@ export function AccessKeysPage() {
         <Modal
           title={`Remove access for ${confirmRevoke.name}?`}
           onClose={() => setConfirmRevoke(null)}
+          closeOnEscape={false}
+          closeOnBackdrop={false}
         >
           <div className="space-y-4">
             <p className="text-sm text-ash">
-              They are signed out and their key stops working immediately. This
-              cannot be undone. Running campaigns are not affected.
+              They will be signed out and their key will stop working
+              immediately. This cannot be undone — you would have to issue a new
+              key. Any campaigns already running are not affected.
             </p>
             {revoke.error && <ErrorState error={revoke.error} />}
             <div className="flex flex-wrap justify-end gap-2 border-t border-edge pt-4">
@@ -342,7 +337,7 @@ export function AccessKeysPage() {
                   setConfirmRevoke(null);
                 }}
               >
-                Remove access
+                {revoke.isPending ? "Removing…" : "Remove access"}
               </Button>
             </div>
           </div>

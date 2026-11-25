@@ -2,69 +2,57 @@
 
 import { useState } from "react";
 
-import { PlayIcon } from "@/components/icons";
+import { PlayIcon, SoundIcon } from "@/components/icons";
 import type { CallSummary } from "@/types/domain";
 
-export type Outcome = "answered" | "failed" | "missed" | "active";
+const ANSWERED = new Set(["in_progress", "completed"]);
 
-/** The one definition of how a call ended, so every screen counts alike. */
-export function outcomeOf(call: CallSummary): Outcome {
-  if (call.status === "failed") return "failed";
-  if (["queued", "initiated", "ringing"].includes(call.status)) return "active";
-  if (["in_progress", "completed"].includes(call.status) || call.answered_by) {
-    return "answered";
-  }
-  return "missed";
+export function isAnswered(call: CallSummary): boolean {
+  return ANSWERED.has(call.status) || Boolean(call.answered_by);
 }
 
-export function tally(calls: CallSummary[]) {
-  const count = { answered: 0, failed: 0, missed: 0, active: 0 };
-  let seconds = 0;
-  let spend = 0;
-  for (const call of calls) {
-    count[outcomeOf(call)] += 1;
-    seconds += call.duration_seconds ?? 0;
-    spend += Number(call.cost ?? 0);
-  }
-  return {
-    ...count,
-    total: calls.length,
-    spend,
-    seconds,
-    average: count.answered ? Math.round(seconds / count.answered) : 0,
-  };
+/** The one definition of the call counts, so every screen counts alike. */
+export function tallies(calls: CallSummary[]) {
+  const total = calls.length;
+  const answered = calls.filter(isAnswered).length;
+  const failed = calls.filter((c) => c.status === "failed").length;
+  const nonConnected = total - answered;
+  const spend = calls.reduce((s, c) => s + Number(c.cost ?? 0), 0);
+  const durationSec = calls.reduce((s, c) => s + (c.duration_seconds ?? 0), 0);
+  return { total, answered, failed, nonConnected, spend, durationSec };
 }
 
-/** Carriers report several machine variants; people only need which it was. */
-export function answeredByLabel(value: string): string {
-  if (!value) return "—";
-  if (value.startsWith("machine")) return "Voicemail";
-  if (value === "human") return "Person";
-  return value.charAt(0).toUpperCase() + value.slice(1).replace(/_/g, " ");
-}
-
-export function clock(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+export function minutes(seconds: number): string {
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
 
 /**
- * Plays a call's recording. The signed link is fetched only when asked for, and
- * the control is absent when there is nothing to play.
+ * The recording control.
+ *
+ * Active only when the call actually has a recording: a button that looks
+ * clickable but does nothing is worse than one that is plainly disabled. The
+ * short-lived signed link is fetched only when asked for.
  */
 export function RecordingButton({ call }: { call: CallSummary }) {
   const [url, setUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  if (!call.has_recording) return <span className="text-ash-dim">—</span>;
-  if (url) return <audio src={url} controls autoPlay className="h-8 w-48" />;
+  if (!call.has_recording) {
+    return (
+      <span className="text-ash-dim opacity-50" title="No recording for this call">
+        <SoundIcon className="size-4" />
+      </span>
+    );
+  }
+  if (url) return <audio src={url} controls autoPlay className="h-8 w-44" />;
 
   return (
     <button
       type="button"
       disabled={loading}
+      title="Play recording"
+      aria-label="Play recording"
       onClick={async () => {
         setLoading(true);
         setFailed(false);
@@ -80,10 +68,9 @@ export function RecordingButton({ call }: { call: CallSummary }) {
           setLoading(false);
         }
       }}
-      className="press inline-flex min-h-9 items-center gap-1.5 rounded-full bg-panel px-3.5 text-xs font-bold text-signal ring-1 ring-inset ring-edge-bright hover:bg-live"
+      className={`press inline-flex size-9 items-center justify-center rounded-full bg-panel ring-1 ring-inset ring-edge-bright hover:bg-live ${failed ? "text-rust" : "text-signal"}`}
     >
-      <PlayIcon className="size-3.5" />
-      {loading ? "Loading…" : failed ? "Retry" : "Play"}
+      {loading ? "…" : <PlayIcon className="size-3.5" />}
     </button>
   );
 }

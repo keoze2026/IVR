@@ -1,13 +1,13 @@
 /**
  * Editable campaign settings.
  *
- * Speed is deliberately editable while a campaign is calling — slowing down
+ * Pacing is deliberately editable while a campaign is dialing — slowing down
  * without stopping is the correct response to a rising complaint rate, and
  * making it require a stop would push operators toward stopping instead.
  *
- * The frozen fields live on the overview, shown locked. They are not repeated
- * here as disabled inputs, because a form full of dead controls teaches people
- * the form is broken.
+ * The five frozen fields live on the overview, shown locked. They are not
+ * repeated here as disabled inputs, because a form full of dead controls
+ * teaches people the form is broken.
  */
 
 import { useState, type ReactNode } from "react";
@@ -29,12 +29,6 @@ import type { Campaign } from "@/types/domain";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const RETRY_STATUSES = ["busy", "no_answer", "failed", "canceled"] as const;
-const RETRY_LABELS: Record<(typeof RETRY_STATUSES)[number], string> = {
-  busy: "Busy",
-  no_answer: "No answer",
-  failed: "Failed",
-  canceled: "Canceled",
-};
 
 export function CampaignSettingsPage() {
   const campaign = useOutletContext<Campaign>();
@@ -124,21 +118,20 @@ export function CampaignSettingsPage() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-        <Section title="Speed" hint="Can be changed while calling.">
+        <Section
+          title="Pace"
+          hint="Editable while dialing. Slowing down is the right answer to a rising complaint rate; stopping is not."
+        >
           <div className="grid gap-4 sm:grid-cols-2">
             {number("cps_limit", "Calls per second", "0.1", "0.1")}
-            {number("max_concurrent_channels", "Calls at the same time", "1")}
-            {number("ring_timeout_seconds", "Ring time (seconds)", "5")}
+            {number("max_concurrent_channels", "Concurrent channels", "1")}
+            {number("ring_timeout_seconds", "Ring timeout (sec)", "5")}
           </div>
         </Section>
 
         <Section
           title="Calling hours"
-          hint={
-            campaign.respect_contact_timezone
-              ? "Contact's local time. Legal calling hours still apply."
-              : `Times in ${campaign.fallback_timezone}. Legal calling hours still apply.`
-          }
+          hint="Resolved in the called party's local time. Your window can only tighten the jurisdiction's, never widen it."
         >
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="From" htmlFor="from" error={err("window_start_local")}>
@@ -189,26 +182,22 @@ export function CampaignSettingsPage() {
               );
             })}
           </Chips>
-          {/* An empty selection means every day, which the chips alone would
-              not show. */}
-          {draft.active_weekdays.length === 0 && (
-            <p className="text-xs text-amber">
-              {formatWeekdays(draft.active_weekdays)}
-            </p>
-          )}
+          <p className="text-xs text-ash">
+            {formatWeekdays(draft.active_weekdays)}
+          </p>
         </Section>
 
         <Section
           title="Retries"
-          hint="Repeated calls can hurt your number's reputation."
+          hint="Attempt caps exist as much for your number's reputation as for compliance. Repeated unanswered calls to the same number are scored."
         >
           <div className="grid gap-4 sm:grid-cols-3">
             {number("max_attempts", "Max attempts", "1")}
             {number("max_attempts_per_day", "Per day", "1")}
-            {number("retry_delay_minutes", "Wait (minutes)", "1")}
+            {number("retry_delay_minutes", "Delay (min)", "1")}
           </div>
 
-          <Chips label="Retry when" error={err("retry_on_statuses")}>
+          <Chips label="Retry on" error={err("retry_on_statuses")}>
             {RETRY_STATUSES.map((status) => {
               const on = draft.retry_on_statuses.includes(status);
               return (
@@ -225,16 +214,17 @@ export function CampaignSettingsPage() {
                     })
                   }
                 >
-                  {RETRY_LABELS[status]}
+                  {status.replace("_", " ")}
                 </Chip>
               );
             })}
           </Chips>
         </Section>
 
-        <Section title="Voicemail and recording">
+        <Section title="Machine detection & recording">
           <Toggle
-            label="Detect voicemail"
+            label="Detect answering machines"
+            hint="Async detection connects the call immediately and delivers the verdict out of band."
             checked={draft.amd_enabled}
             disabled={!canEdit}
             error={err("amd_enabled")}
@@ -243,8 +233,8 @@ export function CampaignSettingsPage() {
           {draft.amd_enabled && (
             <>
               <Toggle
-                label="Hang up on voicemail"
-                hint="If off, the call goes to the voicemail step."
+                label="Hang up on a machine"
+                hint="Otherwise the call is redirected to the voicemail branch."
                 checked={draft.hangup_on_machine}
                 disabled={!canEdit}
                 error={err("hangup_on_machine")}
@@ -252,7 +242,7 @@ export function CampaignSettingsPage() {
               />
               {!draft.hangup_on_machine && (
                 <Field
-                  label="Voicemail step name"
+                  label="Voicemail node"
                   htmlFor="vm"
                   error={err("voicemail_node")}
                 >
@@ -274,7 +264,7 @@ export function CampaignSettingsPage() {
           <div className="space-y-4 border-t border-edge pt-4">
             <Toggle
               label="Record calls"
-              hint="Many places require everyone's consent. A notice must play first."
+              hint="Many jurisdictions require all-party consent. A disclosure must play first."
               checked={draft.record_calls}
               disabled={!canEdit}
               error={err("record_calls")}
@@ -282,9 +272,9 @@ export function CampaignSettingsPage() {
             />
             {draft.record_calls && (
               <Field
-                label="Recording notice step name"
+                label="Disclosure node"
                 htmlFor="disclosure"
-                hint="This step must play before recording starts."
+                hint="Must be reachable before any recording starts."
                 error={err("recording_disclosure_node")}
               >
                 <Input
@@ -326,9 +316,9 @@ export function CampaignSettingsPage() {
             className="ml-auto"
             onClick={() => rebuild.mutate()}
             loading={rebuild.isPending}
-            title="Recalculates the figures from the call log. This is slow."
+            title="Recomputes counters from the call log. Slow by design."
           >
-            Recalculate figures
+            Rebuild counters
           </Button>
         </Panel>
       )}
@@ -395,7 +385,7 @@ function Chip({
       className={cx(
         "press min-h-10 min-w-12 rounded-full border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60",
         on
-          ? "border-forest bg-forest text-white"
+          ? "neon border-transparent"
           : "border-edge bg-panel text-ash hover:border-edge-bright",
       )}
     >

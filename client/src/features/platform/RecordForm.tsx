@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from "react";
 
-import { Button, Field, Input, Panel, PanelHeader, Select, Textarea, cx } from "@/components/ui";
+import { Button, Field, Input, Panel, Select, Textarea, cx } from "@/components/ui";
 import { usePlatformList, type FieldSchema, type ResourceSchema, type Row } from "@/lib/queries/platform";
 
 /** Fields a person should never be asked to fill in by hand. */
@@ -274,11 +274,6 @@ export function RecordForm({
           onSubmit(values);
         }}
       >
-        <PanelHeader
-          title="Details"
-          hint={fields.some((f) => f.required) ? "* Required" : undefined}
-        />
-
         {inputs.length > 0 && (
           <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-5">
             {inputs.map((field) => (
@@ -288,14 +283,13 @@ export function RecordForm({
         )}
 
         {toggles.length > 0 && (
-          <fieldset className="min-w-0 border-t border-edge p-4 sm:p-5">
-            <legend className="sr-only">Options</legend>
+          <div className="min-w-0 border-t border-edge p-4 sm:p-5">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {toggles.map((field) => (
                 <Toggle key={field.name} {...bind(field)} />
               ))}
             </div>
-          </fieldset>
+          </div>
         )}
 
         <div className="flex flex-wrap justify-end gap-2 border-t border-edge px-4 py-4 sm:px-5">

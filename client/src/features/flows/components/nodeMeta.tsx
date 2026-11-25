@@ -1,29 +1,13 @@
 /**
- * How each step type and each connection kind looks and reads.
+ * How each node type and each connection kind looks.
  *
  * Which types exist still comes from `GET flows/node-types/`; this only gives
- * them plain names and icons, falling back to the raw type for new ones.
+ * them icons, with a plain dot for new ones. Types are shown by their own names.
  */
 
 import type { ReactNode } from "react";
 
 import type { EdgeKind } from "../utils/graph";
-
-const LABELS: Record<string, string> = {
-  play: "Play message",
-  menu: "Keypad menu",
-  collect: "Collect digits",
-  transfer: "Transfer call",
-  opt_out: "Opt out",
-  voicemail: "Voicemail",
-  record: "Record caller",
-  branch: "Branch",
-  hangup: "Hang up",
-};
-
-export function nodeLabel(type: string): string {
-  return LABELS[type] ?? type.replace(/_/g, " ");
-}
 
 const ICONS: Record<string, ReactNode> = {
   play: <path d="M8 5.5v13l10-6.5-10-6.5Z" />,
@@ -56,14 +40,14 @@ export function NodeIcon({ type, className = "size-4" }: { type: string; classNa
 
 /** Wire and port colours, dark enough to read on the light canvas. */
 export const KIND_COLORS: Record<EdgeKind, string> = {
-  next: "#0b8457",
-  dtmf: "#1d5fa8",
-  optout: "#b7770d",
-  timeout: "#d9660f",
-  invalid: "#c53434",
-  fail: "#c53434",
-  condition: "#7c4dbb",
-  default: "#0b8457",
+  next: "#2ee6c5",
+  dtmf: "#60a5fa",
+  optout: "#fbbf24",
+  timeout: "#fb923c",
+  invalid: "#ff7284",
+  fail: "#ff7284",
+  condition: "#c084fc",
+  default: "#2ee6c5",
 };
 
-export const DANGLING_COLOR = "#c53434";
+export const DANGLING_COLOR = "#ff7284";

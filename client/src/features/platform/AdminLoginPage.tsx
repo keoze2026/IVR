@@ -52,21 +52,15 @@ export function AdminLoginPage() {
         <div aria-hidden className="absolute -right-40 -top-40 size-[520px] rounded-full border-[60px] border-white/[0.04]" />
         <div aria-hidden className="absolute -bottom-52 -left-32 size-[460px] rounded-full border-[46px] border-mint/[0.07]" />
         <div className="relative flex items-center gap-3">
-          <span className="flex size-12 items-center justify-center rounded-2xl bg-mint text-forest">
+          <span className="flex size-12 items-center justify-center rounded-2xl neon">
             <SettingsIcon className="size-6" />
           </span>
           <span className="display text-2xl">Outbound</span>
         </div>
         <div className="relative max-w-xl">
           <Waveform className="mb-10" />
-          <p className="display text-5xl leading-[1.08]">
-            System <span className="text-mint">administration</span>
-          </p>
-          <p className="mt-5 text-lg font-medium text-white/75">
-            Manage organisations, people and records.
-          </p>
         </div>
-        <p className="relative text-sm font-semibold text-white/60">Administrators only.</p>
+        <div aria-hidden />
       </section>
 
       <section className="flex items-center justify-center bg-void p-5 lg:rounded-[var(--radius-shell)]">
@@ -74,7 +68,15 @@ export function AdminLoginPage() {
           onSubmit={submit}
           className="w-full max-w-md rounded-[var(--radius-shell)] border border-edge/70 bg-panel p-8 shadow-[var(--shadow-card)] sm:p-10"
         >
-          <h1 className="display text-3xl text-chalk">Administrator sign-in</h1>
+          <h1 className="display text-3xl text-chalk">System administration</h1>
+          <p className="mt-2 text-sm text-ash">
+            Sign in with the administrator account for this system. If you manage
+            campaigns rather than the system itself,{" "}
+            <a href="/login" className="font-semibold text-signal underline">
+              sign in here instead
+            </a>
+            .
+          </p>
 
           <div className="mt-8 space-y-5">
             <Field label="Username" htmlFor="admin-username">
@@ -83,7 +85,6 @@ export function AdminLoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 autoComplete="username"
-                spellCheck={false}
                 autoFocus
                 required
                 invalid={Boolean(error)}
@@ -111,12 +112,6 @@ export function AdminLoginPage() {
             >
               {busy ? "Signing in…" : "Sign in"}
             </Button>
-
-            <p className="text-center text-sm text-ash-dim">
-              <a href="/login" className="inline-flex min-h-9 items-center hover:text-signal">
-                Staff sign-in
-              </a>
-            </p>
           </div>
         </form>
       </section>

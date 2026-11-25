@@ -42,7 +42,6 @@ import { FlowPalette } from "./components/FlowPalette";
 import { FlowInspector } from "./components/FlowInspector";
 import { FlowToolbar } from "./components/FlowToolbar";
 import { FlowValidationDrawer } from "./components/FlowValidationDrawer";
-import { nodeLabel } from "./components/nodeMeta";
 
 import {
   getGraphEdges,
@@ -462,19 +461,25 @@ export function FlowBuilderPage() {
           actions={
             <div className="flex flex-wrap items-center gap-2">
               {published ? (
-                <Badge tone="good">Published · read only</Badge>
+                <Badge tone="good">published · immutable</Badge>
               ) : (
-                <Badge tone="info">{readOnly ? "Draft · read only" : "Draft"}</Badge>
+                <Badge tone="info">draft</Badge>
               )}
               {!readOnly && (
                 <>
+                  {blocksSave.length > 0 && (
+                    <span className="text-xs font-medium text-amber" role="status">
+                      {blocksSave.length} error{blocksSave.length > 1 ? "s" : ""} —
+                      cannot be saved yet
+                    </span>
+                  )}
                   <Button
                     variant={canPublish ? "secondary" : "primary"}
                     loading={save.isPending}
                     disabled={blocksSave.length > 0}
                     onClick={() => save.mutate({ definition: doc })}
                   >
-                    Save draft
+                    Save Draft
                   </Button>
                   {canPublish && (
                     <Button
@@ -483,7 +488,7 @@ export function FlowBuilderPage() {
                       disabled={(report?.errors?.length ?? 0) > 0}
                       onClick={() => publish.mutate()}
                     >
-                      Publish
+                      Publish Flow
                     </Button>
                   )}
                 </>
@@ -491,12 +496,6 @@ export function FlowBuilderPage() {
             </div>
           }
         />
-        {!readOnly && blocksSave.length > 0 && (
-          <p className="text-sm font-medium text-amber" role="status">
-            Fix {blocksSave.length} error{blocksSave.length > 1 ? "s" : ""} before
-            saving.
-          </p>
-        )}
       </div>
 
       {/* --- Save and publish failures ------------------------------- */}
@@ -505,13 +504,13 @@ export function FlowBuilderPage() {
         <Panel className="border-rust/40 px-4 py-3">
           <div role="alert">
             <p className="text-sm font-semibold text-rust">
-              Publish refused. Fix these first:
+              Publish refused. These must be fixed first:
             </p>
             <ul className="mt-1.5 space-y-1">
               {((publishRefused.detail as ValidationReport)?.errors ?? []).map(
                 (issue, i) => (
                   <li key={i} className="break-words text-sm text-chalk">
-                    <span className="num text-ash">{issue.node || "flow"}</span>:{" "}
+                    <span className="num text-ash">{issue.node || "flow"}</span> —{" "}
                     {issue.message}
                   </li>
                 ),
@@ -530,18 +529,16 @@ export function FlowBuilderPage() {
       <div
         className={cx(
           "grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_300px]",
-          !readOnly && "xl:grid-cols-[200px_minmax(0,1fr)_290px]",
+          "xl:grid-cols-[200px_minmax(0,1fr)_290px]",
         )}
       >
-        {!readOnly && (
-          <div className="min-w-0 lg:col-span-2 xl:col-span-1 xl:h-[max(36rem,calc(100dvh-20rem))]">
-            <FlowPalette
-              specs={catalogue.data?.nodes ?? []}
-              readOnly={readOnly}
-              onAddNode={addNode}
-            />
-          </div>
-        )}
+        <div className="min-w-0 lg:col-span-2 xl:col-span-1 xl:h-[max(36rem,calc(100dvh-20rem))]">
+          <FlowPalette
+            specs={catalogue.data?.nodes ?? []}
+            readOnly={readOnly}
+            onAddNode={addNode}
+          />
+        </div>
 
         {/* Center: Canvas / Outline View Container */}
         <Panel className="flex h-[28rem] min-w-0 flex-col overflow-hidden lg:h-[max(36rem,calc(100dvh-20rem))]">
@@ -610,10 +607,10 @@ export function FlowBuilderPage() {
                       >
                         <span className="flex flex-wrap items-center gap-2">
                           <span className="num break-all text-sm font-semibold text-chalk">{id}</span>
-                          <span className="text-xs text-ash-dim">{nodeLabel(node.type)}</span>
-                          {id === doc.entry && <Badge tone="good">Start</Badge>}
+                          <span className="num text-xs text-ash-dim">({node.type})</span>
+                          {id === doc.entry && <Badge tone="good">Entry</Badge>}
                           {node.disposition && (
-                            <Badge>Outcome: {node.disposition.replace(/_/g, " ")}</Badge>
+                            <Badge>disposition: {node.disposition}</Badge>
                           )}
                         </span>
                         {node.prompt?.text && (

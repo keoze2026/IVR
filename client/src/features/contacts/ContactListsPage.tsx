@@ -45,24 +45,26 @@ import {
 import { useCan } from "@/lib/session";
 import type { ContactList } from "@/types/domain";
 
-/**
- * A new list is `pending` before any file exists, so "pending" only means an
- * import is on its way once a file has been named.
- */
-function ImportBadge({ list }: { list: ContactList }) {
-  if (list.ingest_status === "completed") return <Badge tone="good">Imported</Badge>;
-  if (list.ingest_status === "running") return <Badge tone="info">Importing</Badge>;
-  if (list.ingest_status === "failed") return <Badge tone="bad">Import failed</Badge>;
-  return list.source_filename ? (
-    <Badge tone="warn">Waiting</Badge>
-  ) : (
-    <Badge>Needs a file</Badge>
+const STATUS_TONE = {
+  completed: "good",
+  running: "info",
+  pending: "quiet",
+  failed: "bad",
+} as const;
+
+function ImportBadge({ status }: { status: string }) {
+  return (
+    <Badge tone={STATUS_TONE[status as keyof typeof STATUS_TONE] ?? "quiet"}>
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </Badge>
   );
 }
 
 export function ContactListsPage() {
   const canEdit = useCan("contacts.edit");
   const { data, isLoading, error, refetch } = useContactLists();
+  const create = useCreateContactList();
+  const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
 
   const rows = data?.results ?? [];
@@ -70,12 +72,13 @@ export function ContactListsPage() {
     data ? formatCount(rows.reduce((total, list) => total + pick(list), 0)) : "—";
   // Totals only cover the lists loaded here; say so when there are more.
   const scope = data?.next ? "In the lists shown" : undefined;
+  const nameError = create.error?.messageFor("name");
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Contact lists"
-        subtitle="The people your campaigns call."
+        title="Contacts"
+        subtitle="Numbers are normalised to E.164 on import, deduplicated, and checked against suppression before they ever reach a queue."
         actions={
           canEdit && (
             <Button variant="primary" onClick={() => setCreating(true)}>
@@ -101,7 +104,7 @@ export function ContactListsPage() {
             <div className="p-4 sm:p-6">
               <EmptyState
                 title="No lists yet"
-                description="Create a list, then upload a CSV of phone numbers."
+                description="A list holds the numbers a campaign may dial. Create one, then upload a CSV."
                 action={
                   canEdit ? (
                     <Button variant="primary" onClick={() => setCreating(true)}>
@@ -142,7 +145,7 @@ export function ContactListsPage() {
                         </Link>
                       </td>
                       <td>
-                        <ImportBadge list={list} />
+                        <ImportBadge status={list.ingest_status} />
                       </td>
                       <td className="num">{formatCount(list.total_rows)}</td>
                       <td className="num">{formatCount(list.reachable_rows)}</td>
@@ -157,51 +160,53 @@ export function ContactListsPage() {
         </Panel>
       )}
 
-      {creating && <NewListModal onClose={() => setCreating(false)} />}
+      {creating && (
+        <Modal
+          title="New list"
+          onClose={() => setCreating(false)}
+          closeOnEscape={false}
+          closeOnBackdrop={false}
+        >
+          {/* Enter does not submit; the button does. */}
+          <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
+            <Field label="List name" htmlFor="list-name" error={nameError}>
+              <Input
+                id="list-name"
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="August renewals"
+              />
+            </Field>
+            {create.error && !nameError && <ErrorState error={create.error} />}
+            <div className="flex justify-end gap-3 border-t border-edge pt-4">
+              <Button type="button" variant="ghost" onClick={() => setCreating(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                disabled={!name.trim()}
+                loading={create.isPending}
+                onClick={() =>
+                  create.mutate(
+                    { name: name.trim() },
+                    {
+                      onSuccess: () => {
+                        setName("");
+                        setCreating(false);
+                      },
+                    },
+                  )
+                }
+              >
+                Create
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
-  );
-}
-
-function NewListModal({ onClose }: { onClose: () => void }) {
-  const create = useCreateContactList();
-  const [name, setName] = useState("");
-  const nameError = create.error?.messageFor("name");
-
-  return (
-    <Modal title="New list" onClose={onClose}>
-      <form
-        className="space-y-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!name.trim() || create.isPending) return;
-          create.mutate({ name: name.trim() }, { onSuccess: onClose });
-        }}
-      >
-        <Field label="List name" htmlFor="list-name" error={nameError}>
-          <Input
-            id="list-name"
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="August renewals"
-          />
-        </Field>
-        {create.error && !nameError && <ErrorState error={create.error} />}
-        <div className="flex justify-end gap-3 border-t border-edge pt-4">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={!name.trim()}
-            loading={create.isPending}
-          >
-            Create
-          </Button>
-        </div>
-      </form>
-    </Modal>
   );
 }
 
@@ -216,33 +221,35 @@ export function ContactListDetailPage() {
   if (error) return <ErrorState error={error} onRetry={() => void refetch()} />;
   if (!list) return null;
 
+  const pending = list.ingest_status === "pending";
   const running = list.ingest_status === "running";
-  const waiting = list.ingest_status === "pending" && Boolean(list.source_filename);
+  // A new list is `pending` before it has any file. Treating that as an import
+  // would hide the uploader, leaving no way to give the list its first file.
+  const importing = running || (pending && Boolean(list.source_filename));
 
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <BackLink to="/contact-lists">Contact lists</BackLink>
+        <BackLink to="/contact-lists">Contacts</BackLink>
         <PageHeader
           title={list.name}
           subtitle={list.source_filename || undefined}
-          actions={<ImportBadge list={list} />}
         />
       </div>
 
       <div className="grid gap-4 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
-        <Stat label="Rows" value={formatCount(list.total_rows)} denominator="In the file" />
-        <Stat label="Valid" value={formatCount(list.valid_rows)} denominator="Usable numbers" />
+        <Stat label="Rows" value={formatCount(list.total_rows)} denominator="in the file" />
+        <Stat label="Valid" value={formatCount(list.valid_rows)} denominator="parsed to E.164" />
         <Stat
           label="Reachable"
           value={formatCount(list.reachable_rows)}
-          denominator="After suppression"
+          denominator="after suppression"
           accent
         />
         <Stat
           label="Suppressed"
           value={formatCount(list.suppressed_rows)}
-          denominator="Will not be called"
+          denominator="already on a list"
           tone={
             list.total_rows > 0 && list.suppressed_rows / list.total_rows > 0.3
               ? "amber"
@@ -252,17 +259,17 @@ export function ContactListDetailPage() {
         <Stat
           label="Rejected"
           value={formatCount(list.rejected_rows)}
-          denominator="Could not be read"
+          denominator="could not be parsed"
           tone={list.rejected_rows > 0 ? "rust" : undefined}
         />
       </div>
 
-      {(running || waiting) && <ImportProgress list={list} />}
+      {importing && <ImportProgress list={list} />}
 
       <div className="grid items-start gap-4 lg:grid-cols-2">
-        {canEdit && !running && (
-          <Uploader listId={list.id} pending={list.ingest_status === "pending"} />
-        )}
+        {/* The API names the file before the upload has succeeded, so a
+            pending list keeps the uploader for a retry. */}
+        {canEdit && !running && <Uploader listId={list.id} pending={pending} />}
         <Reports list={list} />
       </div>
     </div>
@@ -275,11 +282,10 @@ function ImportProgress({ list }: { list: ContactList }) {
     <Panel accent className="p-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="display text-sm font-semibold text-chalk">
-            {list.ingest_status === "running" ? "Importing" : "Waiting to import"}
-          </h2>
-          <p className="mt-0.5 text-sm text-ash">
-            Every number is checked against suppression.
+          <div className="eyebrow">Importing</div>
+          <p className="mt-1 text-sm text-chalk">
+            Reading the file in chunks and checking every number against
+            suppression.
           </p>
         </div>
         <PulseLoader scale={0.7} />
@@ -290,7 +296,7 @@ function ImportProgress({ list }: { list: ContactList }) {
             (key) => (
               <Figure
                 key={key}
-                label={key.charAt(0).toUpperCase() + key.slice(1)}
+                label={key}
                 value={formatCount((report[key] as number) ?? 0)}
               />
             ),
@@ -307,9 +313,6 @@ function Uploader({ listId, pending }: { listId: string; pending: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  // Accepted by the API but not yet picked up: offering another upload now
-  // would queue the same list twice.
-  const queued = pending && ingest.isSuccess;
 
   async function handle(file: File) {
     setProblem(null);
@@ -343,25 +346,31 @@ function Uploader({ listId, pending }: { listId: string; pending: boolean }) {
     }
   }
 
+  // The API has accepted the file and the import is on its way. Offering
+  // another upload now would queue the same list twice.
+  if (pending && ingest.isSuccess) return null;
+
   return (
     <Panel>
-      <PanelHeader title="Upload contacts" />
+      <PanelHeader title="Upload a CSV" />
       <div className="space-y-3 p-4">
+        <p className="text-xs text-ash">
+          One column must be <code className="num">phone</code>. Anything else
+          becomes a merge variable your prompts can use. Uploads are capped at
+          twenty an hour.
+        </p>
+
         <div
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             e.preventDefault();
             const file = e.dataTransfer.files[0];
-            if (file && !uploading && !queued) void handle(file);
+            if (file) void handle(file);
           }}
           className="rounded-xl border border-dashed border-edge-bright bg-void px-4 py-8 text-center"
         >
           {uploading ? (
             <PulseLoader label="Uploading" scale={0.8} />
-          ) : queued ? (
-            <p className="text-sm text-ash" role="status">
-              File received. The import will start shortly.
-            </p>
           ) : (
             <>
               <p className="text-sm text-ash">Drop a CSV here</p>
@@ -376,7 +385,6 @@ function Uploader({ listId, pending }: { listId: string; pending: boolean }) {
                 ref={inputRef}
                 type="file"
                 accept=".csv,text/csv"
-                aria-label="CSV file"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
@@ -386,11 +394,6 @@ function Uploader({ listId, pending }: { listId: string; pending: boolean }) {
             </>
           )}
         </div>
-
-        <p className="text-xs text-ash">
-          Needs a <code className="num">phone</code> column. Other columns can be
-          used in your messages. Up to 512 MB, 20 uploads per hour.
-        </p>
 
         {problem && (
           <p className="text-sm text-rust" role="alert">
@@ -414,8 +417,8 @@ function Reports({ list }: { list: ContactList }) {
       {/* A header with nothing under it needs no dividing line. */}
       <Panel className="[&>:last-child]:border-b-0">
         <PanelHeader
-          title="Suppression check"
-          hint="Opt-outs added since the upload, from a sample of this list."
+          title="Re-check suppression"
+          hint="A list uploaded on Monday and dialed on Friday has picked up new opt-outs. This samples the list against the current lists."
           action={
             <Button
               onClick={() => setChecking(true)}
@@ -457,14 +460,14 @@ function Reports({ list }: { list: ContactList }) {
         <Panel className="[&>:last-child]:border-b-0">
           <PanelHeader
             title="Rejected rows"
-            hint={`${formatCount(list.rejected_rows)} rows could not be read.`}
+            hint={`${formatCount(list.rejected_rows)} rows could not be parsed. The download lists each one with the reason.`}
             action={
               rejects.data?.url && (
                 <a
                   href={rejects.data.url}
                   className="press inline-flex min-h-11 shrink-0 items-center rounded-xl px-4 text-sm font-medium text-signal ring-1 ring-inset ring-edge-bright hover:bg-live"
                 >
-                  Download CSV
+                  Download the rejects CSV
                 </a>
               )
             }

@@ -48,15 +48,17 @@ A Vite SPA plus a thin Hono BFF. The BFF holds the credential server-side and
 gives the browser a session cookie, so no credential ever reaches the client
 and CORS never enters the picture.
 
-**Design.** A forest-green sidebar, a soft mint canvas and rounded white cards,
-set in Plus Jakarta Sans. Colours, radius and table style are defined once in
-`client/src/index.css`; shared components are in
+**Design.** A dark theme: a faint grid backdrop, glass cards with lit edges and a
+teal-to-sky glow for actions and the current screen. Headings are set in Space
+Grotesk, text in Plus Jakarta Sans. Colours, radius, surfaces and table style are
+defined once in `client/src/index.css`; shared components are in
 `client/src/components/ui/` and icons in `client/src/components/icons.tsx`.
 
-**Screens.** The sidebar holds Dashboard, Jobs, Call history, Numbers, Audio and
-Billing. Campaigns, Contact lists, Call flows, Number pools and Rates are under
-**Advanced**, with Compliance, People and Access keys. The administration
-portal at `/admin` uses the same design.
+**Screens.** The sidebar has three groups: Operations (Campaigns, Flows,
+Contact Lists), Analytics (Dashboard, Calls, Jobs, CDR) and Infrastructure (My
+Numbers, Audio Pools, CLI Pools, Wallets, Tariffs), with account capacity and
+Settings below. Compliance, People and Access keys are not on the staff sidebar.
+The administration portal at `/admin` uses the same design.
 
 To look at the UI without a backend, run `npm run demo` in `client/`.
 `client/mock/upstream.mjs` is a fixture server with fake data.

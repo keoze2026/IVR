@@ -20,7 +20,7 @@ import {
 
 import { AppShell } from "@/components/AppShell";
 import { PulseLoader } from "@/components/styled/PulseLoader";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, PageHeader } from "@/components/ui";
 import { ApiError } from "@/lib/errors";
 import { SessionProvider, useSession } from "@/lib/session";
 
@@ -28,7 +28,8 @@ import { AccessKeysPage } from "@/features/admin/AccessKeysPage";
 import { PeoplePage } from "@/features/admin/PeoplePage";
 import { TariffsPage, WalletPage } from "@/features/billing/BillingPages";
 import { CdrPage } from "@/features/calls/CallHistoryPage";
-import { DashboardPage } from "@/features/dashboard/DashboardPage";
+import { CallsBreakdownPage, DashboardPage } from "@/features/dashboard/DashboardPage";
+import { ActiveJobsPage } from "@/features/jobs/ActiveJobsPage";
 import { JobsPage } from "@/features/jobs/JobsPage";
 import { AudioPoolsPage, CliPoolsPage } from "@/features/telephony/PoolsPage";
 import { AdminLoginPage } from "@/features/platform/AdminLoginPage";
@@ -43,6 +44,7 @@ import {
 import { CallerIdsPage, SettingsPage } from "@/features/admin/CallerIdsPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { CallDetailPage } from "@/features/calls/CallDetailPage";
+import { CallsTable } from "@/features/calls/CallsTable";
 import { CampaignCallsPage } from "@/features/campaigns/CampaignCallsPage";
 import {
   CampaignDetailLayout,
@@ -102,6 +104,18 @@ function CampaignOverviewRoute() {
   return <CampaignOverview campaign={campaign} />;
 }
 
+function GlobalCalls() {
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Calls"
+        subtitle="Every attempt and how it ended. Filter by outcome, or open a campaign to see only its calls."
+      />
+      <CallsTable />
+    </div>
+  );
+}
+
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -137,14 +151,14 @@ export function App() {
                 </RequireSession>
               }
             >
-              <Route index element={<Navigate to="/dashboard" replace />} />
+              <Route index element={<Navigate to="/campaigns" replace />} />
 
               {/* --- campaigns ------------------------------------- */}
               <Route path="/campaigns" element={<CampaignsPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/dashboard/breakdown" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard/breakdown" element={<CallsBreakdownPage />} />
               <Route path="/jobs" element={<JobsPage />} />
-              <Route path="/jobs/active" element={<Navigate to="/jobs" replace />} />
+              <Route path="/jobs/active" element={<ActiveJobsPage />} />
               <Route path="/cdr" element={<CdrPage />} />
               <Route path="/audio-pools" element={<AudioPoolsPage />} />
               <Route path="/cli-pools" element={<CliPoolsPage />} />
@@ -174,7 +188,7 @@ export function App() {
               />
 
               {/* --- calls ----------------------------------------- */}
-              <Route path="/calls" element={<Navigate to="/cdr" replace />} />
+              <Route path="/calls" element={<GlobalCalls />} />
               <Route path="/calls/:id" element={<CallDetailPage />} />
 
               {/* --- compliance ------------------------------------ */}

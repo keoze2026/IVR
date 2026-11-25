@@ -1,11 +1,13 @@
-/** Jobs: what is being called, from which number, and its controls. */
+/**
+ * Jobs / All Jobs: a Create Job button, four stat tiles (Total / Running /
+ * Completed / Failed), then the job table with a status control per row.
+ */
 
-import { useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { PauseIcon, PlayIcon, PlusIcon, StopIcon, TrashIcon } from "@/components/icons";
-import { Button, EmptyState, ErrorState, Input, PageHeader, Panel, Stat, StatusPill, TableSkeleton, cx } from "@/components/ui";
-import { formatDateTime } from "@/lib/format";
+import { TrashIcon } from "@/components/icons";
+import { Badge, Button, EmptyState, ErrorState, Input, PageHeader, Panel, Stat, TableSkeleton, cx } from "@/components/ui";
 import { useCampaigns, useDeleteJob, useJobAction } from "@/lib/queries/campaigns";
 import type { Campaign } from "@/types/domain";
 
@@ -20,10 +22,10 @@ export function JobsPage() {
   const [search, setSearch] = useState("");
 
   const all = data?.results ?? [];
-  const term = search.trim().toLowerCase();
-  const jobs = term
-    ? all.filter((j) => `${j.name} ${j.target_number}`.toLowerCase().includes(term))
-    : all;
+  const jobs = useMemo(() => {
+    const f = search.trim().toLowerCase();
+    return f ? all.filter((j) => j.name.toLowerCase().includes(f)) : all;
+  }, [all, search]);
   const failure = action.error ?? del.error;
   const count = (status: string) => all.filter((j) => j.status === status).length;
 
@@ -31,33 +33,32 @@ export function JobsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Jobs"
-        subtitle="Each job calls one or more numbers and plays your message."
         actions={
           <Button variant="primary" onClick={() => setCreating(true)}>
-            <PlusIcon className="size-4" /> New job
+            Create Job +
           </Button>
         }
       />
 
       {error && <ErrorState error={error} onRetry={() => void refetch()} />}
       {failure && (
-        <p role="alert" className="rounded-xl bg-[#fdeaea] px-4 py-3 text-sm text-rust">
+        <p role="alert" className="rounded-xl bg-bad-soft px-4 py-3 text-sm text-rust">
           {failure.message || "That action could not be completed."}
         </p>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Total jobs" value={String(all.length)} accent />
-        <Stat label="Running" value={String(count("running"))} tone="live" />
-        <Stat label="Completed" value={String(count("completed"))} tone="live" />
-        <Stat label="Failed" value={String(count("failed"))} tone="rust" />
+        <Stat label="Total Jobs" value={String(all.length)} denominator="All jobs" accent />
+        <Stat label="Running" value={String(count("running"))} denominator="% of all jobs" tone="live" />
+        <Stat label="Completed" value={String(count("completed"))} denominator="% of all jobs" tone="live" />
+        <Stat label="Failed" value={String(count("failed"))} denominator="% of all jobs" tone="rust" />
       </div>
 
       <Input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search by name or number"
-        aria-label="Search jobs"
+        placeholder="Filter by name..."
+        aria-label="Filter by name"
         className="max-w-sm"
       />
 
@@ -65,7 +66,7 @@ export function JobsPage() {
         {isLoading && <TableSkeleton rows={5} />}
         {!isLoading && jobs.length === 0 && (
           <div className="p-6">
-            <EmptyState title="No jobs" description="Create a job to start calling." />
+            <EmptyState title="No jobs yet" description="Create a job to dial a number." />
           </div>
         )}
         {jobs.length > 0 && (
@@ -73,12 +74,16 @@ export function JobsPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Job</th>
-                  <th>Calling</th>
-                  <th>From</th>
-                  <th>At once</th>
+                  <th>Name</th>
+                  <th>User</th>
+                  <th>Target Number</th>
+                  <th>Max Concurrency</th>
+                  <th>Concurrency Mode</th>
+                  <th>Details</th>
                   <th>Status</th>
-                  <th>Created</th>
+                  <th>Scheduled</th>
+                  <th>Audio Pool</th>
+                  <th>CLI Pool</th>
                   <th><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
@@ -107,6 +112,16 @@ export function JobsPage() {
   );
 }
 
+const MODE_TONE = { fixed: "quiet", pulse: "good", ramp: "warn" } as const;
+
+const STATUS_TONE: Record<string, string> = {
+  running: "bg-live text-live-bright",
+  completed: "bg-raised text-ash",
+  paused: "bg-warn-soft text-amber",
+  draft: "bg-raised text-ash",
+  failed: "bg-bad-soft text-rust",
+};
+
 function JobRow({
   job,
   busy,
@@ -118,9 +133,10 @@ function JobRow({
   onAction: (a: "start" | "pause" | "stop") => void;
   onDelete: () => void;
 }) {
+  const mode = job.dial_mode ?? "fixed";
   const canStart = ["draft", "scheduled", "paused"].includes(job.status);
   const canPause = job.status === "running";
-  const canStop = ["running", "paused", "scheduled", "throttled"].includes(job.status);
+  const canStop = ["running", "paused", "scheduled"].includes(job.status);
 
   return (
     <tr>
@@ -134,60 +150,65 @@ function JobRow({
           </Link>
         </div>
       </td>
-      <td className="num">{job.target_number || "Contact list"}</td>
-      <td className="num">{job.cli_pool_name || job.caller_id_detail?.phone_e164 || "—"}</td>
-      <td className="num">
-        {job.max_concurrent_channels}
-        {job.dial_mode && job.dial_mode !== "fixed" && (
-          <span className="ml-1.5 text-xs capitalize text-ash-dim">{job.dial_mode}</span>
-        )}
+      <td>{job.user || "—"}</td>
+      <td className="num">{job.target_number || "—"}</td>
+      <td className="num">{job.max_concurrent_channels}</td>
+      <td>
+        <Badge tone={MODE_TONE[mode]}>
+          <span className="capitalize">{mode}</span>
+        </Badge>
       </td>
-      <td title={job.pause_reason || undefined}><StatusPill status={job.status} /></td>
-      <td>{formatDateTime(job.scheduled_start ?? job.created_at)}</td>
+      <td className="num">
+        {mode === "fixed"
+          ? "—"
+          : `Interval: ${job.dial_interval_seconds}s · Step: ${job.dial_batch_size}`}
+      </td>
+      <td>
+        {/* Status is a control: pick an action to run it. The current status is
+            the shown value; only valid transitions are offered, and the whole
+            control disables while the action is in flight so a second click
+            cannot race. */}
+        <select
+          value=""
+          disabled={busy}
+          aria-label={`Status of ${job.name}`}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v) onAction(v as "start" | "pause" | "stop");
+          }}
+          className={cx(
+            "min-h-9 rounded-full border border-edge px-3 text-xs font-bold capitalize disabled:opacity-40",
+            STATUS_TONE[job.status] ?? "bg-raised text-chalk",
+          )}
+        >
+          <option value="">{busy ? "Working…" : job.status}</option>
+          {canStart && <option value="start">▶ Start</option>}
+          {canPause && <option value="pause">⏸ Pause</option>}
+          {canStop && <option value="stop">⏹ Stop</option>}
+        </select>
+      </td>
+      <td>{job.scheduled_start ? new Date(job.scheduled_start).toLocaleString() : "—"}</td>
+      <td>{job.audio_pool_name || "—"}</td>
+      <td>{job.cli_pool_name || "—"}</td>
       <td>
         <div className="flex justify-end gap-1">
-          {canStart && (
-            <Action label="Start" disabled={busy} onClick={() => onAction("start")}><PlayIcon className="size-4" /></Action>
-          )}
-          {canPause && (
-            <Action label="Pause" disabled={busy} onClick={() => onAction("pause")}><PauseIcon className="size-4" /></Action>
-          )}
-          {canStop && (
-            <Action label="Stop" disabled={busy} onClick={() => onAction("stop")}><StopIcon className="size-4" /></Action>
-          )}
-          <Action label="Delete" danger onClick={onDelete}><TrashIcon className="size-4" /></Action>
+          <Link
+            to={`/campaigns/${job.id}`}
+            className="press flex size-10 items-center justify-center rounded-full bg-panel text-ash ring-1 ring-inset ring-edge hover:bg-live hover:text-signal"
+          >
+            ⋯
+          </Link>
+          <button
+            type="button"
+            onClick={onDelete}
+            title="Delete job"
+            aria-label="Delete job"
+            className="press flex size-10 items-center justify-center rounded-full bg-panel text-ash ring-1 ring-inset ring-edge hover:bg-bad-soft hover:text-rust"
+          >
+            <TrashIcon className="size-4" />
+          </button>
         </div>
       </td>
     </tr>
-  );
-}
-
-function Action({
-  label,
-  children,
-  onClick,
-  disabled,
-  danger,
-}: {
-  label: string;
-  children: ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-  danger?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={label}
-      aria-label={label}
-      className={cx(
-        "press flex size-10 items-center justify-center rounded-full bg-panel text-ash ring-1 ring-inset ring-edge disabled:opacity-40",
-        danger ? "hover:bg-[#fdeaea] hover:text-rust" : "hover:bg-live hover:text-signal",
-      )}
-    >
-      {children}
-    </button>
   );
 }

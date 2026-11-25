@@ -12,7 +12,7 @@ import type {
 } from "@/types/domain";
 import { Input, Panel, Select, Textarea, cx } from "@/components/ui";
 
-import { NodeIcon, nodeLabel } from "./nodeMeta";
+import { NodeIcon } from "./nodeMeta";
 
 interface FlowInspectorProps {
   doc: FlowDefinition;
@@ -26,13 +26,13 @@ interface FlowInspectorProps {
 }
 
 const BRANCH_OPS = [
-  { value: "eq", label: "equals" },
-  { value: "neq", label: "is not" },
-  { value: "gt", label: "is more than" },
-  { value: "gte", label: "is at least" },
-  { value: "lt", label: "is less than" },
-  { value: "lte", label: "is at most" },
-  { value: "in", label: "is in list" },
+  { value: "eq", label: "==" },
+  { value: "neq", label: "!=" },
+  { value: "gt", label: ">" },
+  { value: "gte", label: ">=" },
+  { value: "lt", label: "<" },
+  { value: "lte", label: "<=" },
+  { value: "in", label: "in list" },
   { value: "starts_with", label: "starts with" },
   { value: "is_set", label: "is set" },
   { value: "is_empty", label: "is empty" },
@@ -53,14 +53,12 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
     return (
       <Panel className="flex min-h-28 flex-col items-center justify-center p-6 text-center lg:h-full">
         <p className="display text-sm font-semibold text-chalk">
-          {many ? `${selectedIds.length} steps selected` : "No step selected"}
+          {many ? `${selectedIds.length} Nodes Selected` : "No Node Selected"}
         </p>
         <p className="mt-1 text-sm text-ash">
           {many
-            ? readOnly
-              ? "Select one step to see its settings."
-              : "Select one to edit it. Delete removes them; Ctrl+D copies them."
-            : "Select a step to see its settings."}
+            ? "Group editing is not supported. Please select a single node to inspect its properties."
+            : "Click any node or wire on the canvas to inspect and configure its settings."}
         </p>
       </Panel>
     );
@@ -112,17 +110,19 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
           <NodeIcon type={node.type} />
         </span>
         <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="eyebrow">Inspector</span>
+            <span className="num rounded bg-void px-1.5 py-0.5 text-[11px] text-signal">
+              {node.type}
+            </span>
+          </div>
           <h2 className="num truncate text-sm font-semibold text-chalk">
             {selectedId}
           </h2>
-          <p className="text-xs text-ash-dim first-letter:uppercase">
-            {nodeLabel(node.type)}
-          </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close step settings"
           className="press flex size-9 shrink-0 items-center justify-center rounded-full text-ash hover:bg-raised hover:text-chalk"
         >
           ✕
@@ -134,6 +134,7 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
         {/* Validation Issues on this Node */}
         {issues.length > 0 && (
           <ul className="space-y-1.5 rounded-xl border border-edge bg-void p-3">
+            <li className="eyebrow !text-rust">Node Checks</li>
             {[...errors, ...warnings].map((issue, idx) => (
               <li
                 key={idx}
@@ -143,12 +144,7 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
                 )}
               >
                 <span className="mt-2 size-1.5 shrink-0 rounded-full bg-current" aria-hidden />
-                <span className="min-w-0 break-words">
-                  <span className="sr-only">
-                    {issue.level === "error" ? "Error: " : "Warning: "}
-                  </span>
-                  {issue.message}
-                </span>
+                <span className="min-w-0 break-words">{issue.message}</span>
               </li>
             ))}
           </ul>
@@ -158,7 +154,7 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
           <p className="text-xs text-ash">{spec.description}</p>
         )}
 
-        <Labelled label="Step name">
+        <Labelled label="Node ID">
           <Input
             type="text"
             value={selectedId}
@@ -175,9 +171,8 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
 
         {/* Prompts (TTS / Audio / Live Say) */}
         {node.prompt !== undefined && (
-          <Section title="Message">
+          <Section title="Prompt Audio">
             <Select
-              aria-label="Message type"
               value={node.prompt.kind}
               disabled={readOnly}
               onChange={(e) =>
@@ -186,18 +181,17 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
                 })
               }
             >
-              <option value="tts">Text to speech</option>
-              <option value="say">Text to speech, personalised per contact</option>
-              <option value="audio">Audio file</option>
+              <option value="tts">Speak (pre-rendered TTS)</option>
+              <option value="say">Speak (dynamic per-contact)</option>
+              <option value="audio">Play Audio Asset (Upload)</option>
             </Select>
 
             {node.prompt.kind === "audio" ? (
               <Input
                 type="text"
-                aria-label="Audio asset ID"
                 value={node.prompt.asset ?? ""}
                 disabled={readOnly}
-                placeholder="Audio asset ID"
+                placeholder="Asset UUID (e.g. ast_1234)"
                 onChange={(e) =>
                   onChange(selectedId, {
                     prompt: { ...node.prompt!, asset: e.target.value },
@@ -207,11 +201,10 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
               />
             ) : (
               <Textarea
-                aria-label="Message text"
                 value={node.prompt.text ?? ""}
                 disabled={readOnly}
                 rows={3}
-                placeholder="Hello {{first_name}}..."
+                placeholder="Prompt text (e.g. Hello {{first_name}}...)"
                 onChange={(e) =>
                   onChange(selectedId, {
                     prompt: { ...node.prompt!, text: e.target.value },
@@ -230,7 +223,7 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
                 }
                 className="size-4 accent-[var(--color-signal)]"
               />
-              Keypress can interrupt
+              Barge-in
             </label>
           </Section>
         )}
@@ -238,7 +231,7 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
         {/* Menu Keypresses & Options */}
         {node.type === "menu" && (
           <Section
-            title="Keys"
+            title="Keypress Routes"
             aside={`${Object.keys(node.options ?? {}).length}/12`}
           >
             {Object.entries(node.options ?? {}).map(([digit, target]) => (
@@ -247,7 +240,6 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
                   {digit}
                 </span>
                 <Select
-                  aria-label={`Key ${digit} goes to`}
                   value={target}
                   disabled={readOnly}
                   onChange={(e) =>
@@ -257,19 +249,18 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
                   }
                   className="min-w-0"
                 >
-                  <option value="">Choose a step…</option>
+                  <option value="">— select target —</option>
                   {targetOptions}
                 </Select>
                 {!readOnly && (
                   <button
                     type="button"
-                    aria-label={`Remove key ${digit}`}
                     onClick={() => {
                       const next = { ...node.options };
                       delete next[digit];
                       onChange(selectedId, { options: next });
                     }}
-                    className="press flex size-9 shrink-0 items-center justify-center rounded-lg text-ash hover:bg-[#fdeaea] hover:text-rust"
+                    className="press flex size-9 shrink-0 items-center justify-center rounded-lg text-ash hover:bg-bad-soft hover:text-rust"
                   >
                     ✕
                   </button>
@@ -280,7 +271,6 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
             {/* Quick-add digit buttons */}
             {!readOnly && (
               <div>
-                <span className="eyebrow mb-1 block">Add a key</span>
                 <div className="flex flex-wrap gap-1.5">
                   {"123456789*0#"
                     .split("")
@@ -289,7 +279,6 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
                       <button
                         key={digit}
                         type="button"
-                        aria-label={`Add key ${digit}`}
                         onClick={() =>
                           onChange(selectedId, {
                             options: {
@@ -298,9 +287,9 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
                             },
                           })
                         }
-                        className="press num size-9 rounded-lg text-sm text-ash ring-1 ring-inset ring-edge hover:bg-live hover:text-signal"
+                        className="press num h-9 min-w-9 rounded-lg px-1.5 text-sm text-ash ring-1 ring-inset ring-edge hover:bg-live hover:text-signal"
                       >
-                        {digit}
+                        +{digit}
                       </button>
                     ))}
                 </div>
@@ -311,13 +300,13 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
 
         {/* Collect Node Inputs */}
         {node.type === "collect" && (
-          <Section title="Collect digits">
-            <Labelled label="Save digits as">
+          <Section title="Collect Digits">
+            <Labelled label="Save into Variable">
               <Input
                 type="text"
                 value={(node as any).variable ?? ""}
                 disabled={readOnly}
-                placeholder="account_number"
+                placeholder="e.g. account_number"
                 onChange={(e) =>
                   onChange(selectedId, { variable: e.target.value } as any)
                 }
@@ -329,15 +318,14 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
 
         {/* Branch Conditions */}
         {node.type === "branch" && (
-          <Section title="Conditions">
+          <Section title="Branch Conditions">
             {(node.conditions ?? []).map((cond, idx) => (
               <div key={idx} className="space-y-2 rounded-xl border border-edge bg-void p-3">
                 <div className="flex items-center justify-between">
-                  <span className="eyebrow">Rule {idx + 1}</span>
+                  <span className="eyebrow">Rule #{idx + 1}</span>
                   {!readOnly && (
                     <button
                       type="button"
-                      aria-label={`Remove rule ${idx + 1}`}
                       onClick={() => {
                         const next = [...(node.conditions ?? [])];
                         next.splice(idx, 1);
@@ -351,15 +339,13 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
                 </div>
                 <Input
                   type="text"
-                  aria-label={`Rule ${idx + 1} variable`}
                   value={cond.variable}
                   disabled={readOnly}
-                  placeholder="Variable"
+                  placeholder="variable"
                   onChange={(e) => setCondition(idx, { variable: e.target.value })}
                   className="num"
                 />
                 <Select
-                  aria-label={`Rule ${idx + 1} comparison`}
                   value={cond.op}
                   disabled={readOnly}
                   onChange={(e) => setCondition(idx, { op: e.target.value })}
@@ -372,19 +358,17 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
                 </Select>
                 <Input
                   type="text"
-                  aria-label={`Rule ${idx + 1} value`}
                   value={(cond.value as string) ?? ""}
                   disabled={readOnly}
-                  placeholder="Value"
+                  placeholder="value to compare"
                   onChange={(e) => setCondition(idx, { value: e.target.value })}
                 />
                 <Select
-                  aria-label={`Rule ${idx + 1} goes to`}
                   value={cond.then}
                   disabled={readOnly}
                   onChange={(e) => setCondition(idx, { then: e.target.value })}
                 >
-                  <option value="">Then go to…</option>
+                  <option value="">— target if matched —</option>
                   {targetOptions}
                 </Select>
               </div>
@@ -400,32 +384,35 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
                 }}
                 className="press min-h-10 w-full rounded-xl border border-dashed border-edge-bright text-sm font-medium text-signal hover:bg-live"
               >
-                + Add rule
+                + Add Condition Rule
               </button>
             )}
           </Section>
         )}
 
         {/* Fall-through / Standard Transitions */}
-        <Section title="What happens next">
+        <Section title="Transitions">
           {node.type !== "hangup" &&
             node.type !== "voicemail" &&
-            transition("next", "Next step", "None (hang up)")}
+            transition("next", "Next Step", "— none (hangup) —")}
 
           {(node.type === "menu" || node.type === "collect") && (
             <>
-              {transition("on_timeout", "If no key is pressed", "None")}
-              {transition("on_invalid", "If the wrong key is pressed", "None")}
+              {transition("on_timeout", "On Timeout", "— none —")}
+              {transition("on_invalid", "On Invalid Input", "— none —")}
             </>
           )}
 
           {node.type === "transfer" &&
-            transition("on_fail", "If the transfer fails", "None")}
+            transition("on_fail", "On Transfer Fail", "— none —")}
 
           {node.type === "branch" &&
-            transition("default", "Otherwise go to", "None")}
+            transition("default", "Default Target (Fallback)", "— none —")}
+        </Section>
 
-          <Labelled label="Record outcome as">
+        {/* Call Disposition / Outcome */}
+        <div className="border-t border-edge pt-3">
+          <Labelled label="Records Outcome As">
             <Select
               value={node.disposition ?? ""}
               disabled={readOnly}
@@ -433,7 +420,7 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
                 onChange(selectedId, { disposition: e.target.value || undefined })
               }
             >
-              <option value="">None</option>
+              <option value="">— none —</option>
               {[
                 "confirmed",
                 "transferred",
@@ -448,7 +435,7 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
               ))}
             </Select>
           </Labelled>
-        </Section>
+        </div>
       </div>
     </Panel>
   );

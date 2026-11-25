@@ -16,7 +16,6 @@ import { useState } from "react";
 
 import { PauseIcon, PlayIcon, StopIcon } from "@/components/icons";
 import {
-  Badge,
   Button,
   ErrorState,
   Field,
@@ -42,26 +41,26 @@ import type { Campaign, Preflight, PreflightIssue } from "@/types/domain";
 
 /** Plain-language readings of the codes preflight emits. */
 const EXPLAIN: Record<string, string> = {
-  org_suspended: "Your organisation is suspended. No calls will be placed.",
-  flow_not_published: "The chosen flow version is still a draft.",
-  bad_voicemail_node: "The voicemail step set on this campaign is not in the flow.",
-  no_recording_disclosure: "Recording is on but no recording notice plays first.",
+  org_suspended: "The organisation is suspended. Nothing will dial.",
+  flow_not_published: "The pinned flow version is still a draft.",
+  bad_voicemail_node: "The voicemail node named on this campaign is not in the flow.",
+  no_recording_disclosure:
+    "Recording is on but no disclosure node plays before it.",
   caller_id_inactive: "The caller ID is switched off.",
   consent_gate_disabled: "Consent checking is off for a marketing campaign.",
-  org_requires_consent: "Your organisation requires consent and none is on file.",
+  org_requires_consent: "This organisation requires consent and none is on file.",
   no_lists: "No contact list is attached.",
   empty_lists: "Every attached list is empty.",
-  nothing_reachable: "Every contact is blocked. There is nobody left to call.",
-  empty_window: "Your calling hours fall outside the legally allowed hours.",
-  prompts_not_rendered:
-    "Audio is still being prepared. Early calls use a computer voice.",
+  nothing_reachable: "Every contact is suppressed. There is nobody left to call.",
+  empty_window: "The calling window and the jurisdiction rules do not overlap.",
+  prompts_not_rendered: "Prompts are still rendering. Early calls fall back to live speech.",
   attestation_below_a:
     "Caller ID signs below A. Expect more calls to be labelled or blocked.",
   poor_reputation: "This number's reputation score is low.",
-  high_suppression: "More than 30% of the list is blocked.",
-  cps_clamped: "Calls per second is above your account limit and will be lowered.",
-  channels_clamped: "Calls at once is above your account limit.",
-  all_weekdays: "This campaign calls seven days a week.",
+  high_suppression: "More than 30% of the list is suppressed.",
+  cps_clamped: "Your rate is above the organisation ceiling and will be clamped.",
+  channels_clamped: "Your channel limit is above the organisation ceiling.",
+  all_weekdays: "This campaign is set to dial seven days a week.",
 };
 
 function explain(issue: PreflightIssue): string {
@@ -91,7 +90,6 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
   const can = allowedTransitions(campaign.status);
   const report = preflight.data;
   const blocked = (report?.errors.length ?? 0) > 0;
-  const ackBlocked = (ack?.errors?.length ?? 0) > 0;
   const startError =
     start.error && !start.error.isComplianceBlock ? start.error.message : null;
   const actionError = startError ?? pause.error?.message ?? resume.error?.message;
@@ -121,7 +119,7 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
     <Panel className="overflow-hidden">
       <PanelHeader
         title="Launch checks"
-        hint="Checking does not start any calls."
+        hint="Nothing here changes the campaign. Run it before every start."
         action={
           <Button
             dense
@@ -147,14 +145,14 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
       {report && (
         <div className="space-y-4 p-4">
           <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3">
-            <Figure label="Contacts" value={formatCount(report.estimate.total)} />
+            <Figure label="On the lists" value={formatCount(report.estimate.total)} />
             <Figure
-              label="Can be called"
+              label="Reachable"
               value={formatCount(report.estimate.reachable)}
               tone={report.estimate.reachable === 0 ? "rust" : "signal"}
             />
             <Figure
-              label="Blocked"
+              label="Suppressed"
               value={formatCount(report.estimate.suppressed)}
               tone={
                 report.estimate.total > 0 &&
@@ -178,7 +176,7 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
 
           {report.ok && report.warnings.length === 0 && (
             <p className="rounded-xl bg-live px-3 py-2.5 text-sm text-live-bright">
-              All checks passed.
+              Every check passed.
             </p>
           )}
         </div>
@@ -196,7 +194,7 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
                 disabled={start.isPending || preflight.isLoading || blocked}
               >
                 <PlayIcon className="size-4" />
-                {campaign.status === "paused" ? "Start again" : "Start calling"}
+                {campaign.status === "paused" ? "Start again" : "Start dialing"}
               </Button>
             )}
 
@@ -217,15 +215,11 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
             )}
           </div>
 
-          {can.start && blocked && (
-            <p className="text-xs text-rust">Fix the blocking problems to start.</p>
-          )}
-
           {can.pause && (
             <div className="flex flex-wrap items-center gap-2">
               <Input
-                placeholder="Pause reason (optional)"
-                aria-label="Pause reason (optional)"
+                placeholder="Reason (optional)"
+                aria-label="Reason (optional)"
                 value={pauseReason}
                 maxLength={160}
                 onChange={(e) => setPauseReason(e.target.value)}
@@ -243,7 +237,7 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
       )}
 
       {actionError && !ack && (
-        <p role="alert" className="bg-[#fdeaea] px-4 py-3 text-sm text-rust">
+        <p role="alert" className="bg-bad-soft px-4 py-3 text-sm text-rust">
           {actionError}
         </p>
       )}
@@ -251,16 +245,25 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
       {/* --- warning acknowledgement ------------------------------------ */}
       {ack && (
         <Modal
-          title="Start with warnings?"
-          subtitle="Your acceptance is recorded with this launch."
+          title="Launch with warnings?"
           onClose={closeAck}
+          closeOnBackdrop={false}
         >
-          <ul className="space-y-2">
-            {ack.errors?.map((issue) => (
-              <IssueRow key={issue.code} issue={issue} level="error" />
-            ))}
+          <p className="text-sm text-ash">
+            These do not block the launch, but they are recorded against it.
+            Read them before you continue.
+          </p>
+
+          <ul className="mt-4 space-y-2">
             {ack.warnings.map((issue) => (
-              <IssueRow key={issue.code} issue={issue} level="warning" />
+              <li
+                key={issue.code}
+                className="rounded-xl border border-edge px-3 py-2.5"
+              >
+                <p className="text-sm text-chalk [overflow-wrap:anywhere]">
+                  {explain(issue)}
+                </p>
+              </li>
             ))}
           </ul>
 
@@ -271,7 +274,7 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
               onChange={(e) => setAcknowledged(e.target.checked)}
               className="mt-0.5 size-4 shrink-0 accent-signal"
             />
-            I have read these warnings and want to call anyway.
+            I have read these warnings and want to dial anyway.
           </label>
 
           {startError && (
@@ -286,11 +289,11 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
             </Button>
             <Button
               variant="primary"
-              disabled={!acknowledged || ackBlocked}
+              disabled={!acknowledged}
               loading={start.isPending}
               onClick={() => void launch(true)}
             >
-              Start calling
+              Start dialing
             </Button>
           </div>
         </Modal>
@@ -298,10 +301,15 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
 
       {/* --- stop confirmation ------------------------------------------ */}
       {confirmStop && (
-        <Modal title="Stop this campaign?" onClose={() => setConfirmStop(false)}>
-          <p className="rounded-xl bg-[#fdeaea] px-3 py-2.5 text-sm text-rust">
-            This is permanent. Contacts still waiting will not be called, and the
-            campaign cannot be started again. To stop for now, use Pause.
+        <Modal
+          title="Stop this campaign?"
+          onClose={() => setConfirmStop(false)}
+          closeOnBackdrop={false}
+        >
+          <p className="rounded-xl bg-bad-soft px-3 py-2.5 text-sm text-rust">
+            Stopping is permanent. Every contact still queued is marked
+            exhausted and the campaign cannot be started again. To pause
+            temporarily, use Pause instead.
           </p>
 
           <label className="mt-4 flex min-h-9 cursor-pointer items-start gap-3 text-sm text-chalk">
@@ -312,9 +320,10 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
               className="mt-0.5 size-4 shrink-0 accent-rust"
             />
             <span>
-              Also hang up calls in progress
+              Also hang up calls in progress.
               <span className="mt-0.5 block text-xs text-ash">
-                Cuts people off mid-sentence.
+                Cuts off live callers mid-sentence. Only for a script that must
+                stop immediately.
               </span>
             </span>
           </label>
@@ -338,7 +347,7 @@ export function LaunchControl({ campaign }: { campaign: Campaign }) {
 
           <div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-edge pt-4">
             <Button variant="ghost" onClick={() => setConfirmStop(false)}>
-              Cancel
+              Keep dialing
             </Button>
             <Button
               variant="danger"
@@ -390,7 +399,7 @@ function Figure({
   );
 }
 
-/** One check result. The raw code stays on hover for support requests. */
+/** One check result, with the raw code for support requests. */
 function IssueRow({
   issue,
   level,
@@ -399,16 +408,18 @@ function IssueRow({
   level: "error" | "warning";
 }) {
   return (
-    <li
-      title={issue.code}
-      className="flex flex-wrap items-start gap-x-3 gap-y-1.5 rounded-xl border border-edge px-3 py-2.5"
-    >
-      <Badge tone={level === "error" ? "bad" : "warn"}>
-        {level === "error" ? "Blocks start" : "Warning"}
-      </Badge>
-      <p className="min-w-0 flex-1 basis-44 text-sm text-chalk [overflow-wrap:anywhere]">
-        {explain(issue)}
-      </p>
+    <li className="flex items-start gap-3 rounded-xl border border-edge px-3 py-2.5">
+      <span
+        aria-hidden
+        className={cx(
+          "mt-1.5 size-1.5 shrink-0 rounded-full",
+          level === "error" ? "bg-rust" : "bg-amber",
+        )}
+      />
+      <div className="min-w-0 [overflow-wrap:anywhere]">
+        <p className="text-sm text-chalk">{explain(issue)}</p>
+        <code className="num text-[10px] text-ash-dim">{issue.code}</code>
+      </div>
     </li>
   );
 }

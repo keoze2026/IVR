@@ -1,14 +1,19 @@
 /**
- * Numbers you call from, and the account settings.
+ * Caller IDs and the session.
  *
- * The trust rating (A, B or C) is assigned by the carrier and cannot be changed
- * here.
+ * The honest note on this screen matters: `is_available`, `daily_call_cap` and
+ * `rested_until` are stored and displayed, but **nothing in the dial path
+ * consults them** and nothing auto-sets a rest period. They are labelled
+ * advisory rather than presented as enforcement, because a UI that implies the
+ * platform will stop dialing a rested number makes a promise the backend does
+ * not keep.
  */
 
 import { useState, type ReactNode } from "react";
 
 import { PlusIcon } from "@/components/icons";
 import {
+  Badge,
   Button,
   EmptyState,
   ErrorState,
@@ -16,28 +21,63 @@ import {
   Input,
   PageHeader,
   Panel,
+  PanelHeader,
   Select,
+  Stat,
   TableSkeleton,
   cx,
 } from "@/components/ui";
-import { useCallerIds, useCreateCallerId } from "@/lib/queries/resources";
+import { formatCount, formatDateTime } from "@/lib/format";
+import { useCallerIds, useCreateCallerId, useUpdateCallerId } from "@/lib/queries/resources";
 import { useCan, useSession } from "@/lib/session";
+import type { CallerID } from "@/types/domain";
 
-const TRUST: Record<string, { tone: string; means: string }> = {
-  A: { tone: "bg-live text-live-bright", means: "Verified by your carrier" },
-  B: { tone: "bg-[#fdf1dc] text-amber", means: "Partly verified" },
-  C: { tone: "bg-[#fdeaea] text-rust", means: "Not registered: may be blocked or marked as spam" },
+const ATTESTATION: Record<string, { tone: string; means: string }> = {
+  A: {
+    tone: "bg-live text-live-bright",
+    means: "The carrier knows you and knows you may use this number.",
+  },
+  B: {
+    tone: "bg-warn-soft text-amber",
+    means: "The carrier knows you but cannot vouch for the number.",
+  },
+  C: {
+    tone: "bg-bad-soft text-rust",
+    means: "Unregistered. Expect blocking or a spam label.",
+  },
 };
 
 export function CallerIdsPage() {
   const { data, isLoading, error, refetch } = useCallerIds();
   const rows = data?.results ?? [];
 
+  const belowA = rows.filter((c) => c.attestation !== "A").length;
+
   return (
     <div className="space-y-6">
-      <PageHeader title="Numbers" subtitle="The numbers your calls come from." />
+      <PageHeader
+        title="Caller IDs"
+        subtitle="Attestation is assigned by your carrier, not by this platform. No setting here can raise it — the only path is registration with the carrier."
+      />
 
       <AddNumberForm />
+
+      {rows.length > 0 && (
+        <div className="stagger grid gap-4 sm:grid-cols-3">
+          <Stat label="Numbers" value={String(rows.length)} denominator="on the account" />
+          <Stat
+            label="Signing below A"
+            value={String(belowA)}
+            denominator="more likely to be labelled"
+            tone={belowA > 0 ? "amber" : undefined}
+          />
+          <Stat
+            label="Calls today"
+            value={formatCount(rows.reduce((s, c) => s + c.calls_today, 0))}
+            denominator="across all numbers"
+          />
+        </div>
+      )}
 
       {error && <ErrorState error={error} onRetry={() => void refetch()} />}
 
@@ -45,45 +85,135 @@ export function CallerIdsPage() {
         <Panel className="overflow-hidden"><TableSkeleton /></Panel>
       )}
       {data && rows.length === 0 && (
-        <EmptyState title="No numbers yet" description="Add a number you own at your carrier." />
+        <EmptyState
+          title="No caller IDs"
+          description="Add a number you own at your carrier using the form above."
+        />
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {rows.map((n) => {
-          const trust = TRUST[n.attestation] ?? TRUST.C!;
-          return (
-            <Panel key={n.id} className="overflow-hidden">
-              <div className="surface-forest p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="rounded-full bg-white/12 px-3 py-1 text-xs font-bold capitalize text-white">
-                    {n.provider}
-                  </span>
-                  <span className="flex items-center gap-2 text-xs font-bold text-white/80">
-                    <span aria-hidden className={cx("size-2 rounded-full", n.is_active ? "bg-mint" : "bg-white/35")} />
-                    {n.is_active ? "Active" : "Inactive"}
-                  </span>
-                </div>
-                <div className="num display mt-5 break-all text-2xl">{n.phone_e164}</div>
-                <div className="mt-1 text-sm font-semibold text-white/65">{n.friendly_name || "Caller number"}</div>
-              </div>
-              <dl className="divide-y divide-edge px-5">
-                <div className="flex items-center justify-between py-3.5">
-                  <dt className="text-sm font-semibold text-ash">Calls today</dt>
-                  <dd className="num display text-xl text-chalk">{n.calls_today}</dd>
-                </div>
-                <div className="py-3.5">
-                  <dt className="flex items-center justify-between text-sm font-semibold text-ash">
-                    Trust rating
-                    <span className={cx("rounded-full px-3 py-1 text-xs font-extrabold", trust.tone)}>{n.attestation}</span>
-                  </dt>
-                  <dd className="mt-1 text-xs font-medium text-ash-dim">{trust.means}</dd>
-                </div>
-              </dl>
-            </Panel>
-          );
-        })}
+      <div className="grid items-start gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {rows.map((caller) => (
+          <CallerCard key={caller.id} caller={caller} />
+        ))}
       </div>
+
+      <p className="text-sm text-ash-dim">
+        Daily caps and rest periods help you spread volume across numbers.
+        Review them alongside answer rate.
+      </p>
     </div>
+  );
+}
+
+function CallerCard({ caller }: { caller: CallerID }) {
+  const update = useUpdateCallerId();
+  const [editing, setEditing] = useState(false);
+  const [cap, setCap] = useState(String(caller.daily_call_cap));
+
+  const att = ATTESTATION[caller.attestation] ?? ATTESTATION.C!;
+  const resting =
+    caller.rested_until !== null && new Date(caller.rested_until) > new Date();
+
+  return (
+    <Panel className="overflow-hidden">
+      <div className="surface-forest p-5">
+        <div className="flex items-center justify-between gap-3">
+          <span className="rounded-full bg-white/12 px-3 py-1 text-xs font-bold capitalize text-white">
+            {caller.provider}
+          </span>
+          {!caller.is_active && (
+            <span className="flex items-center gap-2 text-xs font-bold text-white/80">
+              <span aria-hidden className="size-2 rounded-full bg-white/35" />
+              inactive
+            </span>
+          )}
+        </div>
+        <div className="num display mt-5 break-all text-2xl">{caller.phone_e164}</div>
+        {caller.friendly_name && (
+          <div className="mt-1 text-sm font-semibold text-white/65">{caller.friendly_name}</div>
+        )}
+      </div>
+
+      <div className="divide-y divide-edge px-5">
+        <div className="py-3.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={cx("rounded-full px-3 py-1 text-xs font-extrabold", att.tone)}
+              title={att.means}
+            >
+              signs {caller.attestation}
+            </span>
+            {caller.branded_calling_enrolled && <Badge tone="info">branded</Badge>}
+          </div>
+          <p className="mt-1.5 text-xs font-medium text-ash-dim">{att.means}</p>
+        </div>
+
+        {resting && (
+          <p className="py-3 text-xs font-semibold text-amber">
+            resting until {formatDateTime(caller.rested_until)}
+          </p>
+        )}
+
+        <div className="flex items-center justify-between gap-3 py-3">
+          <span className="num text-sm font-bold text-chalk">
+            {formatCount(caller.calls_today)} today
+            {caller.daily_call_cap > 0 && ` / ${formatCount(caller.daily_call_cap)}`}
+          </span>
+          <Button dense variant="ghost" onClick={() => setEditing(!editing)}>
+            {editing ? "Close" : "Adjust"}
+          </Button>
+        </div>
+
+        {editing && (
+          <div className="flex flex-wrap items-end gap-2 py-3.5">
+            <label className="eyebrow w-full">
+              Daily cap (0 = none)
+              <Input
+                type="number"
+                min="0"
+                value={cap}
+                onChange={(e) => setCap(e.target.value)}
+                className="num mt-1"
+              />
+            </label>
+
+            <Button
+              dense
+              loading={update.isPending}
+              onClick={() =>
+                update.mutate({ id: caller.id, daily_call_cap: Number(cap) })
+              }
+            >
+              Save
+            </Button>
+
+            <Button
+              dense
+              variant="ghost"
+              onClick={() =>
+                update.mutate({
+                  id: caller.id,
+                  rested_until: new Date(Date.now() + 86_400_000).toISOString(),
+                })
+              }
+              title="Marks the number as resting for 24 hours. Advisory only."
+            >
+              Rest for a day
+            </Button>
+
+            {resting && (
+              <Button
+                dense
+                variant="ghost"
+                onClick={() => update.mutate({ id: caller.id, rested_until: null })}
+              >
+                End rest
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    </Panel>
   );
 }
 
@@ -147,26 +277,55 @@ export function SettingsPage() {
 
   return (
     <div className="max-w-2xl space-y-6">
-      <PageHeader title="Settings" subtitle="Ask your administrator to change access or limits." />
+      <PageHeader title="Settings" />
 
       <Panel>
+        <PanelHeader title="This session" />
         <dl className="divide-y divide-edge text-sm">
           <Row label="Organisation">{me?.organization?.name ?? "—"}</Row>
-          <Row label="Role"><span className="capitalize">{me?.role || "—"}</span></Row>
+          <Row label="Role">{me?.role || "—"}</Row>
           <Row label="Signed in as">
-            {me?.user ? me.user.username : me?.api_key ? `API key ${me.api_key.prefix}…` : "—"}
+            {me?.user
+              ? me.user.username
+              : me?.api_key
+                ? `API key · ${me.api_key.prefix}…`
+                : "—"}
           </Row>
           {me?.ceilings && (
             <>
-              <Row label="Calls at the same time">
+              <Row label="Rate ceiling">
+                <span className="num">{me.ceilings.max_cps}</span> calls/sec
+              </Row>
+              <Row label="Channel ceiling">
                 <span className="num">{me.ceilings.max_concurrent_channels}</span>
               </Row>
-              <Row label="New calls per second">
-                <span className="num">{me.ceilings.max_cps}</span>
+              <Row label="Contact ceiling">
+                <span className="num">{formatCount(me.ceilings.max_contacts)}</span>
               </Row>
             </>
           )}
         </dl>
+      </Panel>
+
+      {me?.capabilities && me.capabilities.length > 0 && (
+        <Panel className="p-5">
+          <h2 className="display text-base text-chalk">What this role can do</h2>
+          <ul className="mt-3 flex flex-wrap gap-1.5">
+            {me.capabilities.map((cap) => (
+              <li key={cap} className="num rounded-full bg-raised px-3 py-1 text-xs text-ash">
+                {cap}
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      <Panel className="p-5">
+        <h2 className="display text-base text-chalk">Managing access</h2>
+        <p className="mt-1.5 text-sm text-ash">
+          Contact your administrator to issue, rotate or revoke a key, or to
+          change what a teammate can do.
+        </p>
       </Panel>
     </div>
   );

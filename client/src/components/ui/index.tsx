@@ -117,23 +117,28 @@ export function Modal({
   title,
   subtitle,
   onClose,
+  closeOnEscape = true,
+  closeOnBackdrop = true,
   children,
 }: {
   title: string;
   subtitle?: string;
   onClose: () => void;
+  closeOnEscape?: boolean;
+  closeOnBackdrop?: boolean;
   children: ReactNode;
 }) {
   useEffect(() => {
+    if (!closeOnEscape) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, closeOnEscape]);
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-forest/55 p-4 backdrop-blur-sm"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-scrim/75 p-4 backdrop-blur-sm"
+      onMouseDown={(e) => closeOnBackdrop && e.target === e.currentTarget && onClose()}
     >
       <div
         role="dialog"
@@ -173,8 +178,8 @@ export function Panel({
   return (
     <div
       className={cx(
-        "rounded-[var(--radius-card)] border bg-panel shadow-[var(--shadow-card)]",
-        accent ? "border-signal/40" : "border-edge/70",
+        "card rounded-[var(--radius-card)] border bg-panel shadow-[var(--shadow-card)]",
+        accent ? "border-signal/50" : "border-edge",
         className,
       )}
     >
@@ -232,7 +237,7 @@ export function FilterTabs<T extends string>({
           className={cx(
             "press flex min-h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold",
             value === option.id
-              ? "bg-forest text-white shadow-[var(--shadow-raised)]"
+              ? "neon"
               : "text-ash hover:bg-raised hover:text-chalk",
           )}
         >
@@ -241,7 +246,7 @@ export function FilterTabs<T extends string>({
             <span
               className={cx(
                 "num rounded-full px-1.5 text-xs",
-                value === option.id ? "bg-white/15 text-mint" : "bg-raised text-ash-dim",
+                value === option.id ? "bg-ink/20 text-ink" : "bg-raised text-ash-dim",
               )}
             >
               {option.count}
@@ -265,9 +270,9 @@ export function Badge({
 }) {
   const tones = {
     good: "bg-live text-live-bright",
-    warn: "bg-[#fdf1dc] text-amber",
-    bad: "bg-[#fdeaea] text-rust",
-    info: "bg-[#e6f0fb] text-[#1d5fa8]",
+    warn: "bg-warn-soft text-amber",
+    bad: "bg-bad-soft text-rust",
+    info: "bg-info-soft text-info",
     quiet: "bg-raised text-ash",
   };
   return (
@@ -319,14 +324,14 @@ export function Stat({
 }) {
   const Icon = iconFor(label);
   const badge = accent
-    ? "bg-signal text-white"
+    ? "neon"
     : tone === "amber"
-      ? "bg-[#fdf1dc] text-amber"
+      ? "bg-warn-soft text-amber"
       : tone === "rust"
-        ? "bg-[#fdeaea] text-rust"
+        ? "bg-bad-soft text-rust"
         : tone === "live"
           ? "bg-live text-live-bright"
-          : "bg-forest text-mint";
+          : "bg-forest text-mint ring-1 ring-inset ring-mint/25";
 
   const body = (
     <>
@@ -344,14 +349,14 @@ export function Stat({
   );
 
   const shell = cx(
-    "flex items-center gap-4 rounded-[var(--radius-card)] border border-edge/70 bg-panel px-5 py-5 shadow-[var(--shadow-card)]",
+    "flex items-center gap-4 card rounded-[var(--radius-card)] border border-edge bg-panel px-5 py-5 shadow-[var(--shadow-card)]",
     to && "transition-transform hover:-translate-y-0.5 hover:border-signal/40",
   );
 
   return to ? (
-    <Link to={to} className={shell}>
+    <a href={to} className={shell}>
       {body}
-    </Link>
+    </a>
   ) : (
     <div className={shell}>{body}</div>
   );
@@ -438,10 +443,10 @@ type Variant = "primary" | "secondary" | "danger" | "ghost";
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    "bg-forest text-white shadow-[var(--shadow-raised)] hover:bg-forest-soft disabled:shadow-none",
+    "neon",
   secondary:
     "bg-panel text-chalk ring-1 ring-inset ring-edge-bright hover:bg-raised",
-  danger: "bg-rust text-white hover:brightness-95",
+  danger: "bg-rust text-ink hover:brightness-110",
   ghost: "text-ash hover:text-chalk hover:bg-raised",
 };
 
@@ -518,8 +523,8 @@ export function Field({
 }
 
 const CONTROL =
-  "w-full min-h-12 rounded-2xl border bg-[#f8fbfa] px-4 py-2.5 text-sm font-medium text-chalk " +
-  "placeholder:text-ash-dim/70 transition-colors focus:border-signal focus:bg-panel";
+  "w-full min-h-12 rounded-2xl border bg-void px-4 py-2.5 text-sm font-medium text-chalk " +
+  "placeholder:text-ash-dim/70 transition-colors focus:border-signal focus:shadow-[0_0_0_3px_rgb(46_230_197/0.16)]";
 
 export function Input({
   invalid,
@@ -573,8 +578,8 @@ export function Select({
  * `throttled` looks like a warning because no calls go out while it lasts.
  */
 const GOOD = "bg-live text-live-bright";
-const WARN = "bg-[#fdf1dc] text-amber";
-const BAD = "bg-[#fdeaea] text-rust";
+const WARN = "bg-warn-soft text-amber";
+const BAD = "bg-bad-soft text-rust";
 const QUIET = "bg-raised text-ash";
 
 const STATUS: Record<string, string> = {
@@ -589,7 +594,7 @@ const STATUS: Record<string, string> = {
   stopped: QUIET,
   canceled: QUIET,
   draft: QUIET,
-  scheduled: "bg-[#e6f0fb] text-[#1d5fa8]",
+  scheduled: "bg-info-soft text-info",
 };
 
 export function StatusPill({ status }: { status: string }) {
@@ -618,7 +623,7 @@ export function EmptyState({
 }) {
   return (
     <div className="rounded-[var(--radius-card)] bg-void px-6 py-14 text-center">
-      <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-forest text-mint">
+      <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-forest text-mint ring-1 ring-inset ring-mint/25">
         <SoundIcon className="size-6" />
       </span>
       <p className="display mt-4 text-base text-chalk">{title}</p>

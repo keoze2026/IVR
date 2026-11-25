@@ -56,7 +56,7 @@ export function LivePage() {
         {rest.isLoading ? (
           <TableSkeleton />
         ) : (
-          <p className="px-4 py-10 text-center text-sm text-ash">No figures yet.</p>
+          <p className="px-4 py-10 text-center text-sm text-ash">No counters yet.</p>
         )}
       </Panel>
     );
@@ -70,15 +70,16 @@ export function LivePage() {
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2 lg:grid-cols-4">
         <Stat
-          label="Calls placed"
-          value={formatCount(kpi.dialed)}
-          to={`/campaigns/${campaign.id}/calls`}
-        />
-        <Stat
           label="Answer rate"
           value={formatRate(kpi.rates.answer)}
           denominator="of calls placed"
           tone={kpi.rates.answer < 0.08 ? "amber" : "live"}
+        />
+        <Stat
+          label="Dialed"
+          value={formatCount(kpi.dialed)}
+          denominator="calls placed"
+          to={`/campaigns/${campaign.id}/calls`}
         />
         <Stat
           label="Reached a person"
@@ -88,22 +89,23 @@ export function LivePage() {
         <Stat
           label="Opted out"
           value={formatRate(kpi.rates.opt_out)}
-          denominator={`${formatCount(kpi.opted_out)} · of answered calls`}
+          denominator="of answered calls"
           tone={kpi.rates.opt_out > 0.02 ? "amber" : undefined}
         />
       </div>
 
       {kpi.rates.answer < 0.08 && kpi.dialed > 200 && (
-        <p role="alert" className="rounded-xl bg-[#fdf1dc] px-4 py-3 text-sm text-amber">
-          Answer rate is under 8%. Check whether your caller ID is being labelled
-          as spam.
+        <p role="alert" className="rounded-xl bg-warn-soft px-4 py-3 text-sm text-amber">
+          Answer rate under 8% usually means the caller ID is being labelled,
+          not that the list is bad. Check the number's reputation before blaming
+          the data.
         </p>
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <Panel className="overflow-hidden" accent={dialing}>
           <PanelHeader
-            title="Calls in progress"
+            title="Channels in use"
             action={
               <ConnectionBadge state={state} isStale={isStale} onRefresh={refresh} />
             }
@@ -118,7 +120,7 @@ export function LivePage() {
                 )}
               />
               <span className="num text-sm text-ash">
-                of {campaign.max_concurrent_channels} lines
+                / {campaign.max_concurrent_channels}
               </span>
             </div>
             <LineMeter
@@ -127,34 +129,47 @@ export function LivePage() {
             />
           </div>
           <dl className="grid grid-cols-1 gap-4 border-t border-edge px-4 py-4 min-[400px]:grid-cols-2">
-            <Mini label="Total talk time" value={formatDuration(kpi.duration_seconds)} />
-            <Mini
-              label="Average per answered call"
-              value={
-                answered > 0
-                  ? formatDuration(Math.round(kpi.duration_seconds / answered))
-                  : "—"
-              }
-            />
+            <Mini label="Talk time" value={formatDuration(kpi.duration_seconds)} />
+            {answered > 0 && (
+              <Mini
+                label="avg per answer"
+                value={formatDuration(Math.round(kpi.duration_seconds / answered))}
+              />
+            )}
           </dl>
+          <p className="border-t border-edge px-4 py-3 text-xs text-ash-dim">
+            Updated continuously while dialing
+          </p>
         </Panel>
 
         <Panel className="flex flex-col overflow-hidden">
-          <PanelHeader title="Progress" />
+          <PanelHeader title="Queue worked" />
           <div className="flex flex-1 items-center justify-center p-5">
             {total > 0 ? (
               <div className="w-full">
                 <Gauge
                   value={kpi.dialed / total}
-                  label="Contacts called"
-                  caption={`${formatCount(kpi.dialed)} of ${formatCount(total)} · ${formatCount(
+                  label="Queue worked"
+                  caption={`${formatCount(
                     Math.max(0, total - kpi.dialed),
-                  )} left`}
+                  )} contacts left`}
                 />
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-edge pt-3 text-xs">
+                  <span className="text-ash">
+                    <span className="num text-chalk">
+                      {formatCount(kpi.dialed)}
+                    </span>{" "}
+                    of <span className="num">{formatCount(total)}</span> contacts
+                    dialed
+                  </span>
+                  <span className="num text-ash">
+                    {formatRate(kpi.dialed / total)} complete
+                  </span>
+                </div>
               </div>
             ) : (
               <p className="text-center text-sm text-ash">
-                Shows once calling starts.
+                Progress appears once the queue is built.
               </p>
             )}
           </div>
@@ -169,20 +184,23 @@ export function LivePage() {
             <Bar label="No answer" value={kpi.no_answer} total={kpi.dialed} color="bg-chart-missed" />
             <Bar label="Busy" value={kpi.busy} total={kpi.dialed} color="bg-chart-missed" />
             <Bar label="Failed" value={kpi.failed} total={kpi.dialed} color="bg-chart-failed" />
-            <Bar label="Blocked before calling" value={kpi.suppressed} total={kpi.dialed} color="bg-edge-bright" />
+            <Bar label="Suppressed before dial" value={kpi.suppressed} total={kpi.dialed} color="bg-edge-bright" />
           </div>
-          <dl className="grid grid-cols-1 gap-4 border-t border-edge px-4 py-4 min-[400px]:grid-cols-3">
+          <dl className="grid grid-cols-2 gap-4 border-t border-edge px-4 py-4 sm:grid-cols-4">
             <Mini label="Confirmed" value={formatCount(kpi.confirmed)} />
             <Mini label="Transferred" value={formatCount(kpi.transferred)} />
             <Mini label="Voicemail" value={formatCount(kpi.voicemail)} />
+            <Mini label="Opted out" value={formatCount(kpi.opted_out)} tone="amber" />
           </dl>
         </Panel>
 
         <Panel className="self-start overflow-hidden">
-          <PanelHeader title="Keys pressed" hint="Key 9 is opt-out." />
+          <PanelHeader title="Keypresses" hint="Key 9 is the opt-out. Watch it." />
           <div className="px-4 py-4">
             {Object.keys(kpi.dtmf).length === 0 ? (
-              <p className="py-6 text-center text-sm text-ash">No key presses yet.</p>
+              <p className="py-6 text-center text-sm text-ash">
+                Nobody has pressed anything yet.
+              </p>
             ) : (
               <Keypad dtmf={kpi.dtmf} />
             )}
@@ -193,17 +211,17 @@ export function LivePage() {
       {campaign.amd_enabled && amd.data && (
         <Panel className="overflow-hidden">
           <PanelHeader
-            title="Voicemail detection"
-            hint="Detection can be wrong: a real person may be treated as voicemail."
+            title="Machine detection"
+            hint="Detection is a classifier. The costly error is calling a human a machine — you hang up on, or leave voicemail in the ear of, a person who answered."
           />
           <dl className="grid grid-cols-2 gap-4 px-4 py-4 lg:grid-cols-4">
-            <Mini label="Person" value={formatCount(amd.data.human)} />
-            <Mini label="Voicemail" value={formatCount(amd.data.machine)} />
+            <Mini label="Human" value={formatCount(amd.data.human)} />
+            <Mini label="Machine" value={formatCount(amd.data.machine)} />
             <Mini
-              label="Voicemail, but pressed a key"
+              label="Machine, then pressed"
               value={formatCount(amd.data.machine_with_dtmf)}
               tone="rust"
-              hint="Likely a real person treated as voicemail"
+              hint="A person was called a machine"
             />
             <Mini label="Unknown" value={formatCount(amd.data.unknown)} />
           </dl>
@@ -212,7 +230,7 @@ export function LivePage() {
               <span className="num font-medium text-chalk">
                 {formatRate(amd.data.false_machine_rate)}
               </span>{" "}
-              of voicemail results look wrong.
+              of machine verdicts look wrong.
             </p>
           )}
         </Panel>
@@ -236,7 +254,7 @@ function ConnectionBadge({
   if (isStale) {
     return (
       <span className="flex flex-wrap items-center justify-end gap-2">
-        <Badge tone="warn">Figures may be out of date</Badge>
+        <Badge tone="warn">Counters may be stale</Badge>
         <Button dense onClick={onRefresh}>
           Refresh
         </Button>
@@ -258,7 +276,7 @@ function LineMeter({ live, ceiling }: { live: number; ceiling: number }) {
       aria-valuenow={live}
       aria-valuemin={0}
       aria-valuemax={ceiling}
-      aria-label={`${live} of ${ceiling} lines in use`}
+      aria-label={`${live} of ${ceiling} channels in use`}
       className="mt-4 h-3 overflow-hidden rounded-full bg-raised"
     >
       <div
@@ -312,7 +330,7 @@ function Mini({
 }: {
   label: string;
   value: string;
-  tone?: "rust";
+  tone?: "amber" | "rust";
   hint?: string;
 }) {
   return (
@@ -321,7 +339,11 @@ function Mini({
       <dd
         className={cx(
           "num mt-1 text-xl font-bold",
-          tone === "rust" ? "text-rust" : "text-chalk",
+          tone === "amber"
+            ? "text-amber"
+            : tone === "rust"
+              ? "text-rust"
+              : "text-chalk",
         )}
       >
         {value}

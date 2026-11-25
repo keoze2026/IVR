@@ -8,7 +8,7 @@
  */
 
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { PlusIcon } from "@/components/icons";
 import { PulseLoader } from "@/components/styled/PulseLoader";
@@ -84,7 +84,11 @@ const STARTER: FlowDefinition = {
 export function FlowsPage() {
   const canEdit = useCan("flow.edit");
   const { data, isLoading, error, refetch } = useFlows();
+  const createFlow = useCreateFlow();
+  const createVersion = useCreateVersion();
+  const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
+  const navigate = useNavigate();
 
   const rows = data?.results ?? [];
   const count = (matches: (flow: FlowSummary) => boolean) =>
@@ -92,13 +96,29 @@ export function FlowsPage() {
   // Counts only cover the flows loaded here; say so when there are more.
   const scope = data?.next ? "In the flows shown" : undefined;
 
+  const pending = createFlow.isPending || createVersion.isPending;
+  const nameError = createFlow.error?.messageFor("name");
+  const otherError = createVersion.error ?? (nameError ? null : createFlow.error);
+
+  async function create() {
+    try {
+      const flow = await createFlow.mutateAsync({ name: name.trim() });
+      // A flow with no version is not useful, so seed a draft immediately.
+      await createVersion.mutateAsync({ flow: flow.id, definition: STARTER });
+      setName("");
+      setCreating(false);
+    } catch {
+      // Shown from the mutation's error; the form stays open.
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Call flows"
-        subtitle="What callers hear and what each key does."
+        title="Flows"
+        subtitle="What the caller hears, and where each keypress leads. Node types are fixed and every transition is checked before a flow can go live."
         actions={
-          canEdit && (
+          canEdit && !creating && (
             <Button variant="primary" onClick={() => setCreating(true)}>
               <PlusIcon className="size-4" /> New flow
             </Button>
@@ -112,7 +132,7 @@ export function FlowsPage() {
         <Stat label="Flows" value={data ? String(data.count ?? rows.length) : "—"} />
         <Stat label="Published" value={count((f) => Boolean(f.published_version))} denominator={scope} accent />
         <Stat
-          label="With a draft"
+          label="Draft"
           value={count((f) => Boolean(f.latest_version && !f.latest_version.is_published))}
           denominator={scope}
         />
@@ -125,7 +145,7 @@ export function FlowsPage() {
             <div className="p-4 sm:p-6">
               <EmptyState
                 title="No flows yet"
-                description="Start with a ready-made greeting and keypad menu."
+                description="A flow is a small graph of typed nodes. It cannot run arbitrary code, and every destination it dials must be pre-approved."
                 action={
                   canEdit ? (
                     <Button variant="primary" onClick={() => setCreating(true)}>
@@ -149,7 +169,16 @@ export function FlowsPage() {
                 </thead>
                 <tbody>
                   {rows.map((flow) => (
-                    <tr key={flow.id}>
+                    <tr
+                      key={flow.id}
+                      className="cursor-pointer"
+                      onClick={(e) => {
+                        // The whole row opens the flow; the name link handles itself.
+                        if (!(e.target as HTMLElement).closest("a")) {
+                          navigate(`/flows/${flow.id}`);
+                        }
+                      }}
+                    >
                       <td>
                         <Link
                           to={`/flows/${flow.id}`}
@@ -165,14 +194,14 @@ export function FlowsPage() {
                       </td>
                       <td>
                         {flow.published_version ? (
-                          <Badge tone="good">Live v{flow.published_version.version}</Badge>
+                          <Badge tone="good">live v{flow.published_version.version}</Badge>
                         ) : (
-                          <Badge>Never published</Badge>
+                          <Badge>never published</Badge>
                         )}
                       </td>
                       <td>
                         {flow.latest_version && !flow.latest_version.is_published ? (
-                          <Badge tone="info">Draft v{flow.latest_version.version}</Badge>
+                          <Badge tone="info">draft v{flow.latest_version.version}</Badge>
                         ) : (
                           "—"
                         )}
@@ -187,59 +216,42 @@ export function FlowsPage() {
         </Panel>
       )}
 
-      {creating && <NewFlowModal onClose={() => setCreating(false)} />}
+      {creating && (
+        <Modal
+          title="New flow"
+          onClose={() => setCreating(false)}
+          closeOnEscape={false}
+          closeOnBackdrop={false}
+        >
+          <div className="space-y-5">
+            <Field label="Flow name" htmlFor="flow-name" error={nameError}>
+              <Input
+                id="flow-name"
+                autoFocus
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Appointment reminder"
+              />
+            </Field>
+            {otherError && <ErrorState error={otherError} />}
+            <div className="flex justify-end gap-3 border-t border-edge pt-4">
+              <Button type="button" variant="ghost" onClick={() => setCreating(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                disabled={!name.trim()}
+                loading={pending}
+                onClick={() => void create()}
+              >
+                Create
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
-  );
-}
-
-function NewFlowModal({ onClose }: { onClose: () => void }) {
-  const createFlow = useCreateFlow();
-  const createVersion = useCreateVersion();
-  const [name, setName] = useState("");
-  const pending = createFlow.isPending || createVersion.isPending;
-  const nameError = createFlow.error?.messageFor("name");
-  const otherError = createVersion.error ?? (nameError ? null : createFlow.error);
-
-  async function create() {
-    try {
-      const flow = await createFlow.mutateAsync({ name: name.trim() });
-      // A flow with no version is not useful, so seed a draft immediately.
-      await createVersion.mutateAsync({ flow: flow.id, definition: STARTER });
-      onClose();
-    } catch {
-      // Shown from the mutation's error; the form stays open.
-    }
-  }
-
-  return (
-    <Modal title="New flow" onClose={onClose}>
-      <form
-        className="space-y-5"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (name.trim() && !pending) void create();
-        }}
-      >
-        <Field label="Flow name" htmlFor="flow-name" error={nameError}>
-          <Input
-            id="flow-name"
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Appointment reminder"
-          />
-        </Field>
-        {otherError && <ErrorState error={otherError} />}
-        <div className="flex justify-end gap-3 border-t border-edge pt-4">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="primary" disabled={!name.trim()} loading={pending}>
-            Create
-          </Button>
-        </div>
-      </form>
-    </Modal>
   );
 }
 
@@ -263,10 +275,10 @@ export function FlowVersionsPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <BackLink to="/flows">Call flows</BackLink>
+        <BackLink to="/flows">Flows</BackLink>
         <PageHeader
           title={flow.data.name}
-          subtitle="Published versions cannot be edited. Clone one to make changes."
+          subtitle="Every edit is a new version. Publishing freezes one so campaigns can pin it."
         />
       </div>
 
@@ -301,7 +313,7 @@ export function FlowVersionsPage() {
                       version={version}
                       canEdit={canEdit}
                       onClone={() => clone.mutate(version.id)}
-                      cloning={clone.isPending && clone.variables === version.id}
+                      cloning={clone.isPending}
                     />
                   ))}
                 </tbody>
@@ -335,34 +347,30 @@ function VersionRow({
       <td>
         <span className="flex gap-2">
           {version.is_published ? (
-            <Badge tone="good">Published</Badge>
+            <Badge tone="good">published</Badge>
           ) : (
-            <Badge tone="info">Draft</Badge>
+            <Badge tone="info">draft</Badge>
           )}
           {version.is_published && !version.prompts_rendered_at && (
-            <Badge tone="warn">Audio still preparing</Badge>
+            <Badge tone="warn">prompts still rendering</Badge>
           )}
         </span>
       </td>
       <td>
         <span className="flex gap-2">
           {errors > 0 && (
-            <Badge tone="bad">
-              {errors} error{errors > 1 ? "s" : ""}
-            </Badge>
+            <Badge tone="bad">{errors} errors</Badge>
           )}
           {warnings > 0 && (
-            <Badge tone="warn">
-              {warnings} warning{warnings > 1 ? "s" : ""}
-            </Badge>
+            <Badge tone="warn">{warnings} warnings</Badge>
           )}
           {errors === 0 && warnings === 0 && "—"}
         </span>
       </td>
       <td>
         {version.published_at
-          ? `Published ${formatDateTime(version.published_at)}`
-          : `Created ${formatRelative(version.created_at)}`}
+          ? `published ${formatDateTime(version.published_at)}`
+          : `created ${formatRelative(version.created_at)}`}
       </td>
       <td>
         <div className="flex justify-end gap-2">
@@ -370,7 +378,7 @@ function VersionRow({
             to={`/flows/${version.flow}/versions/${version.id}`}
             className="press inline-flex min-h-9 items-center rounded-xl px-3 text-sm font-medium text-chalk ring-1 ring-inset ring-edge-bright hover:bg-raised"
           >
-            {version.is_published ? "View" : "Edit"}
+            {version.is_published ? "Inspect" : "Edit"}
           </Link>
           {canEdit && version.is_published && (
             <Button dense variant="ghost" onClick={onClone} loading={cloning}>

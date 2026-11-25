@@ -11,7 +11,7 @@
 
 import { useState, type FormEvent } from "react";
 
-import { ChartIcon, PhoneOutIcon, ShieldIcon, SoundIcon } from "@/components/icons";
+import { ClockIcon, PhoneOutIcon, ShieldIcon, SoundIcon } from "@/components/icons";
 import { Waveform } from "@/components/Waveform";
 import { Button, Field, Input } from "@/components/ui";
 import { ApiError } from "@/lib/errors";
@@ -35,7 +35,7 @@ export function LoginPage() {
       // before the refreshed session propagates, and the guard then bounces
       // straight back to this login form. Reloading re-resolves it cleanly —
       // the same approach the admin sign-in uses.
-      window.location.assign("/dashboard");
+      window.location.assign("/campaigns");
     } catch (cause) {
       // One message for every rejection, except being locked out — that one a
       // person can act on, and withholding it just has them retrying into a
@@ -63,7 +63,7 @@ export function LoginPage() {
         <div aria-hidden className="absolute -bottom-52 -left-32 size-[460px] rounded-full border-[46px] border-mint/[0.07]" />
 
         <div className="relative flex items-center gap-3">
-          <span className="flex size-12 items-center justify-center rounded-2xl bg-mint text-forest">
+          <span className="flex size-12 items-center justify-center rounded-2xl neon">
             <SoundIcon className="size-6" />
           </span>
           <span className="display text-2xl">Outbound</span>
@@ -71,35 +71,54 @@ export function LoginPage() {
 
         <div className="relative max-w-xl">
           <Waveform className="mb-10" />
-          <h1 className="display text-5xl leading-[1.08]">
-            Reach people with <span className="text-mint">voice</span>.
+          <h1 className="display text-4xl leading-[1.1]">
+            Every call on this system
+            <br />
+            can be <span className="text-mint">reconstructed</span>.
           </h1>
           <p className="mt-5 text-lg font-medium text-white/75">
-            Create calling jobs, follow them live and review every call in one place.
+            Which consent record authorised it, which flow version ran, which
+            node the caller reached, what they pressed, and what it cost.
           </p>
-          <ul className="mt-8 grid grid-cols-3 gap-3">
+          <dl className="mt-8 grid grid-cols-3 gap-3">
             {[
-              [PhoneOutIcon, "Calling jobs"],
-              [ChartIcon, "Live results"],
-              [ShieldIcon, "Do-not-call checks"],
-            ].map(([Icon, label]) => {
+              [
+                ShieldIcon,
+                "Consent first",
+                "A number with no consent on file is never dialled",
+              ],
+              [
+                PhoneOutIcon,
+                "Paced, not blasted",
+                "Rate and channel limits apply to your whole account",
+              ],
+              [
+                ClockIcon,
+                "Local hours",
+                "Calling windows follow the time where the person answers",
+              ],
+            ].map(([Icon, term, detail]) => {
               const Glyph = Icon as typeof PhoneOutIcon;
               return (
-                <li key={label as string} className="rounded-3xl bg-white/[0.08] p-4">
+                <div key={term as string} className="rounded-3xl bg-white/[0.08] p-4">
                   <span className="flex size-10 items-center justify-center rounded-full bg-white/10 text-mint">
                     <Glyph />
                   </span>
-                  <span className="mt-3 block text-sm font-bold">{label as string}</span>
-                </li>
+                  <dt className="mt-3 text-sm font-bold">{term as string}</dt>
+                  <dd className="mt-1 text-xs leading-snug text-white/70">{detail as string}</dd>
+                </div>
               );
             })}
-          </ul>
+          </dl>
         </div>
 
-        <p className="relative text-sm font-semibold text-white/60">Only call people who agreed to be called.</p>
+        <p className="relative max-w-xl text-sm font-semibold text-white/60">
+          Automated outbound calling is regulated. Controls enforced here do not
+          substitute for legal review of your consent model.
+        </p>
       </section>
 
-      <section className="flex items-center justify-center bg-void p-5 lg:rounded-[var(--radius-shell)]">
+      <section className="flex items-center justify-center p-5 lg:rounded-[var(--radius-shell)]">
         <form
           onSubmit={onSubmit}
           className="w-full max-w-md rounded-[var(--radius-shell)] border border-edge/70 bg-panel p-8 shadow-[var(--shadow-card)] sm:p-10"
@@ -108,9 +127,10 @@ export function LoginPage() {
           <span className="mb-6 flex size-14 items-center justify-center rounded-2xl bg-forest text-mint lg:hidden">
             <SoundIcon className="size-7" />
           </span>
-          <h2 className="display text-3xl text-chalk">Welcome back</h2>
+          <h2 className="display text-3xl text-chalk">Sign in</h2>
           <p className="mt-1 text-sm text-ash">
-            Use your name and five-character code.
+            Use the name and the five-character code your administrator gave
+            you.
           </p>
 
           <div className="mt-8 space-y-5">
@@ -150,7 +170,7 @@ export function LoginPage() {
               disabled={username.trim().length === 0 || code.trim().length < 5}
               className="w-full"
             >
-              Sign in
+              {busy ? "Checking…" : "Sign in"}
             </Button>
 
             <p className="text-center text-xs text-ash-dim">

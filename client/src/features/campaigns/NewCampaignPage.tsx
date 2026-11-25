@@ -1,11 +1,11 @@
 /**
  * Create a campaign.
  *
- * One form, with a summary beside it listing what is still missing. Creation is
- * gated on real constraints: a name, a published flow version, an active caller
- * ID and at least one contact list. The pacing must sit under ceilings the
- * client cannot read (G-04), so the server's 400 is surfaced verbatim on the
- * field rather than guessed at with a client-side max.
+ * Five steps, each gated on a real constraint rather than on taste: a flow
+ * version must be published, a caller ID must be active, at least one list must
+ * be attached, and the pacing must sit under ceilings the client cannot read
+ * (G-04) — so the server's 400 is surfaced verbatim on the field rather than
+ * guessed at with a client-side max.
  */
 
 import { useState, type ReactNode } from "react";
@@ -19,7 +19,6 @@ import {
   Input,
   PageHeader,
   Panel,
-  PanelHeader,
   Select,
   cx,
 } from "@/components/ui";
@@ -31,29 +30,33 @@ import {
   useFlows,
 } from "@/lib/queries/resources";
 
+const STEPS = ["Name", "Flow", "Caller ID", "Lists", "Pace"] as const;
+
 const DIAL_MODES = [
-  ["fixed", "Fixed", "Keep every line busy."],
-  ["pulse", "Pulse", "A set group of calls at regular intervals."],
-  ["ramp", "Ramp", "Each group spread randomly across the interval."],
+  ["fixed", "Fixed", "Dial as fast as the pace allows until every line is busy."],
+  ["pulse", "Pulse", "A set batch on a steady beat — e.g. 5 calls every 30 seconds."],
+  ["ramp", "Ramp", "The batch trickles out at random moments inside each interval."],
 ] as const;
 
-/** Fields that can show their own server error. */
-const FIELDS = [
-  "name",
-  "flow_version",
-  "caller_id",
-  "consent_scope",
-  "contact_lists",
-  "cps_limit",
-  "max_concurrent_channels",
-  "dial_batch_size",
-  "dial_interval_seconds",
+/** The fields each step shows, which can carry their own server error. */
+const STEP_FIELDS: string[][] = [
+  ["name"],
+  ["flow_version"],
+  ["caller_id", "consent_scope"],
+  ["contact_lists"],
+  [
+    "cps_limit",
+    "max_concurrent_channels",
+    "dial_batch_size",
+    "dial_interval_seconds",
+  ],
 ];
 
 export function NewCampaignPage() {
   const navigate = useNavigate();
   const create = useCreateCampaign();
 
+  const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [flowVersion, setFlowVersion] = useState("");
   const [callerId, setCallerId] = useState("");
@@ -76,21 +79,22 @@ export function NewCampaignPage() {
   const availableLists = contactLists.data?.results ?? [];
   const loadFailure = flows.error ?? callerIds.error ?? contactLists.error;
 
-  const required = [
-    { label: "Name", done: name.trim().length > 0 },
-    { label: "Call flow", done: flowVersion !== "" },
-    { label: "Caller ID", done: callerId !== "" },
-    { label: "Contact list", done: lists.length > 0 },
+  const complete = [
+    name.trim().length > 0,
+    flowVersion !== "",
+    callerId !== "",
+    lists.length > 0,
+    true,
   ];
-  const ready = required.every((r) => r.done);
 
   const err = (field: string) => create.error?.messageFor(field);
+  // An error about something not on this step needs the summary box.
   const showSummary =
     create.error &&
     (!create.error.fieldErrors ||
       Object.keys(create.error.fieldErrors).some(
         (key) =>
-          !FIELDS.includes(key) ||
+          !STEP_FIELDS[step]!.includes(key) ||
           (dialMode === "fixed" &&
             (key === "dial_batch_size" || key === "dial_interval_seconds")),
       ));
@@ -117,10 +121,13 @@ export function NewCampaignPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6">
       <div className="space-y-1">
         <BackLink to="/campaigns">Campaigns</BackLink>
-        <PageHeader title="New campaign" />
+        <PageHeader
+          title="New campaign"
+          subtitle="Nothing dials until you run the launch checks and start it."
+        />
       </div>
 
       {loadFailure && (
@@ -134,93 +141,131 @@ export function NewCampaignPage() {
         />
       )}
 
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="space-y-4">
-          <Section title="What to call with">
-            <Field label="Campaign name" htmlFor="name" error={err("name")}>
-              <Input
-                id="name"
-                value={name}
-                autoFocus
-                maxLength={160}
-                invalid={Boolean(err("name"))}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="August renewals — wave 2"
-              />
+      {/* Steps are numbered because they are genuinely sequential — you
+          cannot choose a caller ID before you know what you are dialing. */}
+      <ol className="flex flex-wrap gap-2">
+        {STEPS.map((label, i) => (
+          <li key={label}>
+            <button
+              type="button"
+              onClick={() => setStep(i)}
+              disabled={i > 0 && !complete[i - 1]}
+              aria-current={i === step ? "step" : undefined}
+              className={cx(
+                "press flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40",
+                i === step
+                  ? "neon border-transparent"
+                  : complete[i]
+                    ? "border-edge-bright bg-panel text-ash hover:text-chalk"
+                    : "border-edge bg-panel text-ash-dim",
+              )}
+            >
+              <span className="num text-xs">{i + 1}</span>
+              {label}
+            </button>
+          </li>
+        ))}
+      </ol>
+
+      <Panel className="space-y-4 p-5">
+        {step === 0 && (
+          <Field
+            label="Campaign name"
+            htmlFor="name"
+            hint="Something you will recognise in a list at 3am."
+            error={err("name")}
+          >
+            <Input
+              id="name"
+              value={name}
+              autoFocus
+              maxLength={160}
+              invalid={Boolean(err("name"))}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="August renewals — wave 2"
+            />
+          </Field>
+        )}
+
+        {step === 1 && (
+          <Field
+            label="Flow version"
+            htmlFor="flow"
+            hint="Only published versions can be pinned. Publishing freezes a version so editing a flow never changes calls already in flight."
+            error={err("flow_version")}
+          >
+            {!flows.isLoading && !flows.error && publishable.length === 0 ? (
+              <Missing to="/flows" link="Build one first">
+                No published flows yet.
+              </Missing>
+            ) : (
+              <Select
+                id="flow"
+                value={flowVersion}
+                onChange={(e) => setFlowVersion(e.target.value)}
+              >
+                <option value="">Choose a flow…</option>
+                {publishable.map((flow) => (
+                  <option key={flow.id} value={flow.published_version!.id}>
+                    {flow.name} — v{flow.published_version!.version}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+        )}
+
+        {step === 2 && (
+          <>
+            <Field
+              label="Caller ID"
+              htmlFor="caller"
+              hint="Attestation is assigned by the carrier. Anything below A is more likely to be labelled or blocked."
+              error={err("caller_id")}
+            >
+              <Select
+                id="caller"
+                value={callerId}
+                onChange={(e) => setCallerId(e.target.value)}
+              >
+                <option value="">Choose a number…</option>
+                {(callerIds.data?.results ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.phone_e164}
+                    {c.friendly_name ? ` · ${c.friendly_name}` : ""} — signs{" "}
+                    {c.attestation}
+                  </option>
+                ))}
+              </Select>
             </Field>
 
             <Field
-              label="Call flow"
-              htmlFor="flow"
-              hint="Only published versions are listed."
-              error={err("flow_version")}
+              label="Consent scope"
+              htmlFor="scope"
+              hint="Marketing always requires consent on file. Informational may be exempt — check with counsel, not with this form."
+              error={err("consent_scope")}
             >
-              {!flows.isLoading && !flows.error && publishable.length === 0 ? (
-                <Missing to="/flows" link="Build one first">
-                  No published flows yet.
-                </Missing>
-              ) : (
-                <Select
-                  id="flow"
-                  value={flowVersion}
-                  onChange={(e) => setFlowVersion(e.target.value)}
-                >
-                  <option value="">Choose a flow…</option>
-                  {publishable.map((flow) => (
-                    <option key={flow.id} value={flow.published_version!.id}>
-                      {flow.name} — v{flow.published_version!.version}
-                    </option>
-                  ))}
-                </Select>
-              )}
+              <Select
+                id="scope"
+                value={scope}
+                onChange={(e) =>
+                  setScope(e.target.value as "marketing" | "informational")
+                }
+              >
+                <option value="marketing">Marketing</option>
+                <option value="informational">Informational</option>
+              </Select>
             </Field>
+          </>
+        )}
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field
-                label="Caller ID"
-                htmlFor="caller"
-                hint="Numbers signing below A are more likely to be labelled or blocked."
-                error={err("caller_id")}
-              >
-                <Select
-                  id="caller"
-                  value={callerId}
-                  onChange={(e) => setCallerId(e.target.value)}
-                >
-                  <option value="">Choose a number…</option>
-                  {(callerIds.data?.results ?? []).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.phone_e164}
-                      {c.friendly_name ? ` · ${c.friendly_name}` : ""} — signs{" "}
-                      {c.attestation}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-
-              <Field
-                label="Consent type"
-                htmlFor="scope"
-                hint="Marketing always needs consent on file. Informational may be exempt; confirm with a lawyer."
-                error={err("consent_scope")}
-              >
-                <Select
-                  id="scope"
-                  value={scope}
-                  onChange={(e) =>
-                    setScope(e.target.value as "marketing" | "informational")
-                  }
-                >
-                  <option value="marketing">Marketing</option>
-                  <option value="informational">Informational</option>
-                </Select>
-              </Field>
-            </div>
-          </Section>
-
-          <Section title="Contact lists" hint="Counts leave out blocked contacts.">
-            <fieldset className="min-w-0 space-y-2">
-              <legend className="sr-only">Contact lists</legend>
+        {step === 3 && (
+          <Field
+            label="Contact lists"
+            hint="Reachable counts exclude anything already suppressed."
+            error={err("contact_lists")}
+          >
+            <div className="space-y-2">
               {availableLists.map((list) => {
                 const checked = lists.includes(list.id);
                 return (
@@ -249,7 +294,7 @@ export function NewCampaignPage() {
                       {list.name}
                     </span>
                     <span className="num text-xs text-ash">
-                      {formatCount(list.reachable_rows)} can be called
+                      {formatCount(list.reachable_rows)} reachable
                     </span>
                   </label>
                 );
@@ -264,15 +309,12 @@ export function NewCampaignPage() {
                     No lists yet.
                   </Missing>
                 )}
-            </fieldset>
-            {err("contact_lists") && (
-              <p role="alert" className="text-xs text-rust">
-                {err("contact_lists")}
-              </p>
-            )}
-          </Section>
+            </div>
+          </Field>
+        )}
 
-          <Section title="Speed">
+        {step === 4 && (
+          <>
             <div role="group" aria-label="How calls are released">
               <div className="eyebrow mb-1.5">How calls are released</div>
               <div className="grid gap-2 sm:grid-cols-3">
@@ -299,7 +341,7 @@ export function NewCampaignPage() {
             {dialMode !== "fixed" && (
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field
-                  label="Calls per group"
+                  label="Calls per batch"
                   htmlFor="batch"
                   error={err("dial_batch_size")}
                 >
@@ -313,7 +355,7 @@ export function NewCampaignPage() {
                   />
                 </Field>
                 <Field
-                  label="Seconds between groups"
+                  label="Every … seconds"
                   htmlFor="interval"
                   error={err("dial_interval_seconds")}
                 >
@@ -333,7 +375,7 @@ export function NewCampaignPage() {
               <Field
                 label="Calls per second"
                 htmlFor="cps"
-                hint="Limited across your whole account."
+                hint="How fast new calls are placed. This limit applies to your whole account."
                 error={err("cps_limit")}
               >
                 <Input
@@ -349,9 +391,9 @@ export function NewCampaignPage() {
                 />
               </Field>
               <Field
-                label="Calls at the same time"
+                label="Concurrent channels"
                 htmlFor="channels"
-                hint="Limited by your lines and available agents."
+                hint="How many calls may be live at once. Bounded by your line capacity, and by how many agents are free."
                 error={err("max_concurrent_channels")}
               >
                 <Input
@@ -366,80 +408,53 @@ export function NewCampaignPage() {
               </Field>
             </div>
             <p className="rounded-xl bg-void px-3 py-2.5 text-xs text-ash">
-              With 30-second calls, this speed means about{" "}
+              At {cps || 0} calls/sec with 30-second calls you would settle
+              around{" "}
               <span className="num font-medium text-chalk">
                 {Math.round(Number(cps || 0) * 30)}
               </span>{" "}
-              calls at once. Beyond your line capacity, the carrier refuses calls.
+              concurrent channels. If that is above your trunk capacity the
+              carrier starts refusing calls.
             </p>
-          </Section>
-        </div>
+          </>
+        )}
 
-        <Panel className="overflow-hidden lg:sticky lg:top-4">
-          <PanelHeader title="Ready to create?" />
-          <div className="space-y-4 p-4">
-            <ul className="space-y-2">
-              {required.map((item) => (
-                <li key={item.label} className="flex items-center gap-2.5 text-sm">
-                  <span
-                    aria-hidden
-                    className={cx(
-                      "flex size-5 shrink-0 items-center justify-center rounded-full text-xs",
-                      item.done
-                        ? "bg-live text-live-bright"
-                        : "border border-edge-bright",
-                    )}
-                  >
-                    {item.done ? "✓" : ""}
-                  </span>
-                  <span className={item.done ? "text-chalk" : "text-ash"}>
-                    {item.label}
-                  </span>
-                  <span className="sr-only">{item.done ? "done" : "missing"}</span>
-                </li>
-              ))}
-            </ul>
+        {showSummary && <ErrorState error={create.error} />}
+        {create.error && !showSummary && (
+          <p role="alert" className="text-sm text-rust">
+            Check the highlighted fields.
+          </p>
+        )}
 
-            {showSummary && <ErrorState error={create.error} />}
-            {create.error && !showSummary && (
-              <p role="alert" className="text-sm text-rust">
-                Check the highlighted fields.
-              </p>
-            )}
+        <div className="flex items-center justify-between gap-3 border-t border-edge pt-4">
+          <Button
+            variant="ghost"
+            disabled={step === 0}
+            onClick={() => setStep(step - 1)}
+          >
+            Back
+          </Button>
 
+          {step < STEPS.length - 1 ? (
             <Button
               variant="primary"
-              className="w-full"
-              disabled={!ready}
-              loading={create.isPending}
+              disabled={!complete[step]}
+              onClick={() => setStep(step + 1)}
+            >
+              Continue
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              disabled={!complete.every(Boolean) || create.isPending}
               onClick={() => void submit()}
             >
-              Create campaign
+              {create.isPending ? "Creating…" : "Create campaign"}
             </Button>
-            <p className="text-xs text-ash">
-              No calls are placed until you run the launch checks and start.
-            </p>
-          </div>
-        </Panel>
-      </div>
+          )}
+        </div>
+      </Panel>
     </div>
-  );
-}
-
-function Section({
-  title,
-  hint,
-  children,
-}: {
-  title: string;
-  hint?: string;
-  children: ReactNode;
-}) {
-  return (
-    <Panel className="overflow-hidden">
-      <PanelHeader title={title} hint={hint} />
-      <div className="space-y-4 p-4">{children}</div>
-    </Panel>
   );
 }
 

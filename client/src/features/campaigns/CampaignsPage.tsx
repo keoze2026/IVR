@@ -1,16 +1,14 @@
 /**
  * Campaign list.
  *
- * Status is the only filter. There is deliberately no search box and no
- * sortable column: `?search=` does not exist and `?ordering=` is silently
- * ignored on nine of ten viewsets (G-10). A control that looks like it works
- * and does nothing is worse than no control.
- *
- * The filter lives in the address, so the summary cards can link to it.
+ * Filters are exactly the three the backend supports. There is deliberately no
+ * search box and no sortable column: `?search=` does not exist and
+ * `?ordering=` is silently ignored on nine of ten viewsets (G-10). A control
+ * that looks like it works and does nothing is worse than no control.
  */
 
 import { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 
 import { PlusIcon } from "@/components/icons";
 import {
@@ -25,15 +23,13 @@ import {
   TableSkeleton,
 } from "@/components/ui";
 import { formatCount, formatRate, formatRelative } from "@/lib/format";
-import { useCampaigns } from "@/lib/queries/campaigns";
+import { useCampaigns, type CampaignFilters } from "@/lib/queries/campaigns";
 import { useCan } from "@/lib/session";
 import type { Campaign, CampaignStatus } from "@/types/domain";
 
-type Filter = CampaignStatus | "all";
-
-const FILTERS: { id: Filter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "running", label: "Running" },
+const FILTERS: { id: CampaignStatus | ""; label: string }[] = [
+  { id: "", label: "All" },
+  { id: "running", label: "Dialing" },
   { id: "throttled", label: "Throttled" },
   { id: "paused", label: "Paused" },
   { id: "draft", label: "Draft" },
@@ -42,23 +38,12 @@ const FILTERS: { id: Filter; label: string }[] = [
 ];
 
 export function CampaignsPage() {
-  const [params, setParams] = useSearchParams();
-  const filter: Filter =
-    FILTERS.find((f) => f.id === params.get("status"))?.id ?? "all";
-
-  // The page number belongs to one filter; changing filter starts again at 1.
-  const [paging, setPaging] = useState({ filter, page: 1 });
-  const page = paging.filter === filter ? paging.page : 1;
-  const goTo = (next: number) => setPaging({ filter, page: next });
-
+  const [filters, setFilters] = useState<CampaignFilters>({ page: 1 });
   const canEdit = useCan("campaign.edit");
-  const { data, isLoading, error, refetch } = useCampaigns({
-    status: filter === "all" ? "" : filter,
-    page,
-  });
+  const { data, isLoading, error, refetch } = useCampaigns(filters);
 
   const rows = data?.results ?? [];
-  const running = rows.filter((c) => c.status === "running").length;
+  const dialing = rows.filter((c) => c.status === "running").length;
   const attention = rows.filter(
     (c) => c.status === "throttled" || c.status === "failed",
   ).length;
@@ -66,7 +51,7 @@ export function CampaignsPage() {
   const newCampaign = (label: string) => (
     <Link
       to="/campaigns/new"
-      className="press inline-flex min-h-11 items-center gap-2 rounded-full bg-forest px-5 text-sm font-bold text-white shadow-[var(--shadow-raised)] hover:bg-forest-soft"
+      className="press inline-flex min-h-11 items-center gap-2 rounded-full neon px-5 text-sm font-bold"
     >
       <PlusIcon className="size-4" /> {label}
     </Link>
@@ -76,23 +61,23 @@ export function CampaignsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Campaigns"
-        subtitle="Call your contact lists with a call flow."
+        subtitle="A campaign pins one published flow, one caller ID, and the lists it may dial."
         actions={canEdit ? newCampaign("New campaign") : undefined}
       />
 
       {data && rows.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Stat
-            label="Running now"
-            value={String(running)}
-            denominator={`of ${formatCount(data.count)} campaigns`}
+            label="Dialing now"
+            value={String(dialing)}
+            denominator={`of ${data.count} campaigns`}
             accent
             to="/campaigns?status=running"
           />
           <Stat
             label="Needs attention"
             value={String(attention)}
-            denominator="Throttled or failed"
+            denominator="throttled or failed"
             tone={attention > 0 ? "amber" : undefined}
             to="/campaigns?status=throttled"
           />
@@ -101,7 +86,7 @@ export function CampaignsPage() {
             value={formatCount(
               rows.reduce((sum, c) => sum + (c.stats?.dialed ?? 0), 0),
             )}
-            denominator="Campaigns listed below"
+            denominator="across these campaigns"
             to="/calls"
           />
           <Stat
@@ -109,17 +94,15 @@ export function CampaignsPage() {
             value={formatCount(
               rows.reduce((sum, c) => sum + (c.stats?.answered ?? 0), 0),
             )}
-            denominator="Campaigns listed below"
+            denominator="across these campaigns"
           />
         </div>
       )}
 
       <FilterTabs
         label="Filter campaigns by status"
-        value={filter}
-        onChange={(next) =>
-          setParams(next === "all" ? {} : { status: next }, { replace: true })
-        }
+        value={filters.status ?? ""}
+        onChange={(status) => setFilters({ ...filters, status, page: 1 })}
         options={FILTERS}
       />
 
@@ -132,17 +115,17 @@ export function CampaignsPage() {
           <div className="p-6">
             <EmptyState
               title={
-                filter === "all"
-                  ? "No campaigns yet"
-                  : `No ${filter} campaigns`
+                filters.status
+                  ? `Nothing ${FILTERS.find((f) => f.id === filters.status)?.label.toLowerCase()}`
+                  : "No campaigns yet"
               }
               description={
-                filter === "all"
-                  ? "You need a published flow, an active caller ID and a contact list."
-                  : "Try another filter."
+                filters.status
+                  ? "Try another filter."
+                  : "You will need a published flow, a verified caller ID, and at least one contact list."
               }
               action={
-                canEdit && filter === "all"
+                canEdit && !filters.status
                   ? newCampaign("Create the first one")
                   : undefined
               }
@@ -159,10 +142,10 @@ export function CampaignsPage() {
                 <thead>
                   <tr>
                     <th>Campaign</th>
-                    <th>Status</th>
+                    <th>State</th>
                     <th>Flow</th>
-                    <th>Calls placed</th>
-                    <th>Answer rate</th>
+                    <th>Dialed</th>
+                    <th>Answer</th>
                     <th>Updated</th>
                   </tr>
                 </thead>
@@ -185,13 +168,19 @@ export function CampaignsPage() {
 
       {data && (data.next || data.previous) && (
         <div className="flex items-center justify-between gap-3">
-          <Button disabled={!data.previous} onClick={() => goTo(page - 1)}>
+          <Button
+            disabled={!data.previous}
+            onClick={() => setFilters({ ...filters, page: (filters.page ?? 1) - 1 })}
+          >
             Previous
           </Button>
           <span className="num text-center text-xs text-ash">
-            Page {page} · {formatCount(data.count)} total
+            page {filters.page ?? 1} · {formatCount(data.count)} total
           </span>
-          <Button disabled={!data.next} onClick={() => goTo(page + 1)}>
+          <Button
+            disabled={!data.next}
+            onClick={() => setFilters({ ...filters, page: (filters.page ?? 1) + 1 })}
+          >
             Next
           </Button>
         </div>
@@ -204,7 +193,10 @@ export function CampaignsPage() {
 function reasonFor(campaign: Campaign): { text: string; tone: string } | null {
   if (!campaign.pause_reason) return null;
   if (campaign.status === "throttled") {
-    return { text: `Not calling: ${campaign.pause_reason}`, tone: "text-amber" };
+    return {
+      text: `Stopped dialing — ${campaign.pause_reason}`,
+      tone: "text-amber",
+    };
   }
   if (campaign.status === "paused") {
     return { text: campaign.pause_reason, tone: "text-ash-dim" };
@@ -230,7 +222,8 @@ function figuresFor(campaign: Campaign) {
 /** The same row, stacked. The whole card is the tap target. */
 function MobileRow({ campaign }: { campaign: Campaign }) {
   const figures = figuresFor(campaign);
-  const reason = reasonFor(campaign);
+  // On the stacked card only a throttled campaign states its reason.
+  const reason = campaign.status === "throttled" ? reasonFor(campaign) : null;
 
   return (
     <li>
@@ -258,11 +251,11 @@ function MobileRow({ campaign }: { campaign: Campaign }) {
 
         <dl className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-2">
           <div>
-            <dt className="eyebrow">Calls placed</dt>
+            <dt className="eyebrow">Dialed</dt>
             <dd className="num mt-0.5 text-sm text-chalk">{figures.dialed}</dd>
           </div>
           <div>
-            <dt className="eyebrow">Answer rate</dt>
+            <dt className="eyebrow">Answer</dt>
             <dd
               className={`num mt-0.5 text-sm ${figures.low ? "text-amber" : "text-chalk"}`}
             >

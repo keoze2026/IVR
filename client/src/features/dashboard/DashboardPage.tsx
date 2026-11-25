@@ -1,8 +1,8 @@
 /**
- * Dashboard: how calling is going right now, at a glance.
+ * Dashboard (Calls Insights) and the calls breakdown.
  *
- * Built from the most recent call records, so the figures describe those calls
- * and are labelled that way.
+ * The numbers come from the recent call records rather than a separate
+ * analytics store, so they are only ever as true as the calls behind them.
  */
 
 import { useState, type ComponentType } from "react";
@@ -11,18 +11,15 @@ import { Link } from "react-router-dom";
 import {
   AlertIcon,
   CheckIcon,
-  ClockIcon,
   MissedIcon,
   PhoneIcon,
   PhoneOutIcon,
-  PlusIcon,
   WalletIcon,
 } from "@/components/icons";
-import { Button, EmptyState, ErrorState, PageHeader, Panel, PanelHeader, StatusPill, TableSkeleton, cx } from "@/components/ui";
-import { RecordingButton, clock, outcomeOf, tally } from "@/features/calls/shared";
-import { CreateJobModal } from "@/features/jobs/CreateJobModal";
-import { formatRelative } from "@/lib/format";
-import { useCallerIds, useCalls } from "@/lib/queries/resources";
+import { EmptyState, ErrorState, PageHeader, Panel, PanelHeader, StatusPill, TableSkeleton, cx } from "@/components/ui";
+import { isAnswered, minutes, tallies } from "@/features/calls/shared";
+import { formatDateTime } from "@/lib/format";
+import { useCalls } from "@/lib/queries/resources";
 import type { CallSummary } from "@/types/domain";
 
 /** Calls counted into the 24 hours of the day. */
@@ -38,26 +35,17 @@ function byHour(calls: CallSummary[]): number[] {
 const hourLabel = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
 export function DashboardPage() {
-  const { data, isLoading, error, refetch } = useCalls({}, { refetchInterval: 5000 });
-  const numbers = useCallerIds();
+  const { data, isLoading, error, refetch } = useCalls({});
   const calls = data?.results ?? [];
-  const t = tally(calls);
-  const [creating, setCreating] = useState(false);
+  const t = tallies(calls);
+  const nonAnswered = t.nonConnected - t.failed;
   const show = (value: string | number) => (isLoading ? "—" : String(value));
   const share = (n: number) => (t.total ? Math.round((n / t.total) * 100) : 0);
-  const only = (outcome: string) => calls.filter((c) => outcomeOf(c) === outcome);
+  const average = t.answered ? Math.round(t.durationSec / t.answered) : 0;
 
   return (
     <div className="space-y-5">
-      <PageHeader
-        title="Dashboard"
-        subtitle={`Based on your latest ${t.total} calls.`}
-        actions={
-          <Button variant="primary" onClick={() => setCreating(true)}>
-            <PlusIcon className="size-4" /> New job
-          </Button>
-        }
-      />
+      <PageHeader title="Dashboard" />
 
       {error && <ErrorState error={error} onRetry={() => void refetch()} />}
 
@@ -65,61 +53,63 @@ export function DashboardPage() {
         <Metric
           featured
           icon={PhoneIcon}
-          label="Total calls"
+          label="Total Calls"
           value={show(t.total)}
-          note={`${t.active} in progress`}
+          note="Since last day"
           series={byHour(calls)}
         />
         <Metric
           icon={CheckIcon}
-          label="Answered"
+          label="Answered Calls"
           value={show(t.answered)}
-          note={`${share(t.answered)}% of calls`}
-          series={byHour(only("answered"))}
+          note="Since last day"
+          series={byHour(calls.filter(isAnswered))}
           color="var(--color-chart-answered)"
           badge="bg-live text-live-bright"
         />
         <Metric
           icon={MissedIcon}
-          label="Not answered"
-          value={show(t.missed)}
-          note={`${share(t.missed)}% of calls`}
-          series={byHour(only("missed"))}
+          label="Non-Connected Calls"
+          value={show(t.nonConnected)}
+          note="Since last day"
+          series={byHour(calls.filter((c) => !isAnswered(c)))}
           color="var(--color-chart-missed)"
-          badge="bg-[#fdf1dc] text-amber"
+          badge="bg-warn-soft text-amber"
         />
         <Metric
           icon={AlertIcon}
-          label="Failed"
+          label="Failed Calls"
           value={show(t.failed)}
-          note={`${share(t.failed)}% of calls`}
-          series={byHour(only("failed"))}
+          note={`${share(t.failed)}% of all`}
+          series={byHour(calls.filter((c) => c.status === "failed"))}
           color="var(--color-chart-failed)"
-          badge="bg-[#fdeaea] text-rust"
+          badge="bg-bad-soft text-rust"
         />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <Panel className="overflow-hidden">
-          <PanelHeader title="Call activity" hint="Calls by hour of the day" />
+          <PanelHeader title="Calls Activity – Daily" hint="Total calls by hour." />
           <ActivityChart hours={byHour(calls)} />
         </Panel>
 
         <Panel className="overflow-hidden">
-          <PanelHeader title="Outcomes" hint="How your calls ended" />
+          <PanelHeader title="Answered rate" />
           <div className="flex flex-col items-center p-6">
             <Donut
-              percent={share(t.answered)}
+              figure={`${share(t.answered)}%`}
+              caption="answered"
+              label={`${share(t.answered)} percent answered`}
               parts={[
                 { value: t.answered, color: "var(--color-chart-answered)" },
-                { value: t.missed, color: "var(--color-chart-missed)" },
+                { value: nonAnswered, color: "var(--color-chart-missed)" },
                 { value: t.failed, color: "var(--color-chart-failed)" },
               ]}
               total={t.total}
             />
             <ul className="mt-6 w-full space-y-2">
               <Legend label="Answered" count={t.answered} percent={share(t.answered)} color="bg-chart-answered" />
-              <Legend label="Not answered" count={t.missed} percent={share(t.missed)} color="bg-chart-missed" />
+              <Legend label="Non-answered" count={nonAnswered} percent={share(nonAnswered)} color="bg-chart-missed" />
               <Legend label="Failed" count={t.failed} percent={share(t.failed)} color="bg-chart-failed" />
             </ul>
           </div>
@@ -127,95 +117,170 @@ export function DashboardPage() {
       </div>
 
       <div className="grid items-start gap-4 xl:grid-cols-[1fr_360px]">
-        <Panel className="overflow-hidden">
+        <Panel className="min-w-0 overflow-hidden">
           <PanelHeader
             title="Recent calls"
-            hint="Updates automatically"
-            action={<Link to="/cdr" className="rounded-full bg-live px-4 py-2 text-xs font-bold text-live-bright hover:bg-raised">View all</Link>}
+            action={<Link to="/cdr" className="rounded-full bg-live px-4 py-2 text-xs font-bold text-live-bright hover:bg-raised">See all</Link>}
           />
           {isLoading && <TableSkeleton rows={4} />}
           {!isLoading && calls.length === 0 && (
             <div className="p-5">
-              <EmptyState title="No calls yet" description="Create a job to place your first call." />
+              <EmptyState title="No calls yet" description="Start a job to place calls." />
             </div>
           )}
-          <ul className="space-y-1 p-3">
-            {calls.slice(0, 7).map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center gap-3 rounded-2xl px-3 py-3 odd:bg-void/70 hover:bg-live/60">
-                <span className="flex size-11 items-center justify-center rounded-full bg-forest text-mint">
-                  <PhoneOutIcon className="size-5" />
-                </span>
-                <div className="min-w-0">
-                  <Link to={`/calls/${c.id}`} className="num block text-sm font-bold text-chalk hover:text-signal">
-                    {c.to_masked}
-                  </Link>
-                  <span className="text-xs font-semibold text-ash-dim">{formatRelative(c.created_at)}</span>
-                </div>
-                <span className="num ml-auto hidden items-center gap-1.5 rounded-full border border-edge bg-panel px-3 py-1 text-xs font-bold text-ash sm:inline-flex">
-                  <ClockIcon className="size-3.5" />
-                  {clock(c.duration_seconds ?? 0)}
-                </span>
-                <span className="ml-auto flex justify-end sm:ml-0 sm:w-32"><StatusPill status={c.status} /></span>
-                <span className="flex w-20 justify-end"><RecordingButton call={c} /></span>
-              </li>
-            ))}
-          </ul>
+          {calls.length > 0 && <RecentCalls rows={calls.slice(0, 10)} />}
         </Panel>
 
-        <div className="space-y-4">
-          <div className="surface-forest rounded-[var(--radius-card)] p-6 shadow-[var(--shadow-raised)]">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-bold text-white/75">Spend on these calls</span>
-              <span className="flex size-10 items-center justify-center rounded-2xl bg-white/10 text-mint">
-                <WalletIcon />
-              </span>
-            </div>
-            <div className="num display mt-2 text-4xl">{isLoading ? "—" : `$${t.spend.toFixed(2)}`}</div>
-            <dl className="mt-5 grid grid-cols-2 gap-3">
-              <div className="rounded-2xl bg-white/[0.08] p-3">
-                <dt className="text-xs font-semibold text-white/65">Average talk time</dt>
-                <dd className="num display mt-1 text-xl text-mint">{isLoading ? "—" : clock(t.average)}</dd>
-              </div>
-              <div className="rounded-2xl bg-white/[0.08] p-3">
-                <dt className="text-xs font-semibold text-white/65">Total talk time</dt>
-                <dd className="num display mt-1 text-xl text-mint">{isLoading ? "—" : clock(t.seconds)}</dd>
-              </div>
-            </dl>
+        <div className="surface-forest rounded-[var(--radius-card)] p-6 shadow-[var(--shadow-raised)]">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-bold text-white/75">Total Utilization</span>
+            <span className="flex size-10 items-center justify-center rounded-2xl bg-white/10 text-mint">
+              <WalletIcon />
+            </span>
           </div>
-
-          <Panel className="overflow-hidden">
-            <PanelHeader
-              title="Your numbers"
-              action={<Link to="/caller-ids" className="rounded-full bg-live px-4 py-2 text-xs font-bold text-live-bright hover:bg-raised">Manage</Link>}
-            />
-            {numbers.data?.results.length === 0 && (
-              <p className="px-5 py-5 text-sm font-medium text-ash">Add a number to start calling.</p>
-            )}
-            <ul className="space-y-1 p-3">
-              {(numbers.data?.results ?? []).slice(0, 6).map((n) => (
-                <li key={n.id} className="flex items-center gap-3 rounded-2xl px-3 py-2.5 hover:bg-void">
-                  <span className="relative flex size-10 items-center justify-center rounded-full bg-live text-sm font-extrabold uppercase text-live-bright">
-                    {n.provider.slice(0, 2)}
-                    <span
-                      aria-hidden
-                      className={cx("absolute -bottom-0.5 -right-0.5 size-3 rounded-full ring-2 ring-white", n.is_active ? "bg-chart-answered" : "bg-edge-bright")}
-                    />
-                  </span>
-                  <div className="min-w-0">
-                    <div className="num text-sm font-bold text-chalk">{n.phone_e164}</div>
-                    <div className="text-xs font-semibold capitalize text-ash-dim">
-                      {n.provider}{n.is_active ? "" : " · inactive"}
-                    </div>
-                  </div>
-                  <span className="num ml-auto text-xs font-bold text-ash">{n.calls_today} today</span>
-                </li>
-              ))}
-            </ul>
-          </Panel>
+          <div className="num display mt-2 text-4xl">{isLoading ? "—" : `$${t.spend.toFixed(2)}`}</div>
+          <div className="mt-1 text-xs font-semibold text-white/65">Spend so far</div>
+          <dl className="mt-5 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-white/[0.08] p-3">
+              <dt className="text-xs font-semibold text-white/65">Average talk time</dt>
+              <dd className="num display mt-1 text-xl text-mint">{isLoading ? "—" : minutes(average)}</dd>
+            </div>
+            <div className="rounded-2xl bg-white/[0.08] p-3">
+              <dt className="text-xs font-semibold text-white/65">Total Duration</dt>
+              <dd className="num display mt-1 text-xl text-mint">{isLoading ? "—" : minutes(t.durationSec)}</dd>
+            </div>
+          </dl>
         </div>
       </div>
+    </div>
+  );
+}
 
-      {creating && <CreateJobModal onClose={() => setCreating(false)} />}
+export function CallsBreakdownPage() {
+  const { data, isLoading, error, refetch } = useCalls({});
+  const calls = data?.results ?? [];
+  const t = tallies(calls);
+  const nonAnswered = t.nonConnected - t.failed;
+  const show = (value: number) => (isLoading ? "—" : String(value));
+  const pct = (n: number) => (t.total ? Math.round((n / t.total) * 100) : 0);
+
+  return (
+    <div className="space-y-5">
+      <PageHeader title="Calls Dashboard" subtitle="Here, take a look at your calls." />
+
+      {error && <ErrorState error={error} onRetry={() => void refetch()} />}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric
+          icon={CheckIcon}
+          label="Answered Calls"
+          value={show(t.answered)}
+          note={`${pct(t.answered)}% of all`}
+          series={byHour(calls.filter(isAnswered))}
+          color="var(--color-chart-answered)"
+          badge="bg-live text-live-bright"
+        />
+        <Metric
+          icon={MissedIcon}
+          label="Non-Answered Calls"
+          value={show(nonAnswered)}
+          note={`${pct(nonAnswered)}% of all`}
+          series={byHour(calls.filter((c) => !isAnswered(c) && c.status !== "failed"))}
+          color="var(--color-chart-missed)"
+          badge="bg-warn-soft text-amber"
+        />
+        <Metric
+          icon={AlertIcon}
+          label="Failed Calls"
+          value={show(t.failed)}
+          note={`${pct(t.failed)}% of all`}
+          series={byHour(calls.filter((c) => c.status === "failed"))}
+          color="var(--color-chart-failed)"
+          badge="bg-bad-soft text-rust"
+        />
+        <Metric
+          featured
+          icon={PhoneIcon}
+          label="Total Calls"
+          value={show(t.total)}
+          note="100% of all"
+          series={byHour(calls)}
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel className="overflow-hidden">
+          <PanelHeader title="Total Calls — Current Month" />
+          <div className="flex flex-col items-center p-8">
+            <Donut
+              figure={String(t.total)}
+              caption="Calls"
+              label={`${t.answered} of ${t.total} calls answered`}
+              parts={[{ value: t.answered, color: "var(--color-chart-answered)" }]}
+              total={t.total}
+            />
+            <p className="mt-4 text-sm font-medium text-ash">Answered vs. total this month.</p>
+          </div>
+        </Panel>
+        <Panel className="overflow-hidden">
+          <PanelHeader title="Answered rate" />
+          <div className="space-y-5 p-6">
+            {([
+              ["Answered", t.answered, "bg-chart-answered"],
+              ["Non-answered", nonAnswered, "bg-chart-missed"],
+              ["Failed", t.failed, "bg-chart-failed"],
+            ] as const).map(([label, n, tone]) => (
+              <div key={label}>
+                <div className="mb-1.5 flex justify-between text-sm font-semibold text-ash">
+                  <span>{label}</span>
+                  <span className="num text-chalk">{n}</span>
+                </div>
+                <div className="h-2.5 rounded-full bg-raised">
+                  <div className={cx("h-2.5 rounded-full", tone)} style={{ width: `${pct(n)}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+function RecentCalls({ rows }: { rows: CallSummary[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="table">
+        <thead>
+          <tr>
+            <th>To</th>
+            <th>Status</th>
+            <th>Answered by</th>
+            <th>Duration</th>
+            <th>Cost</th>
+            <th>When</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((c) => (
+            <tr key={c.id}>
+              <td>
+                <div className="flex items-center gap-3">
+                  <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full bg-forest text-mint">
+                    <PhoneOutIcon className="size-[18px]" />
+                  </span>
+                  <span className="num font-bold text-chalk">{c.to_masked}</span>
+                </div>
+              </td>
+              <td><StatusPill status={c.status} /></td>
+              <td>{c.answered_by || "—"}</td>
+              <td className="num">{c.duration_seconds}s</td>
+              <td className="num">{c.cost ? `$${Number(c.cost).toFixed(4)}` : "—"}</td>
+              <td>{formatDateTime(c.created_at)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -246,11 +311,11 @@ function Metric({
         "rounded-[var(--radius-card)] p-5",
         featured
           ? "surface-forest shadow-[var(--shadow-raised)]"
-          : "border border-edge/70 bg-panel shadow-[var(--shadow-card)]",
+          : "card border border-edge bg-panel shadow-[var(--shadow-card)]",
       )}
     >
       <div className="flex items-center gap-3">
-        <span className={cx("flex size-11 items-center justify-center rounded-2xl", featured ? "bg-mint text-forest" : badge)}>
+        <span className={cx("flex size-11 items-center justify-center rounded-2xl", featured ? "neon" : badge)}>
           <Icon className="size-[22px]" />
         </span>
         <span className={cx("text-sm font-bold", featured ? "text-white/80" : "text-ash")}>{label}</span>
@@ -322,7 +387,7 @@ function ActivityChart({ hours }: { hours: number[] }) {
               <line key={i} x1="0" x2="1000" y1={y((top / 4) * i)} y2={y((top / 4) * i)} stroke="var(--color-edge)" vectorEffect="non-scaling-stroke" />
             ))}
             <path d={`${line} L1000 240 L0 240 Z`} fill="url(#activity-fill)" />
-            <path d={line} fill="none" stroke="var(--color-chart-answered)" strokeWidth="2.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+            <path className="glow" d={line} fill="none" stroke="var(--color-signal)" strokeWidth="2.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
           </svg>
 
           {at !== null && (
@@ -330,7 +395,7 @@ function ActivityChart({ hours }: { hours: number[] }) {
               <span aria-hidden className="absolute bottom-0 top-0 w-px bg-signal/30" style={{ left: `${(at / 23) * 100}%` }} />
               <span
                 aria-hidden
-                className="absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white bg-forest shadow"
+                className="absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-panel bg-mint shadow"
                 style={{ left: `${(at / 23) * 100}%`, top: `${(y(hours[at] ?? 0) / 240) * 100}%` }}
               />
             </>
@@ -357,15 +422,19 @@ function ActivityChart({ hours }: { hours: number[] }) {
   );
 }
 
-/** Outcome shares around the answer rate. */
+/** Outcome shares around a headline figure. */
 function Donut({
   parts,
   total,
-  percent,
+  figure,
+  caption,
+  label,
 }: {
   parts: { value: number; color: string }[];
   total: number;
-  percent: number;
+  figure: string;
+  caption: string;
+  label: string;
 }) {
   const r = 70;
   const length = 2 * Math.PI * r;
@@ -373,7 +442,7 @@ function Donut({
   let offset = 0;
 
   return (
-    <svg viewBox="0 0 180 180" className="size-48" role="img" aria-label={`${percent} percent answered`}>
+    <svg viewBox="0 0 180 180" className="size-48" role="img" aria-label={label}>
       <circle cx="90" cy="90" r={r} fill="none" stroke="var(--color-raised)" strokeWidth="22" />
       {shown.map((p) => {
         const size = (p.value / (total || 1)) * length;
@@ -390,8 +459,8 @@ function Donut({
         offset += size;
         return arc;
       })}
-      <text x="90" y="90" textAnchor="middle" fontSize="36" fontWeight="800" fill="var(--color-chalk)">{percent}%</text>
-      <text x="90" y="112" textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--color-ash-dim)">answered</text>
+      <text x="90" y="90" textAnchor="middle" fontSize="36" fontWeight="800" fill="var(--color-chalk)">{figure}</text>
+      <text x="90" y="112" textAnchor="middle" fontSize="12" fontWeight="600" fill="var(--color-ash-dim)">{caption}</text>
     </svg>
   );
 }

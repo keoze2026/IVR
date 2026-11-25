@@ -6,7 +6,6 @@
  */
 
 import { useState, type ReactNode } from "react";
-import { NavLink } from "react-router-dom";
 
 import { PlusIcon } from "@/components/icons";
 import {
@@ -42,15 +41,15 @@ import {
 import { useCan } from "@/lib/session";
 import type { ConsentRecord } from "@/types/domain";
 
-const REASONS: Record<string, string> = {
-  internal_dnc: "Internal do-not-call",
-  ivr_opt_out: "Opted out on a call",
-  federal_dnc: "Federal do-not-call",
-  state_dnc: "State do-not-call",
-  litigator: "Litigator",
-  complaint: "Complaint",
-  carrier_invalid: "Invalid number (carrier)",
-};
+const REASONS = [
+  "internal_dnc",
+  "ivr_opt_out",
+  "federal_dnc",
+  "state_dnc",
+  "litigator",
+  "complaint",
+  "carrier_invalid",
+];
 
 const CONSENT_TYPES: Record<string, string> = {
   express_written: "Express written",
@@ -64,39 +63,10 @@ const SCOPES: Record<string, string> = {
   informational: "Informational",
 };
 
-const plain = (map: Record<string, string>, key: string) =>
-  map[key] ?? key.replace(/_/g, " ");
+/** A stored code as it is shown on screen. */
+const plain = (code: string) => code.replace(/_/g, " ");
 
 // --- shared layout ----------------------------------------------------
-
-const SECTIONS = [
-  { to: "/compliance/dnc", label: "Do not call" },
-  { to: "/compliance/consent", label: "Consent" },
-  { to: "/compliance/windows", label: "Calling hours" },
-];
-
-function ComplianceNav() {
-  return (
-    <nav aria-label="Compliance" className="flex flex-wrap gap-2">
-      {SECTIONS.map((section) => (
-        <NavLink
-          key={section.to}
-          to={section.to}
-          className={({ isActive }) =>
-            cx(
-              "press inline-flex min-h-10 items-center rounded-full border px-4 text-sm",
-              isActive
-                ? "border-forest bg-forest text-white"
-                : "border-edge bg-panel text-ash hover:border-edge-bright",
-            )
-          }
-        >
-          {section.label}
-        </NavLink>
-      ))}
-    </nav>
-  );
-}
 
 function ModalActions({ children }: { children: ReactNode }) {
   return (
@@ -132,9 +102,9 @@ export function DncPage() {
   const reasonField = (
     <Field label="Reason" htmlFor="add-reason">
       <Select id="add-reason" value={reason} onChange={(e) => setReason(e.target.value)}>
-        {Object.entries(REASONS).map(([value, label]) => (
-          <option key={value} value={value}>
-            {label}
+        {REASONS.map((r) => (
+          <option key={r} value={r}>
+            {plain(r)}
           </option>
         ))}
       </Select>
@@ -144,27 +114,19 @@ export function DncPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Do not call"
-        subtitle="Numbers that must never be called."
+        title="Suppression"
+        subtitle="Numbers that must not be dialed. Checked at import and again immediately before every call — a list uploaded on Monday and dialed on Friday has picked up new opt-outs."
         actions={
           canEdit && (
             <>
-              <Button onClick={() => setDialog("bulk")}>Import</Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  add.reset();
-                  setDialog("add");
-                }}
-              >
-                <PlusIcon className="size-4" /> Add number
+              <Button onClick={() => setDialog("bulk")}>Paste numbers</Button>
+              <Button variant="primary" onClick={() => setDialog("add")}>
+                <PlusIcon className="size-4" /> Suppress a number
               </Button>
             </>
           )
         }
       />
-
-      <ComplianceNav />
 
       {entries.error && (
         <ErrorState error={entries.error} onRetry={() => void entries.refetch()} />
@@ -174,15 +136,10 @@ export function DncPage() {
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         {/* --- the question you actually came here to ask --------------- */}
         <Panel className="min-w-0 lg:order-last">
-          <PanelHeader title="Check a number" />
+          <PanelHeader title="Is this number suppressed?" />
           <div className="space-y-4 p-4">
-            <form
-              className="space-y-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (phone.trim()) check.mutate(phone.trim());
-              }}
-            >
+            {/* Enter does not submit; the button does. */}
+            <form className="space-y-3" onSubmit={(e) => e.preventDefault()}>
               <Field label="Phone number" htmlFor="check-phone">
                 <Input
                   id="check-phone"
@@ -194,11 +151,12 @@ export function DncPage() {
                 />
               </Field>
               <Button
-                type="submit"
+                type="button"
                 variant="primary"
                 className="w-full"
                 disabled={!phone.trim()}
                 loading={check.isPending}
+                onClick={() => check.mutate(phone.trim())}
               >
                 Check
               </Button>
@@ -209,7 +167,7 @@ export function DncPage() {
                 role="status"
                 className={cx(
                   "rounded-xl px-4 py-3",
-                  check.data.suppressed ? "bg-[#fdeaea]" : "bg-live",
+                  check.data.suppressed ? "bg-bad-soft" : "bg-live",
                 )}
               >
                 <p className="num text-sm font-medium text-chalk">{check.data.phone_e164}</p>
@@ -220,8 +178,8 @@ export function DncPage() {
                   )}
                 >
                   {check.data.suppressed
-                    ? `Do not call: ${plain(REASONS, check.data.reason)}`
-                    : "Not blocked. This number may be called."}
+                    ? `Suppressed — ${plain(check.data.reason)}`
+                    : "Not suppressed. This number may be dialed."}
                 </p>
               </div>
             )}
@@ -230,34 +188,26 @@ export function DncPage() {
         </Panel>
 
         <Panel className="min-w-0 overflow-hidden">
-          <PanelHeader title="Blocked numbers" hint="Removals are recorded in the audit log." />
+          <PanelHeader title="Suppressed numbers" />
           {entries.isLoading && <TableSkeleton />}
           {entries.data && rows.length === 0 && (
             <div className="p-4">
               <EmptyState
-                title="No blocked numbers"
-                description="Opt-outs made during calls appear here."
+                title="Nothing suppressed yet"
+                description="Opt-outs captured through the IVR land here automatically."
               />
             </div>
           )}
           {rows.length > 0 && (
             <div className="overflow-x-auto">
               <table className="table">
-                <thead>
-                  <tr>
-                    <th>Number</th>
-                    <th>Reason</th>
-                    <th>Added</th>
-                    <th><span className="sr-only">Actions</span></th>
-                  </tr>
-                </thead>
                 <tbody>
                   {rows.map((entry) => (
                     <tr key={entry.id}>
                       <td className="num font-medium text-chalk">{entry.phone_masked}</td>
                       <td>
                         <span className="flex items-center gap-1.5">
-                          <Badge>{plain(REASONS, entry.reason)}</Badge>
+                          <Badge>{plain(entry.reason)}</Badge>
                           {entry.is_global && <Badge tone="warn">Platform-wide</Badge>}
                         </span>
                       </td>
@@ -268,8 +218,7 @@ export function DncPage() {
                             dense
                             variant="ghost"
                             className="hover:!text-rust"
-                            aria-label={`Remove ${entry.phone_masked}`}
-                            title="Removing a number is recorded in the audit log"
+                            title="Removing a suppression is audit-logged"
                             onClick={() => remove.mutate(entry.id)}
                           >
                             Remove
@@ -282,32 +231,17 @@ export function DncPage() {
               </table>
             </div>
           )}
-          {entries.data?.next && (
-            <p className="border-t border-edge px-4 py-3 text-xs text-ash-dim">
-              Showing the latest {rows.length}. Use the check to find older numbers.
-            </p>
-          )}
         </Panel>
       </div>
 
       {canEdit && dialog === "add" && (
-        <Modal title="Add to do-not-call" onClose={() => setDialog(null)}>
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!newPhone.trim()) return;
-              add.mutate(
-                { phone_e164: newPhone.trim(), reason },
-                {
-                  onSuccess: () => {
-                    setNewPhone("");
-                    setDialog(null);
-                  },
-                },
-              );
-            }}
-          >
+        <Modal
+          title="Suppress a number"
+          onClose={() => setDialog(null)}
+          closeOnEscape={false}
+          closeOnBackdrop={false}
+        >
+          <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
             <Field
               label="Phone number"
               htmlFor="add-phone"
@@ -331,12 +265,18 @@ export function DncPage() {
                 Cancel
               </Button>
               <Button
-                type="submit"
+                type="button"
                 variant="primary"
                 disabled={!newPhone.trim()}
                 loading={add.isPending}
+                onClick={() =>
+                  add.mutate(
+                    { phone_e164: newPhone.trim(), reason },
+                    { onSuccess: () => setNewPhone("") },
+                  )
+                }
               >
-                Add number
+                Add to suppression
               </Button>
             </ModalActions>
           </form>
@@ -345,21 +285,22 @@ export function DncPage() {
 
       {canEdit && dialog === "bulk" && (
         <Modal
-          title="Import numbers"
-          subtitle="Up to 10,000 at a time."
+          title="Import many"
+          subtitle="Up to 10,000 at a time. Anything unparseable comes back listed."
           onClose={() => setDialog(null)}
+          closeOnEscape={false}
+          closeOnBackdrop={false}
         >
           <div className="space-y-4">
-            <Field label="Phone numbers" htmlFor="bulk-numbers" hint="One per line.">
-              <Textarea
-                id="bulk-numbers"
-                rows={6}
-                className="num"
-                autoFocus
-                value={paste}
-                onChange={(e) => setPaste(e.target.value)}
-              />
-            </Field>
+            <Textarea
+              rows={6}
+              className="num"
+              autoFocus
+              aria-label="Import many"
+              placeholder="One per line"
+              value={paste}
+              onChange={(e) => setPaste(e.target.value)}
+            />
             {reasonField}
 
             {bulk.error && <ErrorState error={bulk.error} />}
@@ -376,28 +317,20 @@ export function DncPage() {
                   , <span className="num">{bulk.data.contacts_flagged}</span> contacts flagged
                 </p>
                 {bulk.data.rejected.length > 0 && (
-                  <>
-                    <p className="mt-2 text-rust">
-                      <span className="num">{bulk.data.rejected.length}</span> rejected
-                    </p>
-                    <ul className="mt-1 space-y-0.5 break-all text-xs text-rust">
-                      {bulk.data.rejected.slice(0, 8).map((r, i) => (
-                        <li key={i} className="num">
-                          {r.input}: {r.reason}
-                        </li>
-                      ))}
-                      {bulk.data.rejected.length > 8 && (
-                        <li>and {bulk.data.rejected.length - 8} more</li>
-                      )}
-                    </ul>
-                  </>
+                  <ul className="mt-2 space-y-0.5 break-all text-xs text-rust">
+                    {bulk.data.rejected.slice(0, 8).map((r, i) => (
+                      <li key={i} className="num">
+                        {r.input} — {r.reason}
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
             )}
 
             <ModalActions>
               <Button variant="ghost" onClick={() => setDialog(null)}>
-                Close
+                Cancel
               </Button>
               <Button
                 variant="primary"
@@ -405,7 +338,7 @@ export function DncPage() {
                 loading={bulk.isPending}
                 onClick={() => bulk.mutate({ numbers, reason })}
               >
-                Block {numbers.length || ""} {numbers.length === 1 ? "number" : "numbers"}
+                Suppress {numbers.length || ""}
               </Button>
             </ModalActions>
           </div>
@@ -444,23 +377,15 @@ export function ConsentPage() {
     <div className="space-y-6">
       <PageHeader
         title="Consent"
-        subtitle="Proof that people agreed to be called."
+        subtitle="Suppression proves you were told to stop. Consent proves you were allowed to start — and in a dispute, the burden of proving it is yours."
         actions={
           canEdit && (
-            <Button
-              variant="primary"
-              onClick={() => {
-                record.reset();
-                setAdding(true);
-              }}
-            >
+            <Button variant="primary" onClick={() => setAdding(true)}>
               <PlusIcon className="size-4" /> Record consent
             </Button>
           )
         }
       />
-
-      <ComplianceNav />
 
       {records.error && (
         <ErrorState error={records.error} onRetry={() => void records.refetch()} />
@@ -468,15 +393,12 @@ export function ConsentPage() {
 
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <Panel className="min-w-0 lg:order-last">
-          <PanelHeader title="Look up a number" hint="Works even after an erasure request." />
+          <PanelHeader
+            title="Consent history for a number"
+            hint="Matched on a hash, so it still resolves after an erasure request."
+          />
           <div className="space-y-4 p-4">
-            <form
-              className="space-y-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (phone.trim()) lookup.mutate(phone.trim());
-              }}
-            >
+            <form className="space-y-3" onSubmit={(e) => e.preventDefault()}>
               <Field label="Phone number" htmlFor="consent-phone">
                 <Input
                   id="consent-phone"
@@ -488,11 +410,12 @@ export function ConsentPage() {
                 />
               </Field>
               <Button
-                type="submit"
+                type="button"
                 variant="primary"
                 className="w-full"
                 disabled={!phone.trim()}
                 loading={lookup.isPending}
+                onClick={() => lookup.mutate(phone.trim())}
               >
                 Look up
               </Button>
@@ -503,7 +426,7 @@ export function ConsentPage() {
 
             {lookup.data &&
               (lookup.data.length === 0 ? (
-                <p role="status" className="rounded-xl bg-[#fdeaea] px-4 py-3 text-sm text-rust">
+                <p role="status" className="rounded-xl bg-bad-soft px-4 py-3 text-sm text-rust">
                   No consent on file for this number.
                 </p>
               ) : (
@@ -513,17 +436,7 @@ export function ConsentPage() {
                       key={c.id}
                       record={c}
                       canEdit={canEdit}
-                      onRevoke={() =>
-                        revoke.mutate(
-                          { id: c.id },
-                          {
-                            // Look up again so the card shows the new state.
-                            onSuccess: () => {
-                              if (lookup.variables) lookup.mutate(lookup.variables);
-                            },
-                          },
-                        )
-                      }
+                      onRevoke={() => revoke.mutate({ id: c.id })}
                       revoking={revoke.isPending}
                     />
                   ))}
@@ -543,57 +456,32 @@ export function ConsentPage() {
           {rows.length > 0 && (
             <div className="overflow-x-auto">
               <table className="table">
-                <thead>
-                  <tr>
-                    <th>Number</th>
-                    <th>Type</th>
-                    <th>Scope</th>
-                    <th>Status</th>
-                    <th>Captured</th>
-                  </tr>
-                </thead>
                 <tbody>
                   {rows.map((c) => (
                     <tr key={c.id}>
-                      <td className="num font-medium text-chalk">{c.phone_e164 || "—"}</td>
-                      <td>{plain(CONSENT_TYPES, c.consent_type)}</td>
-                      <td>{plain(SCOPES, c.scope)}</td>
-                      <td><ConsentState active={c.is_active} /></td>
-                      <td title={formatDateTime(c.captured_at)}>
-                        {formatRelative(c.captured_at)}
+                      <td className="num font-medium text-chalk">{c.phone_e164}</td>
+                      <td>
+                        {plain(c.consent_type)} · {c.scope}
                       </td>
+                      <td><ConsentState active={c.is_active} /></td>
+                      <td>{formatRelative(c.captured_at)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-          {records.data?.next && (
-            <p className="border-t border-edge px-4 py-3 text-xs text-ash-dim">
-              Showing the latest {rows.length}. Use the lookup to find older records.
-            </p>
-          )}
         </Panel>
       </div>
 
       {canEdit && adding && (
-        <Modal title="Record consent" onClose={() => setAdding(false)}>
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!form.phone_e164.trim() || !form.disclosure_text.trim() || !form.captured_at) {
-                return;
-              }
-              record.mutate(
-                {
-                  ...form,
-                  captured_at: new Date(form.captured_at).toISOString(),
-                } as never,
-                { onSuccess: () => setAdding(false) },
-              );
-            }}
-          >
+        <Modal
+          title="Record a consent event"
+          onClose={() => setAdding(false)}
+          closeOnEscape={false}
+          closeOnBackdrop={false}
+        >
+          <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 label="Phone number"
@@ -648,7 +536,7 @@ export function ConsentPage() {
             <Field
               label="Disclosure shown"
               htmlFor="c-disclosure"
-              hint="Paste the exact words the person agreed to. Do not paraphrase."
+              hint="The exact words the person agreed to. This is the field that matters in a dispute — paste it, do not paraphrase it."
               error={record.error?.messageFor("disclosure_text")}
             >
               <Textarea
@@ -665,14 +553,25 @@ export function ConsentPage() {
               <Button type="button" variant="ghost" onClick={() => setAdding(false)}>
                 Cancel
               </Button>
+              {/* An empty capture time cannot be converted to a date, so it
+                  also blocks the button. */}
               <Button
-                type="submit"
+                type="button"
                 variant="primary"
                 loading={record.isPending}
                 disabled={
                   !form.phone_e164.trim() ||
                   !form.disclosure_text.trim() ||
                   !form.captured_at
+                }
+                onClick={() =>
+                  record.mutate(
+                    {
+                      ...form,
+                      captured_at: new Date(form.captured_at).toISOString(),
+                    } as never,
+                    { onSuccess: () => setAdding(false) },
+                  )
                 }
               >
                 Record consent
@@ -707,10 +606,10 @@ function ConsentCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-medium text-chalk">
-            {plain(CONSENT_TYPES, record.consent_type)}
+            {plain(record.consent_type)}
           </p>
           <p className="num text-xs text-ash">
-            {plain(SCOPES, record.scope)} · {formatDateTime(record.captured_at)}
+            {record.scope} · {formatDateTime(record.captured_at)}
           </p>
         </div>
         <ConsentState active={record.is_active} />
@@ -722,36 +621,23 @@ function ConsentCard({
         </blockquote>
       )}
 
-      <dl className="num mt-3 space-y-0.5 break-all text-xs text-ash-dim">
-        <div className="flex gap-1.5">
-          <dt>Source:</dt>
-          <dd>{record.source}</dd>
-        </div>
-        {record.captured_ip && (
-          <div className="flex gap-1.5">
-            <dt>IP address:</dt>
-            <dd>{record.captured_ip}</dd>
-          </div>
-        )}
-        {record.evidence_ref && (
-          <div className="flex gap-1.5">
-            <dt>Evidence:</dt>
-            <dd>{record.evidence_ref}</dd>
-          </div>
-        )}
-      </dl>
+      <div className="num mt-3 flex flex-wrap gap-x-3 gap-y-0.5 break-all text-xs text-ash-dim">
+        <span>from {record.source}</span>
+        {record.captured_ip && <span>{record.captured_ip}</span>}
+        {record.evidence_ref && <span>evidence {record.evidence_ref}</span>}
+      </div>
 
       {canEdit && record.is_active && (
         <div className="mt-3">
           {confirming ? (
-            <div role="alert" className="rounded-lg bg-[#fdf1dc] px-3 py-3">
+            <div role="alert" className="rounded-lg bg-warn-soft px-3 py-3">
               <p className="text-sm text-amber">
-                Revoking also adds this number to the do-not-call list. Both happen
-                at once and neither can be undone from here.
+                Revoking also adds this number to suppression. Both happen at once
+                and neither can be undone from here.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button dense variant="danger" loading={revoking} onClick={onRevoke}>
-                  Revoke and block
+                  Revoke and suppress
                 </Button>
                 <Button dense onClick={() => setConfirming(false)}>
                   Cancel
@@ -790,14 +676,8 @@ export function CallingWindowsPage() {
     save.error?.messageFor("jurisdiction") ?? save.error?.messageFor("end_local");
 
   const addButton = canEdit && (
-    <Button
-      variant="primary"
-      onClick={() => {
-        save.reset();
-        setAdding(true);
-      }}
-    >
-      <PlusIcon className="size-4" /> Add hours
+    <Button variant="primary" onClick={() => setAdding(true)}>
+      <PlusIcon className="size-4" /> Add a window
     </Button>
   );
 
@@ -805,11 +685,9 @@ export function CallingWindowsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Calling hours"
-        subtitle="Set in the local time of the person called."
+        subtitle="Resolved in the called party's local time, per contact. Your window can only tighten a jurisdiction's rules — never widen them."
         actions={addButton}
       />
-
-      <ComplianceNav />
 
       {windows.error && (
         <ErrorState error={windows.error} onRetry={() => void windows.refetch()} />
@@ -822,8 +700,8 @@ export function CallingWindowsPage() {
       )}
       {windows.data && rows.length === 0 && (
         <EmptyState
-          title="Using the default hours"
-          description="Calls are allowed 8am to 9pm in the called person's local time."
+          title="No overrides set"
+          description="Without an override, the platform default applies: 8am to 9pm in the called party's local time."
         />
       )}
 
@@ -865,30 +743,16 @@ export function CallingWindowsPage() {
 
       {canEdit && adding && (
         <Modal
-          title="Add calling hours"
-          subtitle="You can narrow the legal hours, never widen them."
+          title="Add a window"
           onClose={() => setAdding(false)}
+          closeOnEscape={false}
+          closeOnBackdrop={false}
         >
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!form.jurisdiction.trim()) return;
-              save.mutate(
-                {
-                  jurisdiction: form.jurisdiction,
-                  start_local: `${form.start_local}:00`,
-                  end_local: `${form.end_local}:00`,
-                  weekdays: form.weekdays,
-                },
-                { onSuccess: () => setAdding(false) },
-              );
-            }}
-          >
+          <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
             <Field
-              label="Region"
+              label="Jurisdiction"
               htmlFor="j"
-              hint="For example US, US-FL or KE"
+              hint="US, US-FL, KE"
               error={save.error?.messageFor("jurisdiction")}
             >
               <Input
@@ -944,7 +808,7 @@ export function CallingWindowsPage() {
                       className={cx(
                         "press min-h-10 rounded-xl border text-sm",
                         on
-                          ? "border-forest bg-forest text-white"
+                          ? "neon border-transparent"
                           : "border-edge bg-panel text-ash hover:border-edge-bright",
                       )}
                     >
@@ -962,12 +826,23 @@ export function CallingWindowsPage() {
                 Cancel
               </Button>
               <Button
-                type="submit"
+                type="button"
                 variant="primary"
                 loading={save.isPending}
                 disabled={!form.jurisdiction.trim()}
+                onClick={() =>
+                  save.mutate(
+                    {
+                      jurisdiction: form.jurisdiction,
+                      start_local: `${form.start_local}:00`,
+                      end_local: `${form.end_local}:00`,
+                      weekdays: form.weekdays,
+                    },
+                    { onSuccess: () => setAdding(false) },
+                  )
+                }
               >
-                Save hours
+                Save window
               </Button>
             </ModalActions>
           </form>

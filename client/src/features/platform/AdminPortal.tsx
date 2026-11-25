@@ -16,11 +16,10 @@
  */
 
 import { useEffect, useState } from "react";
-import { Link, NavLink, Navigate, useNavigate, useParams, useLocation } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams, useLocation } from "react-router-dom";
 
 import {
   ChevronIcon,
-  HomeIcon,
   LogOutIcon,
   MenuIcon,
   PhoneOutIcon,
@@ -40,9 +39,7 @@ import {
   PanelHeader,
   TableSkeleton,
   cx,
-  Stat,
 } from "@/components/ui";
-import type { ApiError } from "@/lib/errors";
 import {
   useCreateRow,
   useDeleteRow,
@@ -56,7 +53,7 @@ import {
 } from "@/lib/queries/platform";
 import { useSession } from "@/lib/session";
 
-import { RecordForm, editableFields } from "./RecordForm";
+import { RecordForm } from "./RecordForm";
 
 // ---------------------------------------------------------------- helpers
 
@@ -80,15 +77,6 @@ function humanise(name: string): string {
 
 function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-/** The label for one of something, for "Add …" buttons. */
-function singular(label: string): string {
-  return label
-    .replace(/\bPeople$/i, "person")
-    .replace(/ies$/, "y")
-    .replace(/s$/, "")
-    .toLowerCase();
 }
 
 function groupResources(resources: ResourceSchema[]) {
@@ -139,7 +127,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             type="button"
             aria-label="Close menu"
             onClick={() => setDrawerOpen(false)}
-            className="absolute inset-0 bg-forest/55 backdrop-blur-sm"
+            className="absolute inset-0 bg-scrim/75 backdrop-blur-sm"
           />
           <div className="surface-forest settle absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col rounded-r-[var(--radius-shell)]">
             {sidebar}
@@ -147,8 +135,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col bg-void lg:rounded-[var(--radius-shell)]">
-        <header className="m-3 mb-0 flex min-h-16 shrink-0 items-center gap-3 rounded-3xl border border-edge/70 bg-panel px-4 shadow-[var(--shadow-card)] lg:mx-6 lg:mt-5 lg:px-5">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="m-3 mb-0 flex min-h-14 shrink-0 items-center gap-3 lg:mx-6 lg:mt-1">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
@@ -159,17 +147,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <MenuIcon />
           </button>
 
-          <div className="hidden leading-tight md:block">
-            <div className="text-xs font-semibold text-ash-dim">Today</div>
-            <div className="display text-base text-chalk">
-              {new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
-            </div>
-          </div>
-
-          <div className="ml-auto flex min-w-0 items-center gap-3">
+          <div className="card ml-auto flex min-w-0 items-center gap-3 rounded-full border border-edge bg-panel/80 p-1.5 pl-5 backdrop-blur-md">
             <div className="min-w-0 text-right leading-tight">
-              <div className="truncate text-sm font-medium text-chalk">{name}</div>
-              <div className="truncate text-xs text-ash-dim">System administrator</div>
+              <div className="truncate text-sm font-medium text-chalk">Signed in as {name}</div>
             </div>
             <span
               aria-hidden
@@ -194,7 +174,7 @@ const NAV_IDLE = "text-white/75 hover:bg-white/10 hover:text-white";
 function navClass({ isActive }: { isActive: boolean }) {
   return cx(
     NAV_ITEM,
-    isActive ? "bg-white text-forest shadow-[var(--shadow-raised)]" : NAV_IDLE,
+    isActive ? "nav-active" : NAV_IDLE,
   );
 }
 
@@ -208,26 +188,22 @@ function AdminSidebar({
   return (
     <>
       <Link to="/admin" className="flex h-20 shrink-0 items-center gap-3 px-6">
-        <span className="flex size-11 items-center justify-center rounded-2xl bg-mint text-forest">
+        <span className="flex size-11 items-center justify-center rounded-2xl neon">
           <SettingsIcon className="size-6" />
         </span>
-        <span className="display text-lg text-white">Administration</span>
+        <span className="display text-lg leading-tight text-white">System administration</span>
       </Link>
 
       <nav className="flex-1 space-y-1.5 overflow-y-auto px-4 py-2" aria-label="Administration sections">
-        <NavLink to="/admin" end className={navClass}>
-          <HomeIcon />
-          Overview
-        </NavLink>
         {groupResources(resources).map(([group, items]) => (
           <AdminNavGroup key={group} group={group} items={items} />
         ))}
       </nav>
 
       <div className="m-4 mt-2 space-y-1 rounded-3xl bg-white/[0.07] p-2">
-        <Link to="/dashboard" className={cx(NAV_ITEM, NAV_IDLE)}>
+        <Link to="/campaigns" className={cx(NAV_ITEM, NAV_IDLE)}>
           <PhoneOutIcon />
-          Calling portal
+          Go to the campaigns portal
         </Link>
         <button
           type="button"
@@ -245,40 +221,30 @@ function AdminSidebar({
 function AdminNavGroup({ group, items }: { group: string; items: ResourceSchema[] }) {
   const { pathname } = useLocation();
   // Open the group by default if it contains the currently active page.
-  const isActive = items.some(
-    (r) => pathname === `/admin/${r.resource}` || pathname.startsWith(`/admin/${r.resource}/`),
-  );
-  const [open, setOpen] = useState(isActive);
-
-  useEffect(() => {
-    if (isActive) setOpen(true);
-  }, [isActive]);
+  const isActive = items.some((r) => pathname.startsWith(`/admin/${r.resource}`));
 
   return (
-    <div>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="press mt-3 flex min-h-11 w-full items-center justify-between rounded-full px-4 text-[11px] font-bold uppercase tracking-widest text-white/60 hover:text-white"
-      >
+    <details open={isActive} className="group">
+      <summary className="press mt-3 flex min-h-11 w-full cursor-pointer select-none list-none items-center justify-between rounded-full px-4 text-[11px] font-bold uppercase tracking-widest text-white/60 hover:text-white [&::-webkit-details-marker]:hidden">
         {group}
-        <ChevronIcon className={cx("size-4 transition-transform", open && "rotate-180")} />
-      </button>
-      {open && (
-        <div className="space-y-1">
-          {items.map((r) => (
-            <NavLink
+        <ChevronIcon className="size-4 transition-transform group-open:rotate-180" />
+      </summary>
+      <div className="space-y-1">
+        {items.map((r) => {
+          const isCurrent = pathname.startsWith(`/admin/${r.resource}`);
+          return (
+            <Link
               key={r.resource}
               to={`/admin/${r.resource}`}
-              className={(state) => cx(navClass(state), "pl-6")}
+              aria-current={isCurrent ? "page" : undefined}
+              className={cx(navClass({ isActive: isCurrent }), "pl-6")}
             >
               {r.label}
-            </NavLink>
-          ))}
-        </div>
-      )}
-    </div>
+            </Link>
+          );
+        })}
+      </div>
+    </details>
   );
 }
 
@@ -291,7 +257,10 @@ export function AdminOverviewPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Overview" subtitle="Changes apply immediately and are logged." />
+      <PageHeader
+        title="Everything in the system"
+        subtitle="You can view, add, change and remove any record here, across every organisation. Changes take effect immediately and are recorded in the audit log."
+      />
 
       {schema.error && <ErrorState error={schema.error} onRetry={() => void schema.refetch()} />}
       {overview.error && (
@@ -301,19 +270,6 @@ export function AdminOverviewPage() {
         <Panel>
           <TableSkeleton rows={6} />
         </Panel>
-      )}
-
-      {resources.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {resources.slice(0, 4).map((r) => (
-            <Stat
-              key={r.resource}
-              label={r.label}
-              value={String(overview.data?.counts?.[r.resource] ?? "—")}
-              to={`/admin/${r.resource}`}
-            />
-          ))}
-        </div>
       )}
 
       <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -357,14 +313,11 @@ function ResourceGate({
 }: {
   children: (schema: ResourceSchema) => React.ReactNode;
 }) {
-  const { resource = "", id } = useParams();
+  const { resource = "" } = useParams();
   const { data, error, refetch } = usePlatformSchema();
   const schema = data?.resources.find((r) => r.resource === resource);
 
-  if (schema) {
-    // Keyed so a search box or a revealed code never carries over to another page.
-    return <div key={`${resource}/${id ?? ""}`}>{children(schema)}</div>;
-  }
+  if (schema) return <>{children(schema)}</>;
   if (error) return <ErrorState error={error} onRetry={() => void refetch()} />;
   if (data) return <EmptyState title="No such section" />;
   return (
@@ -372,15 +325,6 @@ function ResourceGate({
       <TableSkeleton />
     </Panel>
   );
-}
-
-/** A save error that no single field on the form is able to show. */
-function FormError({ error, schema }: { error: ApiError | null; schema: ResourceSchema }) {
-  if (!error) return null;
-  const shown = new Set(editableFields(schema).map((f) => f.name));
-  const names = Object.keys(error.fieldErrors ?? {});
-  if (names.length > 0 && names.every((n) => shown.has(n))) return null;
-  return <ErrorState error={error} />;
 }
 
 // ---------------------------------------------------------------- list
@@ -397,26 +341,21 @@ function ResourceList({ schema }: { schema: ResourceSchema }) {
   const rows = data?.results ?? [];
   const total = data?.count;
 
-  const subtitle = [
-    total == null
-      ? data && `${rows.length} shown`
-      : total > rows.length
-        ? `Showing ${rows.length} of ${total} records`
-        : `${total} record${total === 1 ? "" : "s"}`,
-    schema.readonly && "View only",
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const subtitle =
+    (total != null
+      ? `${total} record${total === 1 ? "" : "s"}`
+      : `${rows.length} shown`) +
+    (schema.readonly ? " · view only, this record cannot be changed" : "");
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={schema.label}
-        subtitle={subtitle || undefined}
+        subtitle={subtitle}
         actions={
           !schema.readonly && (
             <Button variant="primary" onClick={() => navigate(`/admin/${resource}/new`)}>
-              <PlusIcon className="size-4" /> Add {singular(schema.label)}
+              <PlusIcon className="size-4" /> Add {schema.label.replace(/s$/, "").toLowerCase()}
             </Button>
           )
         }
@@ -424,11 +363,9 @@ function ResourceList({ schema }: { schema: ResourceSchema }) {
 
       {schema.search.length > 0 && (
         <Input
-          type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={`Search by ${schema.search.map(humanise).join(", ")}`}
-          aria-label={`Search ${schema.label}`}
           className="max-w-md"
         />
       )}
@@ -441,9 +378,9 @@ function ResourceList({ schema }: { schema: ResourceSchema }) {
         </Panel>
       )}
 
-      {data && rows.length === 0 && (
+      {!isLoading && rows.length === 0 && (
         <EmptyState
-          title={search ? "Nothing matched that search" : "There is nothing here yet"}
+          title={search ? "Nothing matched that search." : "There is nothing here yet."}
         />
       )}
 
@@ -466,26 +403,21 @@ function ResourceList({ schema }: { schema: ResourceSchema }) {
                       const text = cell(row[c]);
                       return (
                         <td key={c}>
-                          {i === 0 ? (
-                            <Link
-                              to={`/admin/${resource}/${row.id}`}
-                              title={text}
-                              className="flex min-h-9 max-w-64 items-center font-medium text-chalk hover:text-signal"
-                            >
-                              <span className="truncate">{text}</span>
-                            </Link>
-                          ) : (
-                            <span title={text} className="block max-w-64 truncate">
-                              {text}
-                            </span>
-                          )}
+                          <span
+                            title={text}
+                            className={cx(
+                              "block max-w-64 truncate",
+                              i === 0 && "font-medium text-chalk",
+                            )}
+                          >
+                            {text}
+                          </span>
                         </td>
                       );
                     })}
                     <td className="text-right">
                       <Link
                         to={`/admin/${resource}/${row.id}`}
-                        aria-label={`${schema.readonly ? "View" : "Change"} ${row.display ?? cell(row[schema.columns[0] ?? "id"])}`}
                         className="press inline-flex min-h-9 items-center rounded-lg px-3 text-sm font-medium text-signal ring-1 ring-inset ring-edge hover:bg-live"
                       >
                         {schema.readonly ? "View" : "Change"}
@@ -510,26 +442,13 @@ export function AdminCreatePage() {
 
 /** A one-time sign-in code with its copy button. */
 function SignInCode({ code }: { code: string }) {
-  const [copied, setCopied] = useState(false);
-
   return (
     <div role="status" className="flex flex-wrap items-center gap-3">
       <code className="rounded-xl bg-live px-4 py-2.5 font-mono text-2xl tracking-[0.3em] text-live-bright">
         {code}
       </code>
-      <Button
-        type="button"
-        onClick={async () => {
-          try {
-            await navigator.clipboard.writeText(code);
-            setCopied(true);
-          } catch {
-            // The code stays on screen to be copied by hand.
-            setCopied(false);
-          }
-        }}
-      >
-        {copied ? "Copied" : "Copy"}
+      <Button type="button" onClick={() => navigator.clipboard?.writeText(code)}>
+        Copy
       </Button>
     </div>
   );
@@ -551,14 +470,17 @@ function ResourceCreate({ schema }: { schema: ResourceSchema }) {
         <Panel accent className="space-y-4 p-5">
           <p className="text-sm text-ash">
             Give this person their sign-in details. The code is shown{" "}
-            <strong className="text-chalk">once</strong>. It cannot be read again,
-            only reset.
+            <strong className="text-chalk">once</strong> — it cannot be read
+            again, only reset.
           </p>
           <p className="break-words text-sm">
             <span className="text-ash">Name:</span>{" "}
             <strong className="text-chalk">{issued.name}</strong>
           </p>
-          <SignInCode code={issued.code} />
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm text-ash">Code:</span>
+            <SignInCode code={issued.code} />
+          </div>
           <div className="flex flex-wrap justify-end gap-2 border-t border-edge pt-4">
             <Button type="button" onClick={() => setIssued(null)}>
               Add another
@@ -576,10 +498,10 @@ function ResourceCreate({ schema }: { schema: ResourceSchema }) {
     <div className="max-w-3xl space-y-6">
       <div className="space-y-2">
         <BackLink to={`/admin/${resource}`}>Back to {schema.label.toLowerCase()}</BackLink>
-        <PageHeader title={`Add ${singular(schema.label)}`} />
+        <PageHeader title={`Add ${schema.label.replace(/s$/, "").toLowerCase()}`} />
       </div>
 
-      <FormError error={create.error} schema={schema} />
+      {create.error && !create.error.fieldErrors && <ErrorState error={create.error} />}
 
       <RecordForm
         schema={schema}
@@ -653,7 +575,7 @@ function ResourceEdit({ schema }: { schema: ResourceSchema }) {
         {error && error.status !== 404 ? (
           <ErrorState error={error} onRetry={() => void refetch()} />
         ) : (
-          <EmptyState title="That record was not found" />
+          <EmptyState title="That record was not found." />
         )}
       </div>
     );
@@ -671,7 +593,7 @@ function ResourceEdit({ schema }: { schema: ResourceSchema }) {
         />
       </div>
 
-      <FormError error={update.error} schema={schema} />
+      {update.error && !update.error.fieldErrors && <ErrorState error={update.error} />}
 
       <div
         className={cx(
@@ -681,7 +603,6 @@ function ResourceEdit({ schema }: { schema: ResourceSchema }) {
       >
         {schema.readonly ? (
           <Panel className="min-w-0 overflow-hidden">
-            <PanelHeader title="Details" action={<Badge>View only</Badge>} />
             <dl className="divide-y divide-edge text-sm">
               {schema.fields.map((f) => (
                 <div key={f.name} className="grid gap-1 px-4 py-3 sm:grid-cols-[14rem_1fr] sm:gap-3">
@@ -715,8 +636,9 @@ function ResourceEdit({ schema }: { schema: ResourceSchema }) {
                 <PanelHeader title="Sign-in code" />
                 <div className="space-y-3 p-4">
                   <p className="text-sm text-ash">
-                    Codes cannot be read back. A reset stops the old one
-                    immediately and shows the new one once.
+                    A code can't be read back — it's stored hashed. Reset to
+                    issue a new one and show it here once; the old code stops
+                    working immediately.
                   </p>
                   {newCode ? (
                     <SignInCode code={newCode} />
@@ -746,8 +668,8 @@ function ResourceEdit({ schema }: { schema: ResourceSchema }) {
                   {!confirming ? (
                     <>
                       <p className="text-sm text-ash">
-                        Removes it and everything that belongs to it. This cannot
-                        be undone.
+                        Permanently removes it, along with anything that belongs
+                        to it. This cannot be undone.
                       </p>
                       <Button
                         type="button"
@@ -800,7 +722,7 @@ export function RequireAdmin({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
-        <PulseLoader label="Loading" />
+        <PulseLoader label="Loading…" />
       </div>
     );
   }

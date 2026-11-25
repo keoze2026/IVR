@@ -5,7 +5,7 @@
 
 import { useMemo, useState } from "react";
 
-import { EditIcon, HashIcon, PlusIcon, SoundIcon } from "@/components/icons";
+import { HashIcon, SoundIcon } from "@/components/icons";
 import {
   Button,
   EmptyState,
@@ -46,9 +46,9 @@ function PoolsPage({ kind }: { kind: Kind }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Pool | null>(null);
 
-  const title = isAudio ? "Audio" : "Number pools";
-  const addLabel = isAudio ? "Add audio" : "Add pool";
-  const unit = isAudio ? "file" : "number";
+  const title = isAudio ? "Audio Pools" : "CLI Pools";
+  const addLabel = isAudio ? "Add Audio Pool" : "Add CLI Pool";
+  const memberHead = isAudio ? "Files" : "Numbers";
   const Glyph = isAudio ? SoundIcon : HashIcon;
 
   const rows = useMemo(() => {
@@ -61,20 +61,18 @@ function PoolsPage({ kind }: { kind: Kind }) {
     <div className="space-y-6">
       <PageHeader
         title={title}
-        subtitle={isAudio ? "Recordings your jobs can play." : "Groups of numbers to rotate between."}
         actions={
           <Button type="button" variant="primary" onClick={() => setAdding(true)}>
-            <PlusIcon className="size-4" /> {addLabel}
+            {addLabel} +
           </Button>
         }
       />
 
       <Input
-        type="search"
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
-        placeholder="Search by name"
-        aria-label="Search by name"
+        placeholder="Filter by name..."
+        aria-label="Filter by name"
         className="max-w-sm"
       />
 
@@ -86,16 +84,10 @@ function PoolsPage({ kind }: { kind: Kind }) {
         </Panel>
       )}
 
-      {list.data && rows.length === 0 && (
+      {!list.isLoading && rows.length === 0 && (
         <EmptyState
-          title={filter.trim() ? "No matches" : "Nothing here yet"}
-          description={
-            filter.trim()
-              ? "Try another name."
-              : isAudio
-                ? "Add audio to play it on calls."
-                : "Add a pool to rotate numbers."
-          }
+          title="No results."
+          description={`Add ${isAudio ? "an audio" : "a CLI"} pool to get started.`}
         />
       )}
 
@@ -105,32 +97,29 @@ function PoolsPage({ kind }: { kind: Kind }) {
             <li key={p.id} className="min-w-0">
               <Panel className="flex h-full flex-col">
                 <div className="flex items-start gap-3 p-5">
+                  <input type="checkbox" className="mt-3 shrink-0" />
                   <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-live text-live-bright">
                     <Glyph />
                   </span>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
+                    <span className="eyebrow block">Name</span>
                     <h2 className="display break-words text-base text-chalk">{p.name}</h2>
-                    <p className="num text-sm text-ash">
-                      {p.member_count} {p.member_count === 1 ? unit : `${unit}s`}
-                    </p>
                   </div>
-                </div>
-                <div className="mt-auto flex items-center justify-between gap-3 border-t border-edge px-5 py-3">
-                  <p className="min-w-0 break-words text-xs text-ash-dim">
-                    {p.user ? `${p.user} · ` : ""}
-                    {formatDateTime(p.created_at)}
-                  </p>
-                  <Button
-                    dense
-                    aria-label={`Edit ${p.name}`}
-                    onClick={() => {
-                      remove.reset();
-                      setEditing(p);
-                    }}
-                  >
-                    <EditIcon className="size-4" /> Edit
+                  <Button dense aria-label="Actions" onClick={() => {
+                    remove.reset();
+                    setEditing(p);
+                  }}>
+                    ⋯
                   </Button>
                 </div>
+                <dl className="mt-auto grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 border-t border-edge px-5 py-3 text-sm">
+                  <dt className="eyebrow self-center">{memberHead}</dt>
+                  <dd className="num text-right text-ash">{p.member_count}</dd>
+                  <dt className="eyebrow self-center">User</dt>
+                  <dd className="min-w-0 break-words text-right text-ash">{p.user || "—"}</dd>
+                  <dt className="eyebrow self-center">Created</dt>
+                  <dd className="text-right text-ash">{formatDateTime(p.created_at)}</dd>
+                </dl>
               </Panel>
             </li>
           ))}
@@ -145,8 +134,7 @@ function PoolsPage({ kind }: { kind: Kind }) {
             setAdding(false);
             setEditing(null);
           }}
-          deleting={remove.isPending}
-          deleteError={remove.error}
+          deleteError={editing ? remove.error : null}
           onDelete={
             editing
               ? async () => {
@@ -167,14 +155,12 @@ function PoolModal({
   pool,
   onClose,
   onDelete,
-  deleting,
   deleteError,
 }: {
   kind: Kind;
   pool: Pool | null;
   onClose: () => void;
   onDelete?: () => void;
-  deleting: boolean;
   deleteError: Error | null;
 }) {
   const isAudio = kind === "audio";
@@ -188,7 +174,6 @@ function PoolModal({
 
   const [name, setName] = useState(pool?.name ?? "");
   const [selected, setSelected] = useState<string[]>(pool?.members ?? []);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const memberOptions = isAudio
     ? (clips.data?.results ?? []).map((c) => ({ id: c.id, label: c.name }))
@@ -212,8 +197,9 @@ function PoolModal({
 
   return (
     <Modal
-      title={pool ? `Edit ${pool.name}` : isAudio ? "Add audio" : "Add number pool"}
+      title={pool ? "Edit pool" : isAudio ? "Add Audio Pool" : "Add CLI Pool"}
       onClose={onClose}
+      closeOnEscape={false}
     >
       <div className="space-y-4">
         <Field label="Name" htmlFor="pool-name">
@@ -221,7 +207,7 @@ function PoolModal({
             id="pool-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={isAudio ? "e.g. Welcome message" : "e.g. US numbers"}
+            placeholder={isAudio ? "e.g. WOW" : "e.g. global-cli-pool"}
             autoFocus
           />
         </Field>
@@ -243,10 +229,10 @@ function PoolModal({
         )}
 
         <fieldset className="min-w-0">
-          <legend className="eyebrow mb-1.5">{isAudio ? "Files" : "Numbers"}</legend>
+          <legend className="eyebrow mb-1.5">{isAudio ? "Files in this pool" : "Numbers in this pool"}</legend>
           {memberOptions.length === 0 ? (
             <p className="text-sm text-ash">
-              {isAudio ? "Upload a sound above to add it." : "Add a number first."}
+              {isAudio ? "Upload a sound above to add it." : "Add a caller ID first."}
             </p>
           ) : (
             <div className="max-h-56 divide-y divide-edge overflow-y-auto rounded-xl border border-edge">
@@ -279,46 +265,27 @@ function PoolModal({
           <p role="alert" className="text-sm text-rust">{deleteError.message}</p>
         )}
 
-        {confirmingDelete && onDelete ? (
-          <div role="alert" className="rounded-xl bg-[#fdeaea] p-3">
-            <p className="text-sm text-rust">Delete this pool? This cannot be undone.</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button dense type="button" variant="danger" loading={deleting} onClick={onDelete}>
-                Yes, delete
-              </Button>
-              <Button dense type="button" onClick={() => setConfirmingDelete(false)}>
-                Keep it
-              </Button>
-            </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-edge pt-4">
+          {onDelete ? (
+            <Button type="button" variant="ghost" className="!text-rust" onClick={onDelete}>
+              Delete
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={save}
+              loading={create.isPending || update.isPending}
+              disabled={!name}
+            >
+              {pool ? "Save" : "Create"}
+            </Button>
           </div>
-        ) : (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-edge pt-4">
-            {onDelete ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className="!text-rust"
-                onClick={() => setConfirmingDelete(true)}
-              >
-                Delete
-              </Button>
-            ) : (
-              <span />
-            )}
-            <div className="flex gap-2">
-              <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-              <Button
-                type="button"
-                variant="primary"
-                onClick={save}
-                loading={create.isPending || update.isPending}
-                disabled={!name}
-              >
-                {pool ? "Save" : "Create"}
-              </Button>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
     </Modal>
   );

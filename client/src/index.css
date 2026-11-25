@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
-/* Plus Jakarta Sans for the interface, Roboto Mono for codes. Self-hosted, so
-   the portal never depends on a font CDN. */
+/* Space Grotesk for headings and figures, Plus Jakarta Sans for text, Roboto
+   Mono for codes. Self-hosted, so the portal never depends on a font CDN. */
+@import "@fontsource-variable/space-grotesk";
 @import "@fontsource-variable/plus-jakarta-sans";
 @import "@fontsource/roboto-mono/400.css";
 @import "@fontsource/roboto-mono/500.css";
@@ -9,61 +10,76 @@
 /*
  * Outbound IVR — operator portal.
  *
- * A deep forest sidebar, a soft mint canvas and large rounded white cards, with
- * emerald for actions and state. Token names are shared by every screen, so the
- * look is changed here and in components/ui.
+ * A deep-space canvas with a faint grid, glass cards with lit edges, and a
+ * teal-to-sky glow for actions and the current selection. Token names are shared
+ * by every screen, so the look is changed here and in components/ui.
  */
 
 @theme {
-  --color-void: #f4f8f6;
-  --color-panel: #ffffff;
-  --color-raised: #edf4f1;
-  --color-edge: #e4ede9;
-  --color-edge-bright: #d0dfd8;
+  --color-void: #0a1120;
+  --color-panel: #0e1728;
+  --color-raised: #16233b;
+  --color-edge: #1d2d49;
+  --color-edge-bright: #2c4268;
 
-  --color-signal: #0f7a57;
-  --color-signal-dim: #0b5f44;
-  --color-live: #e0f5ec;
-  --color-live-bright: #0f7a57;
+  --color-signal: #2ee6c5;
+  --color-signal-dim: #17a992;
+  --color-sky: #38bdf8;
+  --color-live: #0c3034;
+  --color-live-bright: #43eecb;
 
-  /* The dark surfaces: sidebar and feature cards. */
-  --color-forest: #0e3a2f;
-  --color-forest-soft: #175445;
-  --color-mint: #86efc1;
+  /* Icon chips and the dark feature surfaces. */
+  --color-forest: #132642;
+  --color-forest-soft: #1b3457;
+  --color-mint: #5ef5d4;
+  --color-ink: #03121a;
+  --color-scrim: #02060f;
 
-  --color-chalk: #0d1f18;
-  --color-ash: #4b6057;
-  --color-ash-dim: #62766d;
+  --color-chalk: #eaf2ff;
+  --color-ash: #a3b5d2;
+  --color-ash-dim: #8296b8;
 
-  --color-amber: #96590a;
-  --color-rust: #c53434;
+  --color-amber: #ffc457;
+  --color-rust: #ff7284;
+  --color-info: #7cc4ff;
+  --color-warn-soft: #2f2412;
+  --color-bad-soft: #33141f;
+  --color-info-soft: #0f2845;
 
-  /* Chart fills. Validated together for colour-blind separation; always
-     paired with a text label. */
-  --color-chart-answered: #0f9d6b;
-  --color-chart-missed: #e0930f;
-  --color-chart-failed: #d64545;
+  /* Chart fills. Validated together on the card colour for colour-blind
+     separation; always paired with a text label. */
+  --color-chart-answered: #0e9f8c;
+  --color-chart-missed: #bd7c0a;
+  --color-chart-failed: #d94668;
 
-  --font-display: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk Variable", "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Roboto Mono", ui-monospace, "SF Mono", monospace;
 
-  --color-backdrop: #e9f1ed;
+  --color-backdrop: #050a15;
 
-  --radius-shell: 28px;
-  --radius-card: 22px;
+  --radius-shell: 22px;
+  --radius-card: 18px;
 
-  --shadow-card: 0 1px 2px rgb(14 58 47 / 0.05), 0 14px 34px -18px rgb(14 58 47 / 0.18);
-  --shadow-raised: 0 10px 22px -10px rgb(14 58 47 / 0.55);
+  --shadow-card: inset 0 1px 0 rgb(148 197 255 / 0.08), 0 22px 44px -26px rgb(0 0 0 / 0.85);
+  --shadow-raised: 0 0 0 1px rgb(94 245 212 / 0.2), 0 18px 44px -20px rgb(46 230 197 / 0.45);
 }
 
 @layer base {
   html {
-    color-scheme: light;
+    color-scheme: dark;
   }
 
   body {
     background-color: var(--color-backdrop);
+    /* Two soft light sources over a faint engineering grid. */
+    background-image:
+      radial-gradient(60rem 42rem at 88% -12%, rgb(56 189 248 / 0.17), transparent 62%),
+      radial-gradient(52rem 40rem at 8% 108%, rgb(46 230 197 / 0.13), transparent 62%),
+      linear-gradient(rgb(120 170 255 / 0.055) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(120 170 255 / 0.055) 1px, transparent 1px);
+    background-size: auto, auto, 44px 44px, 44px 44px;
+    background-attachment: fixed;
     color: var(--color-chalk);
     font-family: var(--font-sans);
     font-size: 15px;
@@ -78,14 +94,16 @@
 
   .display {
     font-family: var(--font-display);
-    font-weight: 800;
-    letter-spacing: -0.025em;
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
 
   /* Small field and section labels. */
   .eyebrow {
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
     line-height: 1.3;
     color: var(--color-ash-dim);
   }
@@ -98,7 +116,7 @@
 
   ::selection {
     background: var(--color-mint);
-    color: var(--color-forest);
+    color: var(--color-ink);
   }
 
   * {
@@ -109,7 +127,7 @@
   /* Native selects get the same chevron everywhere. */
   select:not([multiple]) {
     appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234b6057' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a3b5d2' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 12px center;
     background-size: 16px;
@@ -143,7 +161,7 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--color-ash-dim);
-    background: var(--color-void);
+    background: rgb(120 170 255 / 0.06);
     border-top: 1px solid var(--color-edge);
     border-bottom: 1px solid var(--color-edge);
   }
@@ -163,15 +181,47 @@
     transition: background-color 140ms ease-out;
   }
   .table tbody tr:hover {
-    background: #f7fbf9;
+    background: rgb(46 230 197 / 0.06);
   }
 
-  /* The dark feature surface used by the sidebar and highlight cards. */
+  /* The lit feature surface used by the sidebar and highlight cards. */
   .surface-forest {
     color: #fff;
     background:
-      radial-gradient(120% 80% at 100% 0%, rgb(134 239 193 / 0.18), transparent 55%),
-      linear-gradient(165deg, var(--color-forest-soft), var(--color-forest) 60%);
+      radial-gradient(120% 70% at 100% 0%, rgb(56 189 248 / 0.2), transparent 55%),
+      radial-gradient(90% 55% at 0% 100%, rgb(46 230 197 / 0.16), transparent 60%),
+      linear-gradient(165deg, #11223d, #081020 65%);
+    border: 1px solid rgb(94 245 212 / 0.18);
+  }
+
+  /* Glass sheen on cards. */
+  .card {
+    background-image: linear-gradient(180deg, rgb(120 170 255 / 0.07), transparent 42%);
+  }
+
+  /* Primary actions, selected tabs and brand marks. */
+  .neon {
+    color: var(--color-ink);
+    background-image: linear-gradient(115deg, var(--color-signal), var(--color-sky));
+    box-shadow: 0 0 0 1px rgb(94 245 212 / 0.35), 0 8px 26px -8px rgb(46 230 197 / 0.7);
+  }
+  .neon:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+  .neon:disabled {
+    box-shadow: none;
+  }
+
+  /* The current screen in a sidebar. */
+  .nav-active {
+    color: #fff;
+    background-image: linear-gradient(90deg, rgb(46 230 197 / 0.24), rgb(56 189 248 / 0.07));
+    box-shadow: inset 0 0 0 1px rgb(94 245 212 / 0.42), 0 0 26px -10px rgb(46 230 197 / 0.8);
+  }
+
+  /* A soft glow under chart lines and sound bars. */
+  .glow {
+    filter: drop-shadow(0 0 6px rgb(46 230 197 / 0.65));
   }
 }
 
@@ -185,7 +235,7 @@
  * connected. A blank track reads as missing data; a hatched one reads as
  * headroom, which is what it is.
  *
- * Hard colour stops, not a blend — the palette has no gradients.
+ * Drawn with hard colour stops so it stays crisp.
  */
 @layer utilities {
   .hatch {

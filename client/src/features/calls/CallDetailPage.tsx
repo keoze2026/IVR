@@ -31,7 +31,6 @@ import { useCall, useCallEvents, useRecording } from "@/lib/queries/resources";
 import { useCan } from "@/lib/session";
 
 import { DispositionBadge } from "./CallsTable";
-import { answeredByLabel } from "./shared";
 
 export function CallDetailPage() {
   const { id } = useParams();
@@ -62,7 +61,7 @@ export function CallDetailPage() {
         <BackLink to="/calls">Calls</BackLink>
         <PageHeader
           title={call.to_masked}
-          subtitle={formatDateTime(call.created_at)}
+          subtitle={call.provider_call_sid}
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <StatusPill status={call.status} />
@@ -92,12 +91,12 @@ export function CallDetailPage() {
         <Stat label="Ring time" value={formatDuration(call.ring_seconds)} />
         <Stat
           label="Cost"
-          value={formatCost(call.cost, call.cost_currency)}
+          value={formatCost(call.cost, call.cost_currency, call.cost_reconciled)}
           tone={call.cost_reconciled ? undefined : "amber"}
           denominator={
             call.cost_reconciled
               ? undefined
-              : "Provisional. Not settled by the carrier yet, so it will rise."
+              : "The carrier has not settled this yet. The figure will rise."
           }
         />
       </div>
@@ -117,7 +116,7 @@ export function CallDetailPage() {
                     loading={recording.isPending}
                     className="shrink-0"
                   >
-                    Load
+                    Fetch
                   </Button>
                 }
               />
@@ -136,7 +135,7 @@ export function CallDetailPage() {
                   )}
                   {recording.data?.requires_carrier_auth && (
                     <p className="text-sm text-amber">
-                      Stored at the carrier. The link needs their credentials.
+                      Stored at the carrier — the link needs their credentials.
                     </p>
                   )}
                   {purged && (
@@ -183,47 +182,39 @@ export function CallDetailPage() {
             </div>
 
             {call.dtmf.length > 0 && (
-              <div className="overflow-x-auto border-t border-edge">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Key pressed</th>
-                      <th>Step</th>
-                      <th>Response time</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {call.dtmf.map((press, i) => (
-                      <tr key={i}>
-                        <td>
-                          <span className="flex items-center gap-2">
-                            <span
-                              className={cx(
-                                "num inline-flex min-w-8 items-center justify-center rounded-lg px-2 py-1 font-medium",
-                                press.is_valid
-                                  ? "bg-live text-live-bright"
-                                  : "bg-raised text-amber",
-                              )}
-                            >
-                              {press.digits}
-                            </span>
-                            {!press.is_valid && <Badge tone="warn">Invalid</Badge>}
-                          </span>
-                        </td>
-                        <td className="num">{press.node_id}</td>
-                        <td className="num">
-                          {press.latency_ms !== null ? `${press.latency_ms}ms` : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="border-t border-edge">
+                <div className="eyebrow px-5 pt-3">Keypresses</div>
+                <ul className="divide-y divide-edge">
+                  {call.dtmf.map((press, i) => (
+                    <li key={i} className="flex items-center gap-3 px-5 py-2.5 text-sm">
+                      <span
+                        className={cx(
+                          "num inline-flex min-w-8 items-center justify-center rounded-lg px-2 py-1 font-medium",
+                          press.is_valid
+                            ? "bg-live text-live-bright"
+                            : "bg-warn-soft text-amber",
+                        )}
+                      >
+                        {press.digits}
+                      </span>
+                      <span className="num break-all text-xs text-ash">{press.node_id}</span>
+                      {press.latency_ms !== null && (
+                        <span className="num ml-auto text-xs text-ash-dim">
+                          {press.latency_ms}ms
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
           </Panel>
 
           <Panel className="overflow-hidden">
-            <PanelHeader title="Carrier events" />
+            <PanelHeader
+              title="Carrier callbacks"
+              hint="The audit trail if a carrier disputes what happened."
+            />
             {events.isLoading && <TableSkeleton rows={3} />}
             {events.error && (
               <div className="p-4">
@@ -232,41 +223,26 @@ export function CallDetailPage() {
             )}
             {events.data && eventRows.length === 0 && (
               <p className="px-4 py-6 text-center text-sm text-ash">
-                No events recorded.
+                No callbacks recorded.
               </p>
             )}
             {eventRows.length > 0 && (
-              <div className="max-h-80 overflow-auto">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Event</th>
-                      <th>Order</th>
-                      <th>Received</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {eventRows.map((event, i) => (
-                      <tr key={i}>
-                        <td>
-                          <span className="flex items-center gap-2">
-                            <span className="num text-chalk">{event.event_type}</span>
-                            {!event.signature_valid && (
-                              <Badge tone="bad">Unsigned</Badge>
-                            )}
-                          </span>
-                        </td>
-                        <td className="num">
-                          {event.sequence_number !== null
-                            ? `#${event.sequence_number}`
-                            : "—"}
-                        </td>
-                        <td className="num">{formatDateTime(event.received_at)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ul className="max-h-80 divide-y divide-edge overflow-y-auto">
+                {eventRows.map((event, i) => (
+                  <li key={i} className="flex flex-wrap items-center gap-3 px-5 py-2.5">
+                    <span className="num break-all text-xs text-chalk">{event.event_type}</span>
+                    {event.sequence_number !== null && (
+                      <span className="num text-[11px] text-ash-dim">
+                        #{event.sequence_number}
+                      </span>
+                    )}
+                    {!event.signature_valid && <Badge tone="bad">unsigned</Badge>}
+                    <span className="num ml-auto text-xs text-ash">
+                      {formatDateTime(event.received_at)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
           </Panel>
         </div>
@@ -297,33 +273,15 @@ export function CallDetailPage() {
                       {label}
                     </div>
                     <div className="num text-xs text-ash">
-                      {at ? formatDateTime(at) : "Did not happen"}
+                      {at ? formatDateTime(at) : "did not happen"}
                     </div>
                   </div>
                 </li>
               ))}
             </ol>
           </Panel>
-
-          <Panel>
-            <PanelHeader title="Details" />
-            <dl className="divide-y divide-edge">
-              <Detail label="Answered by" value={answeredByLabel(call.answered_by)} />
-              <Detail label="Attempt" value={String(call.attempt_number)} />
-              <Detail label="Carrier call ID" value={call.provider_call_sid || "—"} />
-            </dl>
-          </Panel>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3">
-      <dt className="eyebrow">{label}</dt>
-      <dd className="num min-w-0 break-all text-sm text-chalk">{value}</dd>
     </div>
   );
 }

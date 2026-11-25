@@ -42,11 +42,11 @@ export const FlowValidationDrawer: FC<FlowValidationDrawerProps> = ({
         className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-2 text-left hover:bg-void"
       >
         <span className="flex flex-wrap items-center gap-2">
-          <span className="display text-sm font-semibold text-chalk">Checks</span>
+          <span className="display text-sm font-semibold text-chalk">Flow Checks</span>
           {isValidating ? (
-            <span className="animate-pulse text-xs text-ash">Checking…</span>
+            <span className="animate-pulse text-xs text-ash">verifying…</span>
           ) : report?.ok && warnings.length === 0 ? (
-            <Badge tone="good">Ready to publish</Badge>
+            <Badge tone="good">✓ Ready to Publish</Badge>
           ) : (
             <>
               {errors.length > 0 && (
@@ -63,11 +63,19 @@ export const FlowValidationDrawer: FC<FlowValidationDrawerProps> = ({
           )}
         </span>
 
-        <ChevronIcon className={cx("size-5 text-ash", !collapsed && "rotate-180")} />
+        <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-ash">
+          {collapsed ? "Expand" : "Collapse"}
+          <ChevronIcon className={cx("size-5", !collapsed && "rotate-180")} />
+        </span>
       </button>
 
       {!collapsed && (
-        <div className={cx((failure || !graphChecksRan || totalCount > 0) && "border-t border-edge")}>
+        <div
+          className={cx(
+            (failure || !graphChecksRan || totalCount > 0 || report?.ok) &&
+              "border-t border-edge",
+          )}
+        >
           {Boolean(failure) && (
             <div className="p-3">
               <ErrorState error={failure} />
@@ -75,10 +83,16 @@ export const FlowValidationDrawer: FC<FlowValidationDrawerProps> = ({
           )}
 
           {!graphChecksRan && (
-            <p className="border-b border-edge bg-[#fdf1dc] px-4 py-2 text-sm text-amber">
+            <p className="border-b border-edge bg-warn-soft px-4 py-2 text-sm text-amber">
               Fix the {structuralErrors.length} field error
-              {structuralErrors.length > 1 ? "s" : ""} first. Broken-link and
-              unreachable-step checks run after that.
+              {structuralErrors.length > 1 ? "s" : ""} below to see reachability and
+              dangling-transition checks — they only run once the document parses cleanly.
+            </p>
+          )}
+
+          {totalCount === 0 && report?.ok && (
+            <p className="p-4 text-center text-sm text-live-bright">
+              All transitions and node configurations are valid. No publish blockers found.
             </p>
           )}
 
@@ -111,7 +125,6 @@ function IssueRow({
     <li>
       <button
         type="button"
-        title={issue.code}
         disabled={!issue.node}
         onClick={() => issue.node && onSelectNode(issue.node)}
         className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left enabled:hover:bg-void"
@@ -121,8 +134,8 @@ function IssueRow({
           aria-hidden
         />
         <span className="min-w-0 flex-1 break-words text-sm text-chalk">
-          <span className="sr-only">{tone === "bad" ? "Error: " : "Warning: "}</span>
           {issue.message}
+          <span className="num ml-2 text-[11px] text-ash-dim">[{issue.code}]</span>
         </span>
         {issue.node && (
           <span className="num max-w-[40%] shrink-0 truncate rounded-lg bg-raised px-2 py-1 text-xs text-signal">

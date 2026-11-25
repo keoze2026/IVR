@@ -1,62 +1,88 @@
 /**
- * The portal frame: a sidebar with the everyday screens, a quiet "Advanced"
- * group for everything else, and a top bar naming the signed-in organisation.
- * Below `lg` the sidebar becomes a drawer and a bottom bar carries the three
- * screens used on a phone.
+ * The portal frame: a sidebar grouped into Operations, Analytics and
+ * Infrastructure, and a top bar naming the signed-in organisation. Below `lg`
+ * the sidebar becomes a drawer and a bottom bar carries the screens used on a
+ * phone.
  */
 
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import {
-  ChevronIcon,
+  FlowIcon,
   HashIcon,
   HomeIcon,
   ListIcon,
   LogOutIcon,
   MenuIcon,
+  PhoneIcon,
   PhoneOutIcon,
   SettingsIcon,
+  ShieldIcon,
   SoundIcon,
+  UsersIcon,
   WalletIcon,
+  ChartIcon,
 } from "@/components/icons";
 import { PulseLoader } from "@/components/styled/PulseLoader";
 import { cx } from "@/components/ui";
 import { request, type PagedResponse } from "@/lib/api";
+import { formatCount } from "@/lib/format";
 import { useSession } from "@/lib/session";
-import type { Campaign } from "@/types/domain";
+import type { Campaign, KpiFrame } from "@/types/domain";
 
 interface NavEntry {
   to: string;
   label: string;
-  icon?: ComponentType<{ className?: string }>;
+  icon: ComponentType<{ className?: string }>;
 }
 
-const MAIN: NavEntry[] = [
-  { to: "/dashboard", label: "Dashboard", icon: HomeIcon },
-  { to: "/jobs", label: "Jobs", icon: PhoneOutIcon },
-  { to: "/cdr", label: "Call history", icon: ListIcon },
-  { to: "/caller-ids", label: "Numbers", icon: HashIcon },
-  { to: "/audio-pools", label: "Audio", icon: SoundIcon },
-  { to: "/wallet", label: "Billing", icon: WalletIcon },
+const NAV: { label: string; items: NavEntry[] }[] = [
+  {
+    label: "Operations",
+    items: [
+      { to: "/campaigns", label: "Campaigns", icon: PhoneOutIcon },
+      { to: "/flows", label: "Flows", icon: FlowIcon },
+      { to: "/contact-lists", label: "Contact Lists", icon: UsersIcon },
+    ],
+  },
+  {
+    label: "Analytics",
+    items: [
+      { to: "/dashboard", label: "Dashboard", icon: HomeIcon },
+      { to: "/calls", label: "Calls", icon: PhoneIcon },
+      { to: "/jobs", label: "Jobs", icon: PhoneOutIcon },
+      { to: "/cdr", label: "CDR", icon: ListIcon },
+    ],
+  },
+  {
+    label: "Infrastructure",
+    items: [
+      { to: "/caller-ids", label: "My Numbers", icon: HashIcon },
+      { to: "/audio-pools", label: "Audio Pools", icon: SoundIcon },
+      { to: "/cli-pools", label: "CLI Pools", icon: HashIcon },
+      { to: "/wallet", label: "Wallets", icon: WalletIcon },
+      { to: "/tariffs", label: "Tariffs", icon: ChartIcon },
+    ],
+  },
 ];
 
-const ADVANCED: NavEntry[] = [
-  { to: "/campaigns", label: "Campaigns" },
-  { to: "/contact-lists", label: "Contact lists" },
-  { to: "/flows", label: "Call flows" },
-  { to: "/cli-pools", label: "Number pools" },
-  { to: "/tariffs", label: "Rates" },
-  { to: "/compliance", label: "Compliance" },
-  { to: "/people", label: "People" },
-  { to: "/access-keys", label: "Access keys" },
+/** The screens someone uses on a phone. */
+const TABS: NavEntry[] = [
+  { to: "/campaigns", label: "Campaigns", icon: ChartIcon },
+  { to: "/calls", label: "Calls", icon: PhoneIcon },
+  { to: "/compliance/dnc", label: "Suppression", icon: ShieldIcon },
 ];
 
-const TABS = MAIN.slice(0, 3);
+interface Rollup {
+  live: number;
+  ceiling: number;
+  dialing: number;
+  dialed: number;
+}
 
-/** How many jobs are dialing right now. */
-function useRunningJobs(): number {
+function useLiveRollup(): Rollup {
   const { data } = useQuery({
     queryKey: ["campaigns", "live-rollup"],
     queryFn: () =>
@@ -64,12 +90,41 @@ function useRunningJobs(): number {
     refetchInterval: 10_000,
     staleTime: 8_000,
   });
-  return data?.results.length ?? 0;
+
+  const running = data?.results ?? [];
+
+  const stats = useQueries({
+    queries: running.map((campaign) => ({
+      queryKey: ["campaigns", campaign.id, "stats"],
+      queryFn: () => request<KpiFrame>(`campaigns/${campaign.id}/stats/`),
+      refetchInterval: 10_000,
+      staleTime: 8_000,
+    })),
+  });
+
+  return {
+    live: stats.reduce((sum, q) => sum + (q.data?.live_channels ?? 0), 0),
+    ceiling: running.reduce((sum, c) => sum + c.max_concurrent_channels, 0),
+    dialing: running.length,
+    dialed: stats.reduce((sum, q) => sum + (q.data?.dialed ?? 0), 0),
+  };
+}
+
+function useNavCounts(): Record<string, number> {
+  const { data } = useQuery({
+    queryKey: ["campaigns", "nav-counts"],
+    queryFn: () => request<PagedResponse<Campaign>>("campaigns/?page_size=100"),
+    refetchInterval: 30_000,
+    staleTime: 20_000,
+  });
+  const all = data?.results ?? [];
+  return { "/campaigns": all.filter((c) => c.status === "running").length };
 }
 
 export function AppShell() {
   const { me, isLoading, signOut } = useSession();
-  const running = useRunningJobs();
+  const rollup = useLiveRollup();
+  const counts = useNavCounts();
   const location = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -89,13 +144,20 @@ export function AppShell() {
   if (isLoading) {
     return (
       <div className="flex min-h-dvh items-center justify-center">
-        <PulseLoader label="Loading" />
+        <PulseLoader label="Opening console" />
       </div>
     );
   }
 
   const org = me?.organization;
-  const sidebar = <Sidebar running={running} onSignOut={signOut} />;
+  const sidebar = (
+    <Sidebar
+      counts={counts}
+      rollup={rollup}
+      onSignOut={signOut}
+      onNavigate={() => setDrawerOpen(false)}
+    />
+  );
 
   return (
     <div className="min-h-dvh lg:flex lg:gap-4 lg:p-4">
@@ -108,7 +170,7 @@ export function AppShell() {
           <button
             aria-label="Close menu"
             onClick={() => setDrawerOpen(false)}
-            className="absolute inset-0 bg-forest/55 backdrop-blur-sm"
+            className="absolute inset-0 bg-scrim/75 backdrop-blur-sm"
           />
           <div className="surface-forest settle absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col rounded-r-[var(--radius-shell)]">
             {sidebar}
@@ -116,8 +178,8 @@ export function AppShell() {
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col bg-void lg:rounded-[var(--radius-shell)]">
-        <header className="m-3 mb-0 flex min-h-16 shrink-0 items-center gap-3 rounded-3xl border border-edge/70 bg-panel px-4 shadow-[var(--shadow-card)] lg:mx-6 lg:mt-5 lg:px-5">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="m-3 mb-0 flex min-h-14 shrink-0 items-center gap-3 lg:mx-6 lg:mt-1">
           <button
             onClick={() => setDrawerOpen(true)}
             aria-label="Open menu"
@@ -127,22 +189,8 @@ export function AppShell() {
             <MenuIcon />
           </button>
 
-          <div className="hidden leading-tight md:block">
-            <div className="text-xs font-semibold text-ash-dim">Today</div>
-            <div className="display text-base text-chalk">
-              {new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
-            </div>
-          </div>
-
-          {running > 0 && (
-            <span className="inline-flex items-center gap-2 rounded-full bg-live px-3.5 py-1.5 text-xs font-bold text-live-bright md:ml-3">
-              <span className="size-1.5 animate-pulse rounded-full bg-current" aria-hidden />
-              {running} {running === 1 ? "job" : "jobs"} calling now
-            </span>
-          )}
-
           {org && (
-            <div className="ml-auto flex items-center gap-3">
+            <div className="card ml-auto flex items-center gap-3 rounded-full border border-edge bg-panel/80 p-1.5 backdrop-blur-md sm:pl-5">
               <div className="hidden text-right leading-tight sm:block">
                 <div className="text-sm font-bold text-chalk">{org.name}</div>
                 <div className="text-xs font-semibold capitalize text-ash-dim">
@@ -162,8 +210,8 @@ export function AppShell() {
         {org?.is_suspended && (
           <Banner tone="rust">
             <strong className="font-medium">This organisation is suspended.</strong>{" "}
-            No calls will be placed
-            {org.suspension_reason ? `: ${org.suspension_reason}` : "."}
+            No campaign will place calls
+            {org.suspension_reason ? ` — ${org.suspension_reason}` : "."}
           </Banner>
         )}
 
@@ -194,7 +242,7 @@ export function AppShell() {
               )
             }
           >
-            {tab.icon && <tab.icon />}
+            <tab.icon />
             {tab.label}
           </NavLink>
         ))}
@@ -210,49 +258,63 @@ export function AppShell() {
   );
 }
 
-function Sidebar({ running, onSignOut }: { running: number; onSignOut: () => void }) {
-  const { pathname } = useLocation();
-  const inAdvanced = ADVANCED.some((n) => pathname.startsWith(n.to));
-  const [open, setOpen] = useState(inAdvanced);
-
+function Sidebar({
+  counts,
+  rollup,
+  onSignOut,
+  onNavigate,
+}: {
+  counts: Record<string, number>;
+  rollup: Rollup;
+  onSignOut: () => void;
+  onNavigate: () => void;
+}) {
   return (
     <>
       <div className="flex h-20 shrink-0 items-center gap-3 px-6">
-        <span className="flex size-11 items-center justify-center rounded-2xl bg-mint text-forest">
+        <span className="flex size-11 items-center justify-center rounded-2xl neon">
           <SoundIcon className="size-6" />
         </span>
         <span className="display text-xl text-white">Outbound</span>
       </div>
 
-      <nav className="flex-1 space-y-1.5 overflow-y-auto px-4 py-2" aria-label="All sections">
-        {MAIN.map((item) => (
-          <NavItem
-            key={item.to}
-            item={item}
-            count={item.to === "/jobs" ? running : 0}
-          />
+      <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-2" aria-label="All sections">
+        {NAV.map((group) => (
+          <div key={group.label} className="space-y-1">
+            <div className="px-3 pb-1 text-[11px] font-bold uppercase tracking-widest text-white/50">
+              {group.label}
+            </div>
+            {group.items.map((item) => (
+              <NavItem key={item.to} item={item} count={counts[item.to]} onNavigate={onNavigate} />
+            ))}
+          </div>
         ))}
-
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          className="press mt-4 flex min-h-11 w-full items-center justify-between rounded-full px-4 text-[11px] font-bold uppercase tracking-widest text-white/60 hover:text-white"
-        >
-          Advanced
-          <ChevronIcon className={cx("size-4 transition-transform", open && "rotate-180")} />
-        </button>
-        {open && ADVANCED.map((item) => <NavItem key={item.to} item={item} />)}
       </nav>
 
-      <div className="m-4 mt-2 space-y-1.5 rounded-3xl bg-white/[0.07] p-2">
-        <NavItem item={{ to: "/settings", label: "Settings", icon: SettingsIcon }} />
+      <div className="m-4 mt-2 shrink-0 space-y-1 rounded-3xl bg-white/[0.07] p-2">
+        <div className="px-3 pb-2 pt-1.5">
+          <div className="text-[11px] font-bold uppercase tracking-widest text-white/50">
+            Account capacity
+          </div>
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <span className={cx("num text-2xl font-extrabold leading-none", rollup.dialing > 0 ? "text-mint" : "text-white")}>
+              {rollup.live}
+            </span>
+            <span className="num text-xs text-white/60">/ {rollup.ceiling || "—"} channels</span>
+          </div>
+          <p className="mt-1 text-xs text-white/70">
+            {rollup.dialing === 0
+              ? "Nothing is dialing right now."
+              : `${rollup.dialing} campaign${rollup.dialing > 1 ? "s" : ""} dialing · ${formatCount(rollup.dialed)} placed`}
+          </p>
+        </div>
+        <NavItem item={{ to: "/settings", label: "Settings", icon: SettingsIcon }} onNavigate={onNavigate} />
         <button
           onClick={onSignOut}
-          className="press flex min-h-12 w-full items-center gap-3 rounded-full px-1.5 text-sm font-semibold text-white/75 hover:bg-white/10 hover:text-white"
+          className="press flex min-h-10 w-full items-center gap-3 rounded-full px-1.5 text-sm font-semibold text-white/75 hover:bg-white/10 hover:text-white"
         >
-          <span className="flex size-9 items-center justify-center rounded-full bg-white/10">
-            <LogOutIcon className="size-[18px]" />
+          <span className="flex size-8 items-center justify-center rounded-full bg-white/10">
+            <LogOutIcon className="size-4" />
           </span>
           Sign out
         </button>
@@ -261,37 +323,38 @@ function Sidebar({ running, onSignOut }: { running: number; onSignOut: () => voi
   );
 }
 
-function NavItem({ item, count = 0 }: { item: NavEntry; count?: number }) {
+function NavItem({
+  item,
+  count = 0,
+  onNavigate,
+}: {
+  item: NavEntry;
+  count?: number;
+  onNavigate: () => void;
+}) {
   return (
     <NavLink
       to={item.to}
+      onClick={onNavigate}
       className={({ isActive }) =>
         cx(
-          "press group flex min-h-12 items-center gap-3 rounded-full px-1.5 pr-4 text-sm font-semibold",
-          !item.icon && "min-h-10 pl-6",
+          "press group flex min-h-10 items-center gap-3 rounded-full px-1.5 pr-4 text-sm font-semibold",
           isActive
-            ? "bg-white text-forest shadow-[var(--shadow-raised)]"
+            ? "nav-active"
             : "text-white/75 hover:bg-white/10 hover:text-white",
         )
       }
     >
       {({ isActive }) => (
         <>
-          {item.icon ? (
-            <span
-              className={cx(
-                "flex size-9 shrink-0 items-center justify-center rounded-full",
-                isActive ? "bg-forest text-mint" : "bg-white/10",
-              )}
-            >
-              <item.icon className="size-[18px]" />
-            </span>
-          ) : (
-            <span
-              aria-hidden
-              className={cx("size-1.5 rounded-full", isActive ? "bg-signal" : "bg-white/35")}
-            />
-          )}
+          <span
+            className={cx(
+              "flex size-8 shrink-0 items-center justify-center rounded-full",
+              isActive ? "neon" : "bg-white/10",
+            )}
+          >
+            <item.icon className="size-4" />
+          </span>
           <span className="flex-1">{item.label}</span>
           {count > 0 && (
             <span className="num rounded-full bg-mint px-2 py-0.5 text-[11px] font-extrabold leading-none text-forest">
@@ -311,8 +374,8 @@ function Banner({ tone, children }: { tone: "rust" | "amber"; children: ReactNod
       className={cx(
         "border-b px-4 py-2.5 text-center text-sm lg:px-8",
         tone === "rust"
-          ? "border-rust/20 bg-[#fdeaea] text-rust"
-          : "border-amber/20 bg-[#fdf1dc] text-amber",
+          ? "border-rust/20 bg-bad-soft text-rust"
+          : "border-amber/20 bg-warn-soft text-amber",
       )}
     >
       {children}

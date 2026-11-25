@@ -34,11 +34,11 @@ export const FlowToolbar: FC<FlowToolbarProps> = ({
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-edge bg-panel px-3 py-2">
       <div className="flex items-center gap-3">
-        <div className="flex rounded-xl bg-raised p-1" role="group" aria-label="View">
+        <div className="flex rounded-xl bg-raised p-1">
           {(
             [
-              ["canvas", "Canvas"],
-              ["outline", "List"],
+              ["canvas", "Visual Graph"],
+              ["outline", "Outline View"],
             ] as const
           ).map(([mode, label]) => (
             <button
@@ -59,23 +59,22 @@ export const FlowToolbar: FC<FlowToolbarProps> = ({
         </div>
 
         <span className="num hidden text-xs text-ash-dim sm:inline xl:hidden 2xl:inline">
-          {nodeCount} {nodeCount === 1 ? "step" : "steps"} · {edgeCount}{" "}
-          {edgeCount === 1 ? "link" : "links"}
+          {nodeCount} nodes · {edgeCount} wires
         </span>
       </div>
 
       {viewMode === "canvas" && (
         <div className="flex flex-wrap items-center gap-1">
-          <ToolButton title="Arrange steps automatically" onClick={onAutoLayout}>
-            Arrange
+          <ToolButton title="Auto-arrange nodes hierarchically" onClick={onAutoLayout}>
+            Auto Layout
           </ToolButton>
-          <ToolButton title="Zoom out" onClick={onZoomOut}>
+          <ToolButton title="Zoom out (-)" onClick={onZoomOut}>
             −
           </ToolButton>
           <ToolButton title="Reset to 100%" onClick={onResetZoom}>
             <span className="num min-w-10">{Math.round(zoom * 100)}%</span>
           </ToolButton>
-          <ToolButton title="Zoom in" onClick={onZoomIn}>
+          <ToolButton title="Zoom in (+)" onClick={onZoomIn}>
             +
           </ToolButton>
           <ToolButton title="Fit to view" onClick={onFitView}>
@@ -100,7 +99,6 @@ function ToolButton({
     <button
       type="button"
       title={title}
-      aria-label={title}
       onClick={onClick}
       className="press flex h-9 min-w-9 items-center justify-center rounded-lg px-2 text-sm font-medium text-ash ring-1 ring-inset ring-edge hover:bg-live hover:text-signal"
     >
