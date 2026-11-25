@@ -120,6 +120,9 @@ Open http://localhost:5173 and paste the API key.
 
 ### Checks
 
+`kombu` is pinned to 5.6.2 (5.7.0 needs redis-py 6.1 or later). A green CI run
+does not currently prove the tests passed: check the log for `FAILED`.
+
 ```bash
 cd IVR    && pytest              # backend
 cd client && npm run typecheck && npm test && npm run build

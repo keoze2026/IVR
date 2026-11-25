@@ -16,6 +16,8 @@ celery==5.4.0
 # 2.7.x pins Django<5.2 and cannot be used with the 5.2 LTS the spec requires.
 django-celery-beat==2.9.0
 redis==5.0.8
+# Pinned: kombu 5.7.0 requires redis-py 6.1.0+ and breaks the Celery broker.
+kombu==5.6.2
 django-redis==5.4.0
 
 # --- Data --------------------------------------------------------------
