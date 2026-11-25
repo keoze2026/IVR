@@ -246,3 +246,16 @@ def test_permanent_error_does_not_failover(monkeypatch):
     assert exc_info.value.code == "21217"
     assert len(fake_twilio.placed_requests) == 1
     assert len(fake_telnyx.placed_requests) == 0  # Telnyx never called
+
+
+def test_toll_free_never_routes_to_twilio(settings):
+    from types import SimpleNamespace
+
+    from apps.dialer.routing import is_toll_free, resolve_carrier_chain
+
+    settings.TOLL_FREE_PROVIDER = "telnyx"
+    campaign = SimpleNamespace(effective_provider="twilio")
+    assert is_toll_free("+18005551234") and is_toll_free("+18885551234")
+    assert not is_toll_free("+12125551234")
+    assert resolve_carrier_chain(campaign, "+18005551234") == ["telnyx"]
+    assert resolve_carrier_chain(campaign, "+12125551234")[0] in {"twilio", "telnyx"}

@@ -345,11 +345,15 @@ TWILIO_API_KEY_SECRET = env("TWILIO_API_KEY_SECRET", "")
 
 TELNYX_API_KEY = env("TELNYX_API_KEY", "")
 TELNYX_PUBLIC_KEY = env("TELNYX_PUBLIC_KEY", "")
-TELNYX_CONNECTION_ID = env("TELNYX_CONNECTION_ID", "")
+TELNYX_CONNECTION_ID = env("TELNYX_CONNECTION_ID", "")  # TeXML application ID
+TELNYX_ACCOUNT_SID = env("TELNYX_ACCOUNT_SID", "")  # Telnyx account (user) ID
 
 # Multi-Carrier Dynamic Routing & Failover
 ENABLE_CARRIER_FAILOVER = env_bool("ENABLE_CARRIER_FAILOVER", True)
 FALLBACK_PROVIDER = env("FALLBACK_PROVIDER", "telnyx")
+# Twilio cannot originate calls to toll-free (8xx) destinations. Those go to
+# this carrier first, and Twilio is removed from their chain entirely.
+TOLL_FREE_PROVIDER = env("TOLL_FREE_PROVIDER", "telnyx")
 CARRIER_CIRCUIT_BREAKER_THRESHOLD = env_int("CARRIER_CIRCUIT_BREAKER_THRESHOLD", 3)
 CARRIER_CIRCUIT_BREAKER_COOLDOWN = env_int("CARRIER_CIRCUIT_BREAKER_COOLDOWN", 60)
 

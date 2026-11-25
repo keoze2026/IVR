@@ -89,6 +89,24 @@ Or bring the whole stack up:
 docker compose -f IVR/deploy/docker-compose.yml up
 ```
 
+### Carriers
+
+Telnyx needs four values in `IVR/.env`:
+
+| Variable | What it is |
+|---|---|
+| `TELNYX_API_KEY` | API key from the Telnyx portal |
+| `TELNYX_PUBLIC_KEY` | Public key used to verify Telnyx webhooks |
+| `TELNYX_ACCOUNT_SID` | Telnyx account (user) ID |
+| `TELNYX_CONNECTION_ID` | TeXML Application ID |
+
+`IVR/scripts/telnyx_setup.py`, run on the server, asks for the API key and
+fills in these values.
+
+Toll-free (+1 8xx) destinations are routed to `TOLL_FREE_PROVIDER`
+(default `telnyx`) and never to Twilio. This routing and the Telnyx call path
+have not yet been verified with a real call.
+
 ### Frontend
 
 ```bash

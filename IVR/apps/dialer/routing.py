@@ -68,13 +68,36 @@ def is_failover_eligible(exc: Exception) -> bool:
     return getattr(exc, "retryable", False)
 
 
-def resolve_carrier_chain(campaign: Campaign) -> list[str]:
+#: North American toll-free area codes.
+_TOLL_FREE_NPAS = {"800", "833", "844", "855", "866", "877", "888"}
+
+#: Carriers that cannot originate calls to toll-free destinations.
+NO_TOLL_FREE_PROVIDERS = {"twilio"}
+
+
+def is_toll_free(e164: str) -> bool:
+    """True for +1 8xx toll-free numbers (NANP)."""
+    return (
+        len(e164) == 12 and e164.startswith("+1") and e164[2:5] in _TOLL_FREE_NPAS
+    )
+
+
+def resolve_carrier_chain(campaign: Campaign, to: str | None = None) -> list[str]:
     """
     Determine the ordered list of carrier providers to attempt.
 
     Ranks healthy/available carriers ahead of currently tripped carriers,
     ensuring calls are routed directly to active carriers during outages.
+    Toll-free destinations are routed only to carriers that support them.
     """
+    if to and is_toll_free(to):
+        tf = (getattr(settings, "TOLL_FREE_PROVIDER", "telnyx") or "telnyx").lower()
+        chain = [tf]
+        for p in resolve_carrier_chain(campaign):
+            if p not in chain and p not in NO_TOLL_FREE_PROVIDERS:
+                chain.append(p)
+        return chain
+
     primary = (campaign.effective_provider or settings.DEFAULT_PROVIDER or "twilio").lower()
     fallback = (getattr(settings, "FALLBACK_PROVIDER", "telnyx") or "telnyx").lower()
 
@@ -144,7 +167,7 @@ def originate_with_failover(
     """
     from apps.telephony.models import CallLog
 
-    chain = resolve_carrier_chain(campaign)
+    chain = resolve_carrier_chain(campaign, contact.phone_e164)
     last_exc: Exception | None = None
 
     for idx, provider_name in enumerate(chain):

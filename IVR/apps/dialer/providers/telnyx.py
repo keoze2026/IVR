@@ -40,11 +40,13 @@ class TelnyxAdapter(ProviderAdapter):
 
     @property
     def _texml_base(self) -> str:
-        return f"{API_ROOT}/texml/Accounts/{settings.TELNYX_CONNECTION_ID}"
+        return f"{API_ROOT}/texml/Accounts/{settings.TELNYX_ACCOUNT_SID}"
 
     # --- outbound -------------------------------------------------------
     def place_call(self, request: OriginateRequest) -> CallHandle:
         data = {
+            # The TeXML application, which carries the outbound voice profile.
+            "ApplicationSid": settings.TELNYX_CONNECTION_ID,
             "To": request.to,
             "From": request.from_,
             "Url": request.answer_url,
