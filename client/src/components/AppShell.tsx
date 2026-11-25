@@ -44,6 +44,7 @@ const NAV: NavEntry[] = [
   { to: "/jobs", label: "Jobs", group: "analytics" },
   { to: "/cdr", label: "CDR", group: "analytics" },
 
+  { to: "/caller-ids", label: "My Numbers", group: "infrastructure" },
   { to: "/audio-pools", label: "Audio Pools", group: "infrastructure" },
   { to: "/cli-pools", label: "CLI Pools", group: "infrastructure" },
   { to: "/wallet", label: "Wallets", group: "infrastructure" },

@@ -482,6 +482,14 @@ export function useCallerIds(
   });
 }
 
+export function useCreateCallerId() {
+  const qc = useQueryClient();
+  return useMutation<CallerID, ApiError, { phone_e164: string; provider: string }>({
+    mutationFn: (body) => request<CallerID>("caller-ids/", { method: "POST", body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["caller-ids"] }),
+  });
+}
+
 export function useUpdateCallerId() {
   const qc = useQueryClient();
   return useMutation<CallerID, ApiError, { id: string } & Partial<CallerID>>({

@@ -118,6 +118,11 @@ npm run dev             # BFF :8787, Vite :5173
 
 Open http://localhost:5173 and paste the API key.
 
+### Adding a phone number
+
+In the portal, open **My Numbers**, type the number, choose the carrier and press
+**Add number** (owner role). The number must already be yours at that carrier.
+
 ### Checks
 
 `kombu` is pinned to 5.6.2 (5.7.0 needs redis-py 6.1 or later). A green CI run

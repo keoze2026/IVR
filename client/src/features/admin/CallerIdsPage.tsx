@@ -21,8 +21,8 @@ import {
   cx,
 } from "@/components/ui";
 import { formatCount, formatDateTime } from "@/lib/format";
-import { useCallerIds, useUpdateCallerId } from "@/lib/queries/resources";
-import { useSession } from "@/lib/session";
+import { useCallerIds, useCreateCallerId, useUpdateCallerId } from "@/lib/queries/resources";
+import { useCan, useSession } from "@/lib/session";
 import type { CallerID } from "@/types/domain";
 
 const ATTESTATION: Record<string, { tone: string; means: string }> = {
@@ -57,6 +57,8 @@ export function CallerIdsPage() {
         </p>
       </header>
 
+      <AddNumberForm />
+
       {rows.length > 0 && (
         <div className="stagger grid gap-3 sm:grid-cols-3">
           <Stat label="Numbers" value={String(rows.length)} denominator="on the account" />
@@ -81,7 +83,7 @@ export function CallerIdsPage() {
         {data && rows.length === 0 && (
           <EmptyState
             title="No caller IDs"
-            description="Numbers are verified with the carrier and registered here by an owner."
+            description="Add a number you own at your carrier using the form above."
           />
         )}
         <ul className="divide-y divide-edge">
@@ -99,6 +101,63 @@ export function CallerIdsPage() {
         Review them alongside answer rate.
       </p>
     </div>
+  );
+}
+
+/** Accepts "(213) 527-1071" as readily as "+12135271071". */
+function toE164(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return "";
+  if (!raw.trim().startsWith("+") && digits.length === 10) return `+1${digits}`;
+  return `+${digits}`;
+}
+
+function AddNumberForm() {
+  const mayManage = useCan("org.manage");
+  const create = useCreateCallerId();
+  const [phone, setPhone] = useState("");
+  const [provider, setProvider] = useState("telnyx");
+
+  if (!mayManage) {
+    return <p className="text-sm text-ash">Only an owner can add numbers.</p>;
+  }
+
+  const field = "num rounded border border-edge bg-panel px-3 py-2 text-sm text-chalk";
+  return (
+    <Panel className="px-4 py-4">
+      <form
+        className="flex flex-wrap items-end gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          create.mutate(
+            { phone_e164: toE164(phone), provider },
+            { onSuccess: () => setPhone("") },
+          );
+        }}
+      >
+        <label className="text-xs text-ash">
+          <span className="eyebrow mb-1 block">Phone number</span>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+1 213 555 0100"
+            className={field}
+          />
+        </label>
+        <label className="text-xs text-ash">
+          <span className="eyebrow mb-1 block">Carrier</span>
+          <select value={provider} onChange={(e) => setProvider(e.target.value)} className={field}>
+            <option value="telnyx">Telnyx</option>
+            <option value="twilio">Twilio</option>
+          </select>
+        </label>
+        <Button type="submit" loading={create.isPending} disabled={!toE164(phone)}>
+          Add number
+        </Button>
+      </form>
+      {create.error && <p className="mt-2 text-sm text-rust">{create.error.message}</p>}
+    </Panel>
   );
 }
 
