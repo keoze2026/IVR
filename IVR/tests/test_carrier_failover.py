@@ -259,3 +259,18 @@ def test_toll_free_never_routes_to_twilio(settings):
     assert not is_toll_free("+12125551234")
     assert resolve_carrier_chain(campaign, "+18005551234") == ["telnyx"]
     assert resolve_carrier_chain(campaign, "+12125551234")[0] in {"twilio", "telnyx"}
+
+
+def test_telnyx_machine_detection_timeout_is_sent_in_milliseconds(monkeypatch):
+    from apps.dialer.providers.base import OriginateRequest
+    from apps.dialer.providers.telnyx import TelnyxAdapter
+
+    sent = {}
+    monkeypatch.setattr(
+        TelnyxAdapter, "_post", lambda self, url, data, **kw: sent.update(data) or {}
+    )
+    TelnyxAdapter().place_call(OriginateRequest(
+        to="+18005551234", from_="+12125550100", answer_url="https://x.invalid/a",
+        status_callback_url="https://x.invalid/s", amd_enabled=True, amd_timeout=30,
+    ))
+    assert sent["MachineDetectionTimeout"] == 30000

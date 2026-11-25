@@ -60,7 +60,10 @@ class TelnyxAdapter(ProviderAdapter):
                 "DetectMessageEnd" if request.amd_mode == "DetectMessageEnd"
                 else "Enable"
             )
-            data["MachineDetectionTimeout"] = request.amd_timeout
+            # Telnyx takes milliseconds (500-60000); ours is in seconds.
+            data["MachineDetectionTimeout"] = min(
+                max(request.amd_timeout * 1000, 500), 60000
+            )
             if request.amd_async and request.amd_callback_url:
                 data["AsyncAmd"] = "true"
                 data["AsyncAmdStatusCallback"] = request.amd_callback_url
