@@ -395,7 +395,7 @@ function Chip({
       className={cx(
         "press min-h-10 min-w-12 rounded-full border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60",
         on
-          ? "border-signal bg-signal text-white"
+          ? "border-forest bg-forest text-white"
           : "border-edge bg-panel text-ash hover:border-edge-bright",
       )}
     >

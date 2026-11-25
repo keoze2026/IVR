@@ -15,6 +15,20 @@ import {
   type TextareaHTMLAttributes,
 } from "react";
 
+import {
+  AlertIcon,
+  ChartIcon,
+  CheckIcon,
+  ClockIcon,
+  FlowIcon,
+  KeyIcon,
+  MissedIcon,
+  PhoneIcon,
+  ShieldIcon,
+  SoundIcon,
+  UsersIcon,
+  WalletIcon,
+} from "@/components/icons";
 import { ApiError, NetworkError } from "@/lib/errors";
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
@@ -90,8 +104,8 @@ export function PageHeader({
   return (
     <header className="flex flex-wrap items-center justify-between gap-3">
       <div className="min-w-0">
-        <h1 className="display break-words text-2xl text-chalk">{title}</h1>
-        {subtitle && <p className="mt-0.5 text-sm text-ash">{subtitle}</p>}
+        <h1 className="display break-words text-[28px] leading-tight text-chalk">{title}</h1>
+        {subtitle && <p className="mt-1 text-sm font-medium text-ash">{subtitle}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </header>
@@ -118,18 +132,18 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-chalk/40 p-4"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-forest/55 p-4 backdrop-blur-sm"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="settle my-8 w-full max-w-lg rounded-[var(--radius-card)] border border-edge bg-panel p-6 shadow-xl"
+        className="settle my-8 w-full max-w-lg rounded-[var(--radius-shell)] bg-panel p-7 shadow-2xl"
       >
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h2 className="display text-lg text-chalk">{title}</h2>
+            <h2 className="display text-xl text-chalk">{title}</h2>
             {subtitle && <p className="text-sm text-ash">{subtitle}</p>}
           </div>
           <button
@@ -160,7 +174,7 @@ export function Panel({
     <div
       className={cx(
         "rounded-[var(--radius-card)] border bg-panel shadow-[var(--shadow-card)]",
-        accent ? "border-signal/30" : "border-edge",
+        accent ? "border-signal/40" : "border-edge/70",
         className,
       )}
     >
@@ -179,17 +193,17 @@ export function PanelHeader({
   hint?: string;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-edge px-4 py-3">
+    <div className="flex items-center justify-between gap-4 border-b border-edge px-5 py-4">
       <div>
-        <h2 className="display text-sm font-semibold text-chalk">{title}</h2>
-        {hint && <p className="mt-0.5 text-xs text-ash">{hint}</p>}
+        <h2 className="display text-base text-chalk">{title}</h2>
+        {hint && <p className="mt-0.5 text-xs font-medium text-ash-dim">{hint}</p>}
       </div>
       {action}
     </div>
   );
 }
 
-/** A row of rounded filters, one active at a time. */
+/** A segmented row of filters, one active at a time. */
 export function FilterTabs<T extends string>({
   label,
   value,
@@ -203,7 +217,11 @@ export function FilterTabs<T extends string>({
   options: { id: T; label: string; count?: number }[];
 }) {
   return (
-    <div className="flex flex-wrap gap-2" role="tablist" aria-label={label}>
+    <div
+      className="inline-flex max-w-full flex-wrap gap-1 rounded-3xl border border-edge/70 bg-panel p-1.5 shadow-[var(--shadow-card)]"
+      role="tablist"
+      aria-label={label}
+    >
       {options.map((option) => (
         <button
           key={option.id}
@@ -212,15 +230,22 @@ export function FilterTabs<T extends string>({
           aria-selected={value === option.id}
           onClick={() => onChange(option.id)}
           className={cx(
-            "press min-h-10 rounded-full border px-4 text-sm",
+            "press flex min-h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold",
             value === option.id
-              ? "border-signal bg-signal text-white"
-              : "border-edge bg-panel text-ash hover:border-edge-bright",
+              ? "bg-forest text-white shadow-[var(--shadow-raised)]"
+              : "text-ash hover:bg-raised hover:text-chalk",
           )}
         >
           {option.label}
           {option.count !== undefined && (
-            <span className="num ml-1.5 opacity-75">{option.count}</span>
+            <span
+              className={cx(
+                "num rounded-full px-1.5 text-xs",
+                value === option.id ? "bg-white/15 text-mint" : "bg-raised text-ash-dim",
+              )}
+            >
+              {option.count}
+            </span>
           )}
         </button>
       ))}
@@ -249,7 +274,7 @@ export function Badge({
     <span
       title={title}
       className={cx(
-        "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
+        "inline-flex items-center rounded-full px-3 py-1 text-xs font-bold",
         tones[tone],
       )}
     >
@@ -258,7 +283,24 @@ export function Badge({
   );
 }
 
-/** A figure and what it counts. */
+/** Picks an icon from what a figure's label says it counts. */
+function iconFor(label: string) {
+  const rules: [RegExp, typeof ChartIcon][] = [
+    [/fail|reject|block|attention|error|opt/i, AlertIcon],
+    [/not answered|no answer|missed/i, MissedIcon],
+    [/rate|answered|valid|active|reach|publish|complete|credit/i, CheckIcon],
+    [/time|ring|wait|hour|duration/i, ClockIcon],
+    [/balance|spend|cost|charge/i, WalletIcon],
+    [/contact|people|person|row|list/i, UsersIcon],
+    [/flow|draft/i, FlowIcon],
+    [/key|revok|used/i, KeyIcon],
+    [/suppress|consent/i, ShieldIcon],
+    [/call|dial|running|job/i, PhoneIcon],
+  ];
+  return rules.find(([pattern]) => pattern.test(label))?.[1] ?? ChartIcon;
+}
+
+/** A figure and what it counts, with an icon that names the subject. */
 export function Stat({
   label,
   value,
@@ -275,28 +317,35 @@ export function Stat({
   /** Makes the whole card a link. */
   to?: string;
 }) {
-  const valueColor =
-    accent || tone === "live"
-      ? "text-live-bright"
-      : tone === "amber"
-        ? "text-amber"
-        : tone === "rust"
-          ? "text-rust"
-          : "text-chalk";
+  const Icon = iconFor(label);
+  const badge = accent
+    ? "bg-signal text-white"
+    : tone === "amber"
+      ? "bg-[#fdf1dc] text-amber"
+      : tone === "rust"
+        ? "bg-[#fdeaea] text-rust"
+        : tone === "live"
+          ? "bg-live text-live-bright"
+          : "bg-forest text-mint";
 
   const body = (
     <>
-      <div className="text-sm text-ash">{label}</div>
-      <div className={cx("num mt-2 text-3xl font-bold leading-none", valueColor)}>
-        {value}
-      </div>
-      {denominator && <div className="mt-2 text-xs text-ash-dim">{denominator}</div>}
+      <span className={cx("flex size-12 shrink-0 items-center justify-center rounded-2xl", badge)}>
+        <Icon className="size-[22px]" />
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[13px] font-semibold text-ash-dim">{label}</span>
+        <span className="num display mt-0.5 block text-[28px] leading-none text-chalk">{value}</span>
+        {denominator && (
+          <span className="mt-1.5 block text-xs font-medium text-ash-dim">{denominator}</span>
+        )}
+      </span>
     </>
   );
 
   const shell = cx(
-    "block rounded-[var(--radius-card)] border border-edge bg-panel px-5 py-4 shadow-[var(--shadow-card)]",
-    to && "transition-colors hover:border-signal/50",
+    "flex items-center gap-4 rounded-[var(--radius-card)] border border-edge/70 bg-panel px-5 py-5 shadow-[var(--shadow-card)]",
+    to && "transition-transform hover:-translate-y-0.5 hover:border-signal/40",
   );
 
   return to ? (
@@ -388,7 +437,8 @@ export function Gauge({
 type Variant = "primary" | "secondary" | "danger" | "ghost";
 
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-signal text-white hover:bg-signal-dim",
+  primary:
+    "bg-forest text-white shadow-[var(--shadow-raised)] hover:bg-forest-soft disabled:shadow-none",
   secondary:
     "bg-panel text-chalk ring-1 ring-inset ring-edge-bright hover:bg-raised",
   danger: "bg-rust text-white hover:brightness-95",
@@ -419,9 +469,9 @@ export function Button({
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cx(
-        "press inline-flex items-center justify-center gap-2 rounded-xl",
-        dense ? "min-h-9 px-3 text-sm" : "min-h-11 px-4 text-sm",
-        "font-medium disabled:cursor-not-allowed disabled:opacity-40",
+        "press inline-flex items-center justify-center gap-2 rounded-full",
+        dense ? "min-h-9 px-4 text-sm" : "min-h-11 px-5 text-sm",
+        "font-bold disabled:cursor-not-allowed disabled:opacity-40",
         VARIANTS[variant],
         className,
       )}
@@ -468,8 +518,8 @@ export function Field({
 }
 
 const CONTROL =
-  "w-full min-h-11 rounded-xl border bg-panel px-3 py-2 text-sm text-chalk " +
-  "placeholder:text-ash-dim/70 transition-colors focus:border-signal";
+  "w-full min-h-12 rounded-2xl border bg-[#f8fbfa] px-4 py-2.5 text-sm font-medium text-chalk " +
+  "placeholder:text-ash-dim/70 transition-colors focus:border-signal focus:bg-panel";
 
 export function Input({
   invalid,
@@ -547,7 +597,7 @@ export function StatusPill({ status }: { status: string }) {
   return (
     <span
       className={cx(
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+        "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold",
         STATUS[status] ?? QUIET,
       )}
     >
@@ -567,10 +617,13 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="rounded-[var(--radius-card)] border border-dashed border-edge bg-panel px-6 py-14 text-center">
-      <p className="display text-sm font-semibold text-chalk">{title}</p>
+    <div className="rounded-[var(--radius-card)] bg-void px-6 py-14 text-center">
+      <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-forest text-mint">
+        <SoundIcon className="size-6" />
+      </span>
+      <p className="display mt-4 text-base text-chalk">{title}</p>
       {description && (
-        <p className="mx-auto mt-1.5 max-w-md text-sm text-ash">{description}</p>
+        <p className="mx-auto mt-1.5 max-w-md text-sm font-medium text-ash">{description}</p>
       )}
       {action && <div className="mt-5 flex justify-center">{action}</div>}
     </div>

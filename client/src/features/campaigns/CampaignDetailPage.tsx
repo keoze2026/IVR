@@ -87,7 +87,7 @@ export function CampaignDetailLayout() {
               cx(
                 "press inline-flex min-h-10 items-center rounded-full border px-4 text-sm",
                 isActive
-                  ? "border-signal bg-signal text-white"
+                  ? "border-forest bg-forest text-white"
                   : "border-edge bg-panel text-ash hover:border-edge-bright",
               )
             }

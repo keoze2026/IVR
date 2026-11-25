@@ -11,7 +11,8 @@
 
 import { useState, type FormEvent } from "react";
 
-import { SoundIcon } from "@/components/icons";
+import { ChartIcon, PhoneOutIcon, ShieldIcon, SoundIcon } from "@/components/icons";
+import { Waveform } from "@/components/Waveform";
 import { Button, Field, Input } from "@/components/ui";
 import { ApiError } from "@/lib/errors";
 import { useSession } from "@/lib/session";
@@ -56,26 +57,58 @@ export function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-dvh lg:grid-cols-2">
-      <section className="hidden flex-col justify-between bg-signal p-12 text-white lg:flex">
-        <div className="flex items-center gap-2.5">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-white text-signal">
-            <SoundIcon />
+    <main className="grid min-h-dvh gap-4 p-0 lg:grid-cols-[1.15fr_1fr] lg:p-4">
+      <section className="surface-forest relative hidden flex-col justify-between overflow-hidden rounded-[var(--radius-shell)] p-12 lg:flex">
+        <div aria-hidden className="absolute -right-40 -top-40 size-[520px] rounded-full border-[60px] border-white/[0.04]" />
+        <div aria-hidden className="absolute -bottom-52 -left-32 size-[460px] rounded-full border-[46px] border-mint/[0.07]" />
+
+        <div className="relative flex items-center gap-3">
+          <span className="flex size-12 items-center justify-center rounded-2xl bg-mint text-forest">
+            <SoundIcon className="size-6" />
           </span>
-          <span className="display text-xl">Outbound</span>
+          <span className="display text-2xl">Outbound</span>
         </div>
-        <div className="max-w-md">
-          <h1 className="display text-4xl leading-tight">Reach people with voice.</h1>
-          <p className="mt-4 text-base text-white/85">
+
+        <div className="relative max-w-xl">
+          <Waveform className="mb-10" />
+          <h1 className="display text-5xl leading-[1.08]">
+            Reach people with <span className="text-mint">voice</span>.
+          </h1>
+          <p className="mt-5 text-lg font-medium text-white/75">
             Create calling jobs, follow them live and review every call in one place.
           </p>
+          <ul className="mt-8 grid grid-cols-3 gap-3">
+            {[
+              [PhoneOutIcon, "Calling jobs"],
+              [ChartIcon, "Live results"],
+              [ShieldIcon, "Do-not-call checks"],
+            ].map(([Icon, label]) => {
+              const Glyph = Icon as typeof PhoneOutIcon;
+              return (
+                <li key={label as string} className="rounded-3xl bg-white/[0.08] p-4">
+                  <span className="flex size-10 items-center justify-center rounded-full bg-white/10 text-mint">
+                    <Glyph />
+                  </span>
+                  <span className="mt-3 block text-sm font-bold">{label as string}</span>
+                </li>
+              );
+            })}
+          </ul>
         </div>
-        <p className="text-sm text-white/70">Only call people who agreed to be called.</p>
+
+        <p className="relative text-sm font-semibold text-white/60">Only call people who agreed to be called.</p>
       </section>
 
-      <section className="flex items-center justify-center bg-panel p-8">
-        <form onSubmit={onSubmit} className="w-full max-w-sm" noValidate>
-          <h2 className="display text-2xl text-chalk">Sign in</h2>
+      <section className="flex items-center justify-center bg-void p-5 lg:rounded-[var(--radius-shell)]">
+        <form
+          onSubmit={onSubmit}
+          className="w-full max-w-md rounded-[var(--radius-shell)] border border-edge/70 bg-panel p-8 shadow-[var(--shadow-card)] sm:p-10"
+          noValidate
+        >
+          <span className="mb-6 flex size-14 items-center justify-center rounded-2xl bg-forest text-mint lg:hidden">
+            <SoundIcon className="size-7" />
+          </span>
+          <h2 className="display text-3xl text-chalk">Welcome back</h2>
           <p className="mt-1 text-sm text-ash">
             Use your name and five-character code.
           </p>

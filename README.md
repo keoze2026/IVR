@@ -48,8 +48,9 @@ A Vite SPA plus a thin Hono BFF. The BFF holds the credential server-side and
 gives the browser a session cookie, so no credential ever reaches the client
 and CORS never enters the picture.
 
-**Design.** A light theme with one green accent. Colours, radius and table
-style are defined once in `client/src/index.css`; shared components are in
+**Design.** A forest-green sidebar, a soft mint canvas and rounded white cards,
+set in Plus Jakarta Sans. Colours, radius and table style are defined once in
+`client/src/index.css`; shared components are in
 `client/src/components/ui/` and icons in `client/src/components/icons.tsx`.
 
 **Screens.** The sidebar holds Dashboard, Jobs, Call history, Numbers, Audio and

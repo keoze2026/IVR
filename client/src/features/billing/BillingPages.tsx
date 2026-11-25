@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 
-import { PlusIcon, TrashIcon } from "@/components/icons";
+import { PlusIcon, TrashIcon, WalletIcon } from "@/components/icons";
 import { Button, EmptyState, Input, PageHeader, Panel, Stat, TableSkeleton } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import {
@@ -28,7 +28,15 @@ export function WalletPage() {
       <PageHeader title="Billing" subtitle="Your balance in this portal and recent activity." />
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Balance" value={`$${balance.toFixed(2)}`} />
+        <div className="surface-forest rounded-[var(--radius-card)] p-6 shadow-[var(--shadow-raised)]">
+          <div className="flex items-center gap-3 text-sm font-bold text-white/75">
+            <span className="flex size-11 items-center justify-center rounded-2xl bg-mint text-forest">
+              <WalletIcon className="size-[22px]" />
+            </span>
+            Balance
+          </div>
+          <div className="num display mt-3 text-4xl">${balance.toFixed(2)}</div>
+        </div>
         <Stat label="Recent credits" value={`$${sum(1).toFixed(2)}`} tone="live" />
         <Stat label="Recent charges" value={`$${sum(-1).toFixed(2)}`} />
       </div>

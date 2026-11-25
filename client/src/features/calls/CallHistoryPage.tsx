@@ -8,7 +8,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-import { EmptyState, ErrorState, FilterTabs, PageHeader, Panel, StatusPill, TableSkeleton } from "@/components/ui";
+import { PhoneOutIcon } from "@/components/icons";
+import { EmptyState, ErrorState, FilterTabs, PageHeader, Panel, Stat, StatusPill, TableSkeleton } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { useCalls } from "@/lib/queries/resources";
 
@@ -40,6 +41,13 @@ export function CdrPage() {
 
       {error && <ErrorState error={error} onRetry={() => void refetch()} />}
 
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat label="Total calls" value={String(t.total)} accent />
+        <Stat label="Answered" value={String(t.answered)} tone="live" />
+        <Stat label="Not answered" value={String(t.missed)} tone="amber" />
+        <Stat label="Talk time" value={clock(t.seconds)} />
+      </div>
+
       <FilterTabs label="Filter calls" value={filter} onChange={setFilter} options={tabs} />
 
       <Panel className="overflow-hidden">
@@ -67,9 +75,14 @@ export function CdrPage() {
                 {rows.map((c) => (
                   <tr key={c.id}>
                     <td>
-                      <Link to={`/calls/${c.id}`} className="num font-medium text-chalk hover:text-signal">
-                        {c.to_masked}
-                      </Link>
+                      <div className="flex items-center gap-3">
+                        <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full bg-live text-live-bright">
+                          <PhoneOutIcon className="size-[18px]" />
+                        </span>
+                        <Link to={`/calls/${c.id}`} className="num font-bold text-chalk hover:text-signal">
+                          {c.to_masked}
+                        </Link>
+                      </div>
                     </td>
                     <td><StatusPill status={c.status} /></td>
                     <td>{answeredByLabel(c.answered_by)}</td>

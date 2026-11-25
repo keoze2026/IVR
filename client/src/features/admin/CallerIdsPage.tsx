@@ -41,51 +41,48 @@ export function CallerIdsPage() {
 
       {error && <ErrorState error={error} onRetry={() => void refetch()} />}
 
-      <Panel className="overflow-hidden">
-        {isLoading && <TableSkeleton />}
-        {data && rows.length === 0 && (
-          <div className="p-6">
-            <EmptyState title="No numbers yet" description="Add a number you own at your carrier." />
-          </div>
-        )}
-        {rows.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Number</th>
-                  <th>Carrier</th>
-                  <th>Trust rating</th>
-                  <th>Calls today</th>
-                  <th>State</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((n) => {
-                  const trust = TRUST[n.attestation] ?? TRUST.C!;
-                  return (
-                    <tr key={n.id}>
-                      <td>
-                        <div className="num font-medium text-chalk">{n.phone_e164}</div>
-                        {n.friendly_name && <div className="text-xs text-ash-dim">{n.friendly_name}</div>}
-                      </td>
-                      <td className="capitalize">{n.provider}</td>
-                      <td>
-                        <span className={cx("rounded-full px-2.5 py-1 text-xs font-medium", trust.tone)}>
-                          {n.attestation}
-                        </span>
-                        <span className="ml-2 text-xs text-ash-dim">{trust.means}</span>
-                      </td>
-                      <td className="num">{n.calls_today}</td>
-                      <td>{n.is_active ? "Active" : "Inactive"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Panel>
+      {isLoading && (
+        <Panel className="overflow-hidden"><TableSkeleton /></Panel>
+      )}
+      {data && rows.length === 0 && (
+        <EmptyState title="No numbers yet" description="Add a number you own at your carrier." />
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {rows.map((n) => {
+          const trust = TRUST[n.attestation] ?? TRUST.C!;
+          return (
+            <Panel key={n.id} className="overflow-hidden">
+              <div className="surface-forest p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="rounded-full bg-white/12 px-3 py-1 text-xs font-bold capitalize text-white">
+                    {n.provider}
+                  </span>
+                  <span className="flex items-center gap-2 text-xs font-bold text-white/80">
+                    <span aria-hidden className={cx("size-2 rounded-full", n.is_active ? "bg-mint" : "bg-white/35")} />
+                    {n.is_active ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <div className="num display mt-5 break-all text-2xl">{n.phone_e164}</div>
+                <div className="mt-1 text-sm font-semibold text-white/65">{n.friendly_name || "Caller number"}</div>
+              </div>
+              <dl className="divide-y divide-edge px-5">
+                <div className="flex items-center justify-between py-3.5">
+                  <dt className="text-sm font-semibold text-ash">Calls today</dt>
+                  <dd className="num display text-xl text-chalk">{n.calls_today}</dd>
+                </div>
+                <div className="py-3.5">
+                  <dt className="flex items-center justify-between text-sm font-semibold text-ash">
+                    Trust rating
+                    <span className={cx("rounded-full px-3 py-1 text-xs font-extrabold", trust.tone)}>{n.attestation}</span>
+                  </dt>
+                  <dd className="mt-1 text-xs font-medium text-ash-dim">{trust.means}</dd>
+                </div>
+              </dl>
+            </Panel>
+          );
+        })}
+      </div>
     </div>
   );
 }

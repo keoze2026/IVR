@@ -80,7 +80,7 @@ export function RecordingButton({ call }: { call: CallSummary }) {
           setLoading(false);
         }
       }}
-      className="press inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-signal ring-1 ring-inset ring-edge-bright hover:bg-live"
+      className="press inline-flex min-h-9 items-center gap-1.5 rounded-full bg-panel px-3.5 text-xs font-bold text-signal ring-1 ring-inset ring-edge-bright hover:bg-live"
     >
       <PlayIcon className="size-3.5" />
       {loading ? "Loading…" : failed ? "Retry" : "Play"}

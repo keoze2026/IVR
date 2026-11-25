@@ -9,6 +9,7 @@
 import { useState } from "react";
 
 import { SettingsIcon } from "@/components/icons";
+import { Waveform } from "@/components/Waveform";
 import { Button, Field, Input } from "@/components/ui";
 
 export function AdminLoginPage() {
@@ -46,26 +47,34 @@ export function AdminLoginPage() {
   }
 
   return (
-    <main className="grid min-h-dvh lg:grid-cols-2">
-      <section className="hidden flex-col justify-between bg-signal p-12 text-white lg:flex">
-        <div className="flex items-center gap-2.5">
-          <span className="flex size-10 items-center justify-center rounded-xl bg-white text-signal">
-            <SettingsIcon />
+    <main className="grid min-h-dvh gap-4 lg:grid-cols-[1.15fr_1fr] lg:p-4">
+      <section className="surface-forest relative hidden flex-col justify-between overflow-hidden rounded-[var(--radius-shell)] p-12 lg:flex">
+        <div aria-hidden className="absolute -right-40 -top-40 size-[520px] rounded-full border-[60px] border-white/[0.04]" />
+        <div aria-hidden className="absolute -bottom-52 -left-32 size-[460px] rounded-full border-[46px] border-mint/[0.07]" />
+        <div className="relative flex items-center gap-3">
+          <span className="flex size-12 items-center justify-center rounded-2xl bg-mint text-forest">
+            <SettingsIcon className="size-6" />
           </span>
-          <span className="display text-xl">Outbound</span>
+          <span className="display text-2xl">Outbound</span>
         </div>
-        <div className="max-w-md">
-          <p className="display text-4xl leading-tight">System administration</p>
-          <p className="mt-4 text-base text-white/85">
+        <div className="relative max-w-xl">
+          <Waveform className="mb-10" />
+          <p className="display text-5xl leading-[1.08]">
+            System <span className="text-mint">administration</span>
+          </p>
+          <p className="mt-5 text-lg font-medium text-white/75">
             Manage organisations, people and records.
           </p>
         </div>
-        <p className="text-sm text-white/70">Administrators only.</p>
+        <p className="relative text-sm font-semibold text-white/60">Administrators only.</p>
       </section>
 
-      <section className="flex items-center justify-center bg-panel px-6 py-10">
-        <form onSubmit={submit} className="w-full max-w-sm">
-          <h1 className="display text-2xl text-chalk">Administrator sign-in</h1>
+      <section className="flex items-center justify-center bg-void p-5 lg:rounded-[var(--radius-shell)]">
+        <form
+          onSubmit={submit}
+          className="w-full max-w-md rounded-[var(--radius-shell)] border border-edge/70 bg-panel p-8 shadow-[var(--shadow-card)] sm:p-10"
+        >
+          <h1 className="display text-3xl text-chalk">Administrator sign-in</h1>
 
           <div className="mt-8 space-y-5">
             <Field label="Username" htmlFor="admin-username">

@@ -40,6 +40,7 @@ import {
   PanelHeader,
   TableSkeleton,
   cx,
+  Stat,
 } from "@/components/ui";
 import type { ApiError } from "@/lib/errors";
 import {
@@ -127,8 +128,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-dvh bg-void text-chalk lg:flex">
-      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-edge bg-panel lg:flex">
+    <div className="min-h-dvh text-chalk lg:flex lg:gap-4 lg:p-4">
+      <aside className="surface-forest sticky top-4 hidden h-[calc(100dvh-2rem)] w-64 shrink-0 flex-col overflow-hidden rounded-[var(--radius-shell)] lg:flex">
         {sidebar}
       </aside>
 
@@ -138,16 +139,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             type="button"
             aria-label="Close menu"
             onClick={() => setDrawerOpen(false)}
-            className="absolute inset-0 bg-chalk/40"
+            className="absolute inset-0 bg-forest/55 backdrop-blur-sm"
           />
-          <div className="settle absolute inset-y-0 left-0 flex w-64 max-w-[85vw] flex-col border-r border-edge bg-panel">
+          <div className="surface-forest settle absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col rounded-r-[var(--radius-shell)]">
             {sidebar}
           </div>
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center gap-3 border-b border-edge bg-panel px-4 lg:px-8">
+      <div className="flex min-w-0 flex-1 flex-col bg-void lg:rounded-[var(--radius-shell)]">
+        <header className="m-3 mb-0 flex min-h-16 shrink-0 items-center gap-3 rounded-3xl border border-edge/70 bg-panel px-4 shadow-[var(--shadow-card)] lg:mx-6 lg:mt-5 lg:px-5">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
@@ -158,6 +159,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <MenuIcon />
           </button>
 
+          <div className="hidden leading-tight md:block">
+            <div className="text-xs font-semibold text-ash-dim">Today</div>
+            <div className="display text-base text-chalk">
+              {new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
+            </div>
+          </div>
+
           <div className="ml-auto flex min-w-0 items-center gap-3">
             <div className="min-w-0 text-right leading-tight">
               <div className="truncate text-sm font-medium text-chalk">{name}</div>
@@ -165,14 +173,14 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             </div>
             <span
               aria-hidden
-              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-signal text-sm font-bold text-white"
+              className="flex size-11 shrink-0 items-center justify-center rounded-full bg-forest text-sm font-extrabold text-mint ring-4 ring-live"
             >
               {name.slice(0, 1).toUpperCase()}
             </span>
           </div>
         </header>
 
-        <main className="mx-auto w-full min-w-0 max-w-7xl flex-1 overflow-x-hidden px-4 py-6 lg:px-8 lg:py-8">
+        <main className="mx-auto w-full min-w-0 max-w-[1440px] flex-1 overflow-x-hidden px-4 py-6 lg:px-6 lg:py-7">
           {children}
         </main>
       </div>
@@ -180,14 +188,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-const NAV_ITEM = "press flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm";
+const NAV_ITEM = "press flex min-h-12 items-center gap-3 rounded-full px-4 text-sm font-semibold";
+const NAV_IDLE = "text-white/75 hover:bg-white/10 hover:text-white";
 
 function navClass({ isActive }: { isActive: boolean }) {
   return cx(
     NAV_ITEM,
-    isActive
-      ? "bg-live font-medium text-live-bright"
-      : "text-ash hover:bg-raised hover:text-chalk",
+    isActive ? "bg-white text-forest shadow-[var(--shadow-raised)]" : NAV_IDLE,
   );
 }
 
@@ -200,14 +207,14 @@ function AdminSidebar({
 }) {
   return (
     <>
-      <Link to="/admin" className="flex h-16 shrink-0 items-center gap-2.5 px-5">
-        <span className="flex size-9 items-center justify-center rounded-xl bg-signal text-white">
-          <SettingsIcon />
+      <Link to="/admin" className="flex h-20 shrink-0 items-center gap-3 px-6">
+        <span className="flex size-11 items-center justify-center rounded-2xl bg-mint text-forest">
+          <SettingsIcon className="size-6" />
         </span>
-        <span className="display text-lg text-chalk">Administration</span>
+        <span className="display text-lg text-white">Administration</span>
       </Link>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3" aria-label="Administration sections">
+      <nav className="flex-1 space-y-1.5 overflow-y-auto px-4 py-2" aria-label="Administration sections">
         <NavLink to="/admin" end className={navClass}>
           <HomeIcon />
           Overview
@@ -217,15 +224,15 @@ function AdminSidebar({
         ))}
       </nav>
 
-      <div className="space-y-1 border-t border-edge px-3 py-3">
-        <Link to="/dashboard" className={cx(NAV_ITEM, "text-ash hover:bg-raised hover:text-chalk")}>
+      <div className="m-4 mt-2 space-y-1 rounded-3xl bg-white/[0.07] p-2">
+        <Link to="/dashboard" className={cx(NAV_ITEM, NAV_IDLE)}>
           <PhoneOutIcon />
           Calling portal
         </Link>
         <button
           type="button"
           onClick={onSignOut}
-          className={cx(NAV_ITEM, "w-full text-ash hover:bg-raised hover:text-chalk")}
+          className={cx(NAV_ITEM, "w-full", NAV_IDLE)}
         >
           <LogOutIcon />
           Sign out
@@ -253,7 +260,7 @@ function AdminNavGroup({ group, items }: { group: string; items: ResourceSchema[
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="press mt-1 flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-xs font-medium text-ash-dim hover:bg-raised"
+        className="press mt-3 flex min-h-11 w-full items-center justify-between rounded-full px-4 text-[11px] font-bold uppercase tracking-widest text-white/60 hover:text-white"
       >
         {group}
         <ChevronIcon className={cx("size-4 transition-transform", open && "rotate-180")} />
@@ -296,20 +303,39 @@ export function AdminOverviewPage() {
         </Panel>
       )}
 
+      {resources.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {resources.slice(0, 4).map((r) => (
+            <Stat
+              key={r.resource}
+              label={r.label}
+              value={String(overview.data?.counts?.[r.resource] ?? "—")}
+              to={`/admin/${r.resource}`}
+            />
+          ))}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
         {groupResources(resources).map(([group, items]) => (
           <Panel key={group} className="overflow-hidden">
             <PanelHeader title={group} />
-            <ul className="divide-y divide-edge">
+            <ul className="space-y-1 p-3">
               {items.map((r) => (
                 <li key={r.resource}>
                   <Link
                     to={`/admin/${r.resource}`}
-                    className="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-void"
+                    className="flex min-h-14 items-center gap-3 rounded-2xl px-3 py-2 hover:bg-void"
                   >
-                    <span className="min-w-0 flex-1 text-sm text-ash">{r.label}</span>
+                    <span
+                      aria-hidden
+                      className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-live text-sm font-extrabold text-live-bright"
+                    >
+                      {r.label.slice(0, 1)}
+                    </span>
+                    <span className="min-w-0 flex-1 text-sm font-semibold text-chalk">{r.label}</span>
                     {r.readonly && <Badge>View only</Badge>}
-                    <span className="num min-w-10 text-right text-xl font-bold text-chalk">
+                    <span className="num display min-w-10 text-right text-xl text-chalk">
                       {overview.data?.counts?.[r.resource] ?? "—"}
                     </span>
                   </Link>

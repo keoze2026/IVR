@@ -66,7 +66,7 @@ export function CampaignsPage() {
   const newCampaign = (label: string) => (
     <Link
       to="/campaigns/new"
-      className="press inline-flex min-h-11 items-center gap-2 rounded-xl bg-signal px-4 text-sm font-medium text-white hover:bg-signal-dim"
+      className="press inline-flex min-h-11 items-center gap-2 rounded-full bg-forest px-5 text-sm font-bold text-white shadow-[var(--shadow-raised)] hover:bg-forest-soft"
     >
       <PlusIcon className="size-4" /> {label}
     </Link>

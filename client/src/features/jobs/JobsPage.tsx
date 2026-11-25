@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
 import { PauseIcon, PlayIcon, PlusIcon, StopIcon, TrashIcon } from "@/components/icons";
-import { Button, EmptyState, ErrorState, Input, PageHeader, Panel, StatusPill, TableSkeleton, cx } from "@/components/ui";
+import { Button, EmptyState, ErrorState, Input, PageHeader, Panel, Stat, StatusPill, TableSkeleton, cx } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { useCampaigns, useDeleteJob, useJobAction } from "@/lib/queries/campaigns";
 import type { Campaign } from "@/types/domain";
@@ -25,6 +25,7 @@ export function JobsPage() {
     ? all.filter((j) => `${j.name} ${j.target_number}`.toLowerCase().includes(term))
     : all;
   const failure = action.error ?? del.error;
+  const count = (status: string) => all.filter((j) => j.status === status).length;
 
   return (
     <div className="space-y-6">
@@ -44,6 +45,13 @@ export function JobsPage() {
           {failure.message || "That action could not be completed."}
         </p>
       )}
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Stat label="Total jobs" value={String(all.length)} accent />
+        <Stat label="Running" value={String(count("running"))} tone="live" />
+        <Stat label="Completed" value={String(count("completed"))} tone="live" />
+        <Stat label="Failed" value={String(count("failed"))} tone="rust" />
+      </div>
 
       <Input
         value={search}
@@ -117,9 +125,14 @@ function JobRow({
   return (
     <tr>
       <td>
-        <Link to={`/campaigns/${job.id}`} className="font-medium text-chalk hover:text-signal">
-          {job.name}
-        </Link>
+        <div className="flex items-center gap-3">
+          <span aria-hidden className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-forest text-sm font-extrabold uppercase text-mint">
+            {job.name.slice(0, 1)}
+          </span>
+          <Link to={`/campaigns/${job.id}`} className="font-bold text-chalk hover:text-signal">
+            {job.name}
+          </Link>
+        </div>
       </td>
       <td className="num">{job.target_number || "Contact list"}</td>
       <td className="num">{job.cli_pool_name || job.caller_id_detail?.phone_e164 || "—"}</td>
@@ -170,7 +183,7 @@ function Action({
       title={label}
       aria-label={label}
       className={cx(
-        "press flex size-9 items-center justify-center rounded-lg text-ash ring-1 ring-inset ring-edge disabled:opacity-40",
+        "press flex size-10 items-center justify-center rounded-full bg-panel text-ash ring-1 ring-inset ring-edge disabled:opacity-40",
         danger ? "hover:bg-[#fdeaea] hover:text-rust" : "hover:bg-live hover:text-signal",
       )}
     >
