@@ -27,8 +27,8 @@ import { SessionProvider, useSession } from "@/lib/session";
 import { AccessKeysPage } from "@/features/admin/AccessKeysPage";
 import { PeoplePage } from "@/features/admin/PeoplePage";
 import { TariffsPage, WalletPage } from "@/features/billing/BillingPages";
-import { CallsBreakdownPage, CdrPage, DashboardPage } from "@/features/dashboard/DashboardPage";
-import { ActiveJobsPage } from "@/features/jobs/ActiveJobsPage";
+import { CdrPage } from "@/features/calls/CallHistoryPage";
+import { DashboardPage } from "@/features/dashboard/DashboardPage";
 import { JobsPage } from "@/features/jobs/JobsPage";
 import { AudioPoolsPage, CliPoolsPage } from "@/features/telephony/PoolsPage";
 import { AdminLoginPage } from "@/features/platform/AdminLoginPage";
@@ -43,7 +43,6 @@ import {
 import { CallerIdsPage, SettingsPage } from "@/features/admin/CallerIdsPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { CallDetailPage } from "@/features/calls/CallDetailPage";
-import { CallsTable } from "@/features/calls/CallsTable";
 import { CampaignCallsPage } from "@/features/campaigns/CampaignCallsPage";
 import {
   CampaignDetailLayout,
@@ -103,21 +102,6 @@ function CampaignOverviewRoute() {
   return <CampaignOverview campaign={campaign} />;
 }
 
-function GlobalCalls() {
-  return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="display text-xl font-semibold text-chalk sm:text-2xl">Calls</h1>
-        <p className="mt-1 text-sm text-ash">
-          Every attempt and how it ended. Filter by outcome, or open a campaign
-          to see only its calls.
-        </p>
-      </header>
-      <CallsTable />
-    </div>
-  );
-}
-
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -153,14 +137,14 @@ export function App() {
                 </RequireSession>
               }
             >
-              <Route index element={<Navigate to="/campaigns" replace />} />
+              <Route index element={<Navigate to="/dashboard" replace />} />
 
               {/* --- campaigns ------------------------------------- */}
               <Route path="/campaigns" element={<CampaignsPage />} />
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/dashboard/breakdown" element={<CallsBreakdownPage />} />
+              <Route path="/dashboard/breakdown" element={<Navigate to="/dashboard" replace />} />
               <Route path="/jobs" element={<JobsPage />} />
-              <Route path="/jobs/active" element={<ActiveJobsPage />} />
+              <Route path="/jobs/active" element={<Navigate to="/jobs" replace />} />
               <Route path="/cdr" element={<CdrPage />} />
               <Route path="/audio-pools" element={<AudioPoolsPage />} />
               <Route path="/cli-pools" element={<CliPoolsPage />} />
@@ -190,7 +174,7 @@ export function App() {
               />
 
               {/* --- calls ----------------------------------------- */}
-              <Route path="/calls" element={<GlobalCalls />} />
+              <Route path="/calls" element={<Navigate to="/cdr" replace />} />
               <Route path="/calls/:id" element={<CallDetailPage />} />
 
               {/* --- compliance ------------------------------------ */}

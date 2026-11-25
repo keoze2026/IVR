@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from "react";
 
+import { Button, Field, Input, Panel, PanelHeader, Select, Textarea, cx } from "@/components/ui";
 import { usePlatformList, type FieldSchema, type ResourceSchema, type Row } from "@/lib/queries/platform";
 
 /** Fields a person should never be asked to fill in by hand. */
@@ -25,10 +26,12 @@ export function editableFields(schema: ResourceSchema): FieldSchema[] {
 
 /** A dropdown of existing rows, so a reference is picked rather than typed. */
 function ReferencePicker({
+  id,
   field,
   value,
   onChange,
 }: {
+  id: string;
   field: FieldSchema;
   value: unknown;
   onChange: (v: unknown) => void;
@@ -40,20 +43,20 @@ function ReferencePicker({
     // A model the admin does not expose. Falling back to a raw id beats
     // rendering nothing and silently dropping the field.
     return (
-      <input
+      <Input
+        id={id}
         value={(value as string) ?? ""}
         onChange={(e) => onChange(e.target.value || null)}
         placeholder="Identifier"
-        className={inputClass}
       />
     );
   }
 
   return (
-    <select
+    <Select
+      id={id}
       value={(value as string) ?? ""}
       onChange={(e) => onChange(e.target.value || null)}
-      className={inputClass}
       disabled={isLoading}
     >
       <option value="">{isLoading ? "Loading…" : "— none —"}</option>
@@ -62,14 +65,11 @@ function ReferencePicker({
           {row.display ?? row.id}
         </option>
       ))}
-    </select>
+    </Select>
   );
 }
 
-const inputClass =
-  "w-full rounded border border-edge bg-void px-3 py-2 text-sm text-chalk placeholder:text-ash/50 focus:border-live-bright focus:outline-none";
-
-function Field({
+function Toggle({
   field,
   value,
   onChange,
@@ -80,30 +80,49 @@ function Field({
   onChange: (v: unknown) => void;
   error?: string;
 }) {
-  const common = { className: inputClass };
+  return (
+    <div>
+      <label className="flex min-h-11 items-start gap-3 rounded-xl border border-edge px-3 py-2.5 hover:bg-void">
+        <input
+          type="checkbox"
+          checked={Boolean(value)}
+          onChange={(e) => onChange(e.target.checked)}
+          className="mt-0.5 size-4 shrink-0 accent-signal"
+        />
+        <span className="min-w-0">
+          <span className="block text-sm text-chalk">{field.label}</span>
+          {field.help && <span className="block text-xs text-ash">{field.help}</span>}
+        </span>
+      </label>
+      {error && (
+        <p role="alert" className="mt-1 text-xs text-rust">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SchemaField({
+  field,
+  value,
+  onChange,
+  error,
+}: {
+  field: FieldSchema;
+  value: unknown;
+  onChange: (v: unknown) => void;
+  error?: string;
+}) {
+  const id = `record-${field.name}`;
+  const common = { id, invalid: Boolean(error) };
+  const wide = field.widget === "textarea" || field.widget === "json";
 
   let control: React.ReactNode;
   switch (field.widget) {
-    case "boolean":
-      return (
-        <label className="flex items-start gap-3 py-1">
-          <input
-            type="checkbox"
-            checked={Boolean(value)}
-            onChange={(e) => onChange(e.target.checked)}
-            className="mt-1 h-4 w-4 accent-signal"
-          />
-          <span>
-            <span className="text-sm text-chalk">{field.label}</span>
-            {field.help && (
-              <span className="block text-xs text-ash">{field.help}</span>
-            )}
-          </span>
-        </label>
-      );
     case "choice":
       control = (
-        <select
+        <Select
           value={(value as string) ?? ""}
           onChange={(e) => onChange(e.target.value)}
           {...common}
@@ -114,15 +133,15 @@ function Field({
               {c.label}
             </option>
           ))}
-        </select>
+        </Select>
       );
       break;
     case "reference":
-      control = <ReferencePicker field={field} value={value} onChange={onChange} />;
+      control = <ReferencePicker id={id} field={field} value={value} onChange={onChange} />;
       break;
     case "textarea":
       control = (
-        <textarea
+        <Textarea
           rows={3}
           value={(value as string) ?? ""}
           onChange={(e) => onChange(e.target.value)}
@@ -132,19 +151,21 @@ function Field({
       break;
     case "json":
       control = (
-        <textarea
+        <Textarea
           rows={5}
           value={
             typeof value === "string" ? value : JSON.stringify(value ?? null, null, 2)
           }
           onChange={(e) => onChange(e.target.value)}
-          className={`${inputClass} font-mono text-xs`}
+          className="font-mono !text-xs"
+          spellCheck={false}
+          {...common}
         />
       );
       break;
     case "number":
       control = (
-        <input
+        <Input
           type="number"
           step="any"
           value={(value as number | string) ?? ""}
@@ -155,7 +176,7 @@ function Field({
       break;
     case "datetime":
       control = (
-        <input
+        <Input
           type="datetime-local"
           value={toLocalInput(value)}
           onChange={(e) => onChange(e.target.value ? new Date(e.target.value).toISOString() : null)}
@@ -166,7 +187,7 @@ function Field({
     case "date":
     case "time":
       control = (
-        <input
+        <Input
           type={field.widget}
           value={(value as string) ?? ""}
           onChange={(e) => onChange(e.target.value || null)}
@@ -176,7 +197,7 @@ function Field({
       break;
     default:
       control = (
-        <input
+        <Input
           type={field.widget === "email" ? "email" : "text"}
           value={(value as string) ?? ""}
           maxLength={field.max_length}
@@ -187,15 +208,16 @@ function Field({
   }
 
   return (
-    <label className="block">
-      <span className="mb-1 block text-xs uppercase tracking-wider text-ash">
-        {field.label}
-        {field.required && <span className="ml-1 text-rust">*</span>}
-      </span>
-      {control}
-      {field.help && <span className="mt-1 block text-xs text-ash">{field.help}</span>}
-      {error && <span className="mt-1 block text-xs text-rust">{error}</span>}
-    </label>
+    <div className={cx("min-w-0", wide && "sm:col-span-2")}>
+      <Field
+        label={field.required ? `${field.label} *` : field.label}
+        htmlFor={id}
+        hint={field.help || undefined}
+        error={error}
+      >
+        {control}
+      </Field>
+    </div>
   );
 }
 
@@ -225,6 +247,8 @@ export function RecordForm({
   submitLabel: string;
 }) {
   const fields = editableFields(schema);
+  const inputs = fields.filter((f) => f.widget !== "boolean");
+  const toggles = fields.filter((f) => f.widget === "boolean");
   const [values, setValues] = useState<Record<string, unknown>>({});
 
   useEffect(() => {
@@ -235,42 +259,54 @@ export function RecordForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial, schema.resource]);
 
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSubmit(values);
-      }}
-      className="space-y-5"
-    >
-      <div className="grid gap-4 sm:grid-cols-2">
-        {fields.map((field) => (
-          <Field
-            key={field.name}
-            field={field}
-            value={values[field.name]}
-            onChange={(v) => setValues((prev) => ({ ...prev, [field.name]: v }))}
-            error={fieldErrors?.[field.name]?.[0]}
-          />
-        ))}
-      </div>
+  const bind = (field: FieldSchema) => ({
+    field,
+    value: values[field.name],
+    onChange: (v: unknown) => setValues((prev) => ({ ...prev, [field.name]: v })),
+    error: fieldErrors?.[field.name]?.[0],
+  });
 
-      <div className="flex gap-3">
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-live-bright px-4 py-2 text-sm font-semibold uppercase tracking-wider text-void disabled:opacity-50"
-        >
-          {submitting ? "Saving…" : submitLabel}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded border border-edge px-4 py-2 text-sm text-ash hover:text-chalk"
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
+  return (
+    <Panel className="min-w-0">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit(values);
+        }}
+      >
+        <PanelHeader
+          title="Details"
+          hint={fields.some((f) => f.required) ? "* Required" : undefined}
+        />
+
+        {inputs.length > 0 && (
+          <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:p-5">
+            {inputs.map((field) => (
+              <SchemaField key={field.name} {...bind(field)} />
+            ))}
+          </div>
+        )}
+
+        {toggles.length > 0 && (
+          <fieldset className="min-w-0 border-t border-edge p-4 sm:p-5">
+            <legend className="sr-only">Options</legend>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {toggles.map((field) => (
+                <Toggle key={field.name} {...bind(field)} />
+              ))}
+            </div>
+          </fieldset>
+        )}
+
+        <div className="flex flex-wrap justify-end gap-2 border-t border-edge px-4 py-4 sm:px-5">
+          <Button type="button" variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" loading={submitting}>
+            {submitting ? "Saving…" : submitLabel}
+          </Button>
+        </div>
+      </form>
+    </Panel>
   );
 }

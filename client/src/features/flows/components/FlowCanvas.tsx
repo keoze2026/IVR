@@ -6,10 +6,10 @@ import {
   useRef,
   useState,
   useCallback,
+  useEffect,
   type FC,
   type MouseEvent as ReactMouseEvent,
   type DragEvent as ReactDragEvent,
-  type WheelEvent as ReactWheelEvent,
 } from "react";
 import type {
   FlowDefinition,
@@ -80,6 +80,7 @@ export const FlowCanvas: FC<FlowCanvasProps> = ({
   onDuplicateNode,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const worldRef = useRef<HTMLDivElement>(null);
 
   // Interaction states
   const [isPanning, setIsPanning] = useState(false);
@@ -127,7 +128,8 @@ export const FlowCanvas: FC<FlowCanvasProps> = ({
 
   // Canvas Panning Handlers
   const handleCanvasMouseDown = (e: ReactMouseEvent) => {
-    if (e.target === containerRef.current || (e.target as HTMLElement).tagName === "svg") {
+    // The world layer covers most of the canvas, so it counts as background too.
+    if (e.target === containerRef.current || e.target === worldRef.current) {
       if (e.button === 1 || e.shiftKey) {
         setIsPanning(true);
         setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
@@ -230,15 +232,19 @@ export const FlowCanvas: FC<FlowCanvasProps> = ({
     }
   };
 
-  // Mouse wheel zoom
-  const handleWheel = (e: ReactWheelEvent) => {
-    e.preventDefault();
-    const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-    const newZoom = Math.min(Math.max(zoom * zoomFactor, 0.3), 2.0);
+  // Mouse wheel zoom. Attached natively because React's wheel listener is
+  // passive, which would let the page scroll while the canvas zooms.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-    // Zoom centered on cursor position
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+      const newZoom = Math.min(Math.max(zoom * zoomFactor, 0.3), 2.0);
+
+      // Zoom centered on cursor position
+      const rect = container.getBoundingClientRect();
       const mouseX = e.clientX - rect.left;
       const mouseY = e.clientY - rect.top;
 
@@ -247,8 +253,11 @@ export const FlowCanvas: FC<FlowCanvasProps> = ({
 
       onZoomChange(newZoom);
       onPanChange({ x: newPanX, y: newPanY });
-    }
-  };
+    };
+
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    return () => container.removeEventListener("wheel", handleWheel);
+  }, [zoom, pan, onZoomChange, onPanChange]);
 
   // Drag node card start
   const handleNodeDragStart = (nodeId: string, e: ReactMouseEvent) => {
@@ -321,20 +330,20 @@ export const FlowCanvas: FC<FlowCanvasProps> = ({
       onMouseDown={handleCanvasMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
-      onWheel={handleWheel}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
       className={`relative size-full overflow-hidden bg-void select-none ${
         isPanning ? "cursor-grabbing" : "cursor-default"
       }`}
       style={{
-        backgroundImage: `radial-gradient(circle at 1px 1px, #2c3037 1.5px, transparent 0)`,
+        backgroundImage: `radial-gradient(circle at 1px 1px, var(--color-edge-bright) 1px, transparent 0)`,
         backgroundSize: `${24 * zoom}px ${24 * zoom}px`,
         backgroundPosition: `${pan.x}px ${pan.y}px`,
       }}
     >
       {/* Scaled and Panned World Container */}
       <div
+        ref={worldRef}
         className="absolute left-0 top-0 size-full origin-top-left"
         style={{
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,

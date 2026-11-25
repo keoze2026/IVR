@@ -9,107 +9,129 @@
 @import "@fontsource/roboto-mono/500.css";
 
 /*
- * Outbound IVR — operator console.
+ * Outbound IVR — operator portal.
  *
- * Watched for hours while regulated calls go out. Chrome is near-monochrome
- * on purpose: the only bright things are live data and the one primary
- * action, so colour stays available to carry state.
- *
- * Two greens, never swapped:
- *   --signal  luminous — brand, emphasis, key figures
- *   --live    deeper   — this campaign is dialing right now
- *
- * No gradients anywhere.
+ * Light, calm surfaces with one green accent. Colour is reserved for actions
+ * and call state. Token names are shared by every screen, so the theme is
+ * changed here and nowhere else.
  */
 
 @theme {
-  --color-void: #16181c;
-  --color-panel: #1e2126;
-  --color-raised: #24282e;
-  --color-edge: #2c3037;
-  --color-edge-bright: #3a4048;
+  --color-void: #f5f8f7;
+  --color-panel: #ffffff;
+  --color-raised: #eef3f1;
+  --color-edge: #e3eae7;
+  --color-edge-bright: #cbd8d3;
 
-  --color-signal: #b8ff3c;
-  --color-signal-dim: #7fae2a;
-  --color-live: #1d7f4c;
-  --color-live-bright: #2aa866;
+  --color-signal: #0b8457;
+  --color-signal-dim: #0a6b47;
+  --color-live: #e1f5ec;
+  --color-live-bright: #0b8457;
 
-  --color-chalk: #e6e9ed;
-  --color-ash: #9aa2ac;
-  /* Lightened from #5D6570, which sat at 3.0:1 on --void and failed AA for
-     text. This is 5.1:1. Nothing in the UI carries meaning below that. */
-  --color-ash-dim: #828a95;
+  --color-chalk: #10241d;
+  --color-ash: #4f625a;
+  --color-ash-dim: #64756e;
 
-  --color-amber: #f0b429;
-  --color-rust: #f05c60;
+  --color-amber: #96590a;
+  --color-rust: #c53434;
+
+  /* Chart fills. Validated together for colour-blind separation; always
+     paired with a text label. */
+  --color-chart-answered: #0f9d6b;
+  --color-chart-missed: #e0930f;
+  --color-chart-failed: #d64545;
 
   --font-display: "Roboto", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Roboto", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Roboto Mono", ui-monospace, "SF Mono", monospace;
 
-  /* The console floats on a darker page, the way the reference app floats a
-     white shell on grey. It reads as one instrument rather than a browser
-     window that happens to have chrome in it. */
-  --color-backdrop: #101215;
+  --color-backdrop: #f5f8f7;
 
   --radius-shell: 20px;
-  --radius-card: 14px;
+  --radius-card: 16px;
+
+  --shadow-card: 0 1px 2px rgb(16 36 29 / 0.04), 0 4px 16px rgb(16 36 29 / 0.04);
 }
 
 @layer base {
   html {
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   body {
     background-color: var(--color-backdrop);
     color: var(--color-chalk);
     font-family: var(--font-sans);
-    /* 16px base. Dense areas step down to 14px, never below. */
-    font-size: 16px;
+    font-size: 15px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
 
-  /* If it is a measurement, it is mono and tabular. Counters change every
-     second; proportional figures make the layout twitch. */
+  /* Measurements are tabular so live counters do not make the layout twitch. */
   .num {
-    font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
   }
 
   .display {
     font-family: var(--font-display);
-    font-weight: 500;
-    letter-spacing: -0.011em;
+    font-weight: 700;
+    letter-spacing: -0.015em;
   }
 
-  /* Section labels. 11px is the floor — below that, wide tracking stops
-     helping and starts hurting. */
+  /* Small field and section labels. */
   .eyebrow {
-    font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 12px;
+    font-weight: 500;
     line-height: 1.3;
-    letter-spacing: 0.11em;
-    text-transform: uppercase;
     color: var(--color-ash-dim);
   }
 
   :focus-visible {
     outline: 2px solid var(--color-signal);
     outline-offset: 2px;
-    border-radius: 3px;
+    border-radius: 4px;
   }
 
   ::selection {
-    background: var(--color-signal);
-    color: var(--color-void);
+    background: var(--color-live);
+    color: var(--color-chalk);
   }
 
   * {
     scrollbar-color: var(--color-edge-bright) transparent;
     scrollbar-width: thin;
+  }
+}
+
+/* One table style for every list in the portal. */
+@layer components {
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .table th {
+    /* Contains screen-reader-only header text inside scrolling tables. */
+    position: relative;
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-ash-dim);
+    background: var(--color-void);
+    border-bottom: 1px solid var(--color-edge);
+  }
+  .table td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--color-edge);
+    color: var(--color-ash);
+  }
+  .table tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .table tbody tr:hover {
+    background: var(--color-void);
   }
 }
 

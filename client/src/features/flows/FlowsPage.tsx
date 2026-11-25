@@ -10,18 +10,21 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { ClipButton } from "@/components/styled/ClipButton";
+import { PlusIcon } from "@/components/icons";
 import { PulseLoader } from "@/components/styled/PulseLoader";
 import {
   BackLink,
+  Badge,
   Button,
   EmptyState,
   ErrorState,
   Field,
   Input,
+  Modal,
+  PageHeader,
   Panel,
+  Stat,
   TableSkeleton,
-  cx,
 } from "@/components/ui";
 import { formatDateTime, formatRelative } from "@/lib/format";
 import {
@@ -33,7 +36,7 @@ import {
   useFlows,
 } from "@/lib/queries/resources";
 import { useCan } from "@/lib/session";
-import type { FlowDefinition, FlowVersion } from "@/types/domain";
+import type { FlowDefinition, FlowSummary, FlowVersion } from "@/types/domain";
 
 /** A minimal legal flow: greeting, a menu with an opt-out, and a goodbye. */
 const STARTER: FlowDefinition = {
@@ -81,131 +84,162 @@ const STARTER: FlowDefinition = {
 export function FlowsPage() {
   const canEdit = useCan("flow.edit");
   const { data, isLoading, error, refetch } = useFlows();
-  const createFlow = useCreateFlow();
-  const createVersion = useCreateVersion();
-  const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
 
   const rows = data?.results ?? [];
-
-  async function create() {
-    const flow = await createFlow.mutateAsync({ name: name.trim() });
-    // A flow with no version is not useful, so seed a draft immediately.
-    await createVersion.mutateAsync({ flow: flow.id, definition: STARTER });
-    setName("");
-    setCreating(false);
-  }
+  const count = (matches: (flow: FlowSummary) => boolean) =>
+    data ? String(rows.filter(matches).length) : "—";
+  // Counts only cover the flows loaded here; say so when there are more.
+  const scope = data?.next ? "In the flows shown" : undefined;
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
-        <div>
-          <h1 className="display text-xl font-semibold text-chalk sm:text-2xl">Flows</h1>
-          <p className="mt-1 text-sm text-ash">
-            What the caller hears, and where each keypress leads. Node types are
-            fixed and every transition is checked before a flow can go live.
-          </p>
-        </div>
-        {canEdit && !creating && (
-          <ClipButton onClick={() => setCreating(true)}>New flow</ClipButton>
-        )}
-      </header>
-
-      {creating && (
-        <Panel className="p-4">
-          <div className="flex items-end gap-3">
-            <div className="flex-1">
-              <Field
-                label="Flow name"
-                htmlFor="flow-name"
-                error={createFlow.error?.messageFor("name")}
-              >
-                <Input
-                  id="flow-name"
-                  autoFocus
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Appointment reminder"
-                />
-              </Field>
-            </div>
-            <Button
-              variant="primary"
-              disabled={!name.trim()}
-              loading={createFlow.isPending || createVersion.isPending}
-              onClick={() => void create()}
-            >
-              Create
+      <PageHeader
+        title="Call flows"
+        subtitle="What callers hear and what each key does."
+        actions={
+          canEdit && (
+            <Button variant="primary" onClick={() => setCreating(true)}>
+              <PlusIcon className="size-4" /> New flow
             </Button>
-            <Button variant="ghost" onClick={() => setCreating(false)}>
-              Cancel
-            </Button>
-          </div>
-        </Panel>
-      )}
+          )
+        }
+      />
 
       {error && <ErrorState error={error} onRetry={() => void refetch()} />}
 
-      <Panel className="overflow-hidden">
-        {isLoading && <TableSkeleton />}
-        {data && rows.length === 0 && !creating && (
-          <EmptyState
-            title="No flows yet"
-            description="A flow is a small graph of typed nodes. It cannot run arbitrary code, and every destination it dials must be pre-approved."
-            action={
-              canEdit ? (
-                <ClipButton onClick={() => setCreating(true)}>
-                  Create a flow
-                </ClipButton>
-              ) : undefined
-            }
-          />
-        )}
-        {rows.length > 0 && (
-          <ul className="divide-y divide-edge">
-            {rows.map((flow) => (
-              <li key={flow.id}>
-                <Link
-                  to={`/flows/${flow.id}`}
-                  className="group flex items-center gap-4 px-4 py-3.5 hover:bg-raised"
-                >
-                  <div className="min-w-0 flex-1">
-                    <span className="display font-medium text-chalk group-hover:text-signal">
-                      {flow.name}
-                    </span>
-                    {flow.description && (
-                      <p className="mt-0.5 truncate text-xs text-ash">
-                        {flow.description}
-                      </p>
-                    )}
-                  </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Stat label="Flows" value={data ? String(data.count ?? rows.length) : "—"} />
+        <Stat label="Published" value={count((f) => Boolean(f.published_version))} denominator={scope} accent />
+        <Stat
+          label="With a draft"
+          value={count((f) => Boolean(f.latest_version && !f.latest_version.is_published))}
+          denominator={scope}
+        />
+      </div>
 
-                  {flow.published_version ? (
-                    <span className="num rounded border border-live-bright/40 px-2 py-0.5 text-[11px] text-live-bright">
-                      live v{flow.published_version.version}
-                    </span>
-                  ) : (
-                    <span className="rounded border border-edge px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider text-ash-dim">
-                      never published
-                    </span>
-                  )}
+      {(isLoading || data) && (
+        <Panel className="overflow-hidden">
+          {isLoading && <TableSkeleton />}
+          {data && rows.length === 0 && (
+            <div className="p-4 sm:p-6">
+              <EmptyState
+                title="No flows yet"
+                description="Start with a ready-made greeting and keypad menu."
+                action={
+                  canEdit ? (
+                    <Button variant="primary" onClick={() => setCreating(true)}>
+                      Create a flow
+                    </Button>
+                  ) : undefined
+                }
+              />
+            </div>
+          )}
+          {rows.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Flow</th>
+                    <th>Published</th>
+                    <th>Draft</th>
+                    <th>Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((flow) => (
+                    <tr key={flow.id}>
+                      <td>
+                        <Link
+                          to={`/flows/${flow.id}`}
+                          className="flex min-h-9 flex-col justify-center font-medium text-chalk hover:text-signal"
+                        >
+                          {flow.name}
+                          {flow.description && (
+                            <span className="max-w-xs truncate text-xs font-normal text-ash-dim">
+                              {flow.description}
+                            </span>
+                          )}
+                        </Link>
+                      </td>
+                      <td>
+                        {flow.published_version ? (
+                          <Badge tone="good">Live v{flow.published_version.version}</Badge>
+                        ) : (
+                          <Badge>Never published</Badge>
+                        )}
+                      </td>
+                      <td>
+                        {flow.latest_version && !flow.latest_version.is_published ? (
+                          <Badge tone="info">Draft v{flow.latest_version.version}</Badge>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td>{formatRelative(flow.updated_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+      )}
 
-                  {flow.latest_version && !flow.latest_version.is_published && (
-                    <span className="num rounded border border-signal/40 px-2 py-0.5 text-[11px] text-signal">
-                      draft v{flow.latest_version.version}
-                    </span>
-                  )}
-
-                  <span className="w-24 text-right text-xs text-ash">
-                    {formatRelative(flow.updated_at)}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
+      {creating && <NewFlowModal onClose={() => setCreating(false)} />}
     </div>
+  );
+}
+
+function NewFlowModal({ onClose }: { onClose: () => void }) {
+  const createFlow = useCreateFlow();
+  const createVersion = useCreateVersion();
+  const [name, setName] = useState("");
+  const pending = createFlow.isPending || createVersion.isPending;
+  const nameError = createFlow.error?.messageFor("name");
+  const otherError = createVersion.error ?? (nameError ? null : createFlow.error);
+
+  async function create() {
+    try {
+      const flow = await createFlow.mutateAsync({ name: name.trim() });
+      // A flow with no version is not useful, so seed a draft immediately.
+      await createVersion.mutateAsync({ flow: flow.id, definition: STARTER });
+      onClose();
+    } catch {
+      // Shown from the mutation's error; the form stays open.
+    }
+  }
+
+  return (
+    <Modal title="New flow" onClose={onClose}>
+      <form
+        className="space-y-5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim() && !pending) void create();
+        }}
+      >
+        <Field label="Flow name" htmlFor="flow-name" error={nameError}>
+          <Input
+            id="flow-name"
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Appointment reminder"
+          />
+        </Field>
+        {otherError && <ErrorState error={otherError} />}
+        <div className="flex justify-end gap-3 border-t border-edge pt-4">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" disabled={!name.trim()} loading={pending}>
+            Create
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -220,42 +254,62 @@ export function FlowVersionsPage() {
 
   if (flow.isLoading || versions.isLoading)
     return <PulseLoader label="Loading flow" />;
-  if (flow.error) return <ErrorState error={flow.error} />;
+  if (flow.error)
+    return <ErrorState error={flow.error} onRetry={() => void flow.refetch()} />;
   if (!flow.data) return null;
 
   const list = versions.data ?? [];
 
   return (
     <div className="space-y-6">
-      <header>
-        <BackLink to="/flows">Flows</BackLink>
-        <h1 className="display mt-2 text-2xl font-semibold text-chalk">
-          {flow.data.name}
-        </h1>
-        <p className="mt-1 text-sm text-ash">
-          Every edit is a new version. Publishing freezes one so campaigns can
-          pin it.
-        </p>
-      </header>
+      <div className="space-y-2">
+        <BackLink to="/flows">Call flows</BackLink>
+        <PageHeader
+          title={flow.data.name}
+          subtitle="Published versions cannot be edited. Clone one to make changes."
+        />
+      </div>
 
-      <Panel className="overflow-hidden">
-        <ul className="divide-y divide-edge">
-          {list.map((version) => (
-            <VersionRow
-              key={version.id}
-              version={version}
-              canEdit={canEdit}
-              onClone={() => clone.mutate(version.id)}
-              cloning={clone.isPending}
-            />
-          ))}
-          {list.length === 0 && (
-            <li className="px-4 py-10 text-center text-sm text-ash">
-              No versions yet.
-            </li>
+      {versions.error && (
+        <ErrorState error={versions.error} onRetry={() => void versions.refetch()} />
+      )}
+      {clone.error && <ErrorState error={clone.error} />}
+
+      {versions.data && (
+        <Panel className="overflow-hidden">
+          {list.length === 0 ? (
+            <p className="px-4 py-10 text-center text-sm text-ash">No versions yet.</p>
+          ) : (
+            // `relative` keeps the hidden column heading inside the scroller.
+            <div className="relative overflow-x-auto">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Version</th>
+                    <th>Status</th>
+                    <th>Checks</th>
+                    <th>Date</th>
+                    <th>
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.map((version) => (
+                    <VersionRow
+                      key={version.id}
+                      version={version}
+                      canEdit={canEdit}
+                      onClone={() => clone.mutate(version.id)}
+                      cloning={clone.isPending && clone.variables === version.id}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
-        </ul>
-      </Panel>
+        </Panel>
+      )}
     </div>
   );
 }
@@ -272,54 +326,59 @@ function VersionRow({
   cloning: boolean;
 }) {
   const report = version.validation_report;
-  const errors = report?.errors.length ?? 0;
-  const warnings = report?.warnings.length ?? 0;
+  const errors = report?.errors?.length ?? 0;
+  const warnings = report?.warnings?.length ?? 0;
 
   return (
-    <li className="flex flex-wrap items-center gap-4 px-4 py-3.5">
-      <span className="num text-lg text-chalk">v{version.version}</span>
-
-      {version.is_published ? (
-        <span className="rounded border border-live-bright/40 bg-live px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-live-bright">
-          published
+    <tr>
+      <td className="num font-medium !text-chalk">v{version.version}</td>
+      <td>
+        <span className="flex gap-2">
+          {version.is_published ? (
+            <Badge tone="good">Published</Badge>
+          ) : (
+            <Badge tone="info">Draft</Badge>
+          )}
+          {version.is_published && !version.prompts_rendered_at && (
+            <Badge tone="warn">Audio still preparing</Badge>
+          )}
         </span>
-      ) : (
-        <span className="rounded border border-signal/40 bg-panel px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-signal">
-          draft
+      </td>
+      <td>
+        <span className="flex gap-2">
+          {errors > 0 && (
+            <Badge tone="bad">
+              {errors} error{errors > 1 ? "s" : ""}
+            </Badge>
+          )}
+          {warnings > 0 && (
+            <Badge tone="warn">
+              {warnings} warning{warnings > 1 ? "s" : ""}
+            </Badge>
+          )}
+          {errors === 0 && warnings === 0 && "—"}
         </span>
-      )}
-
-      {errors > 0 && (
-        <span className="num text-xs text-rust">{errors} errors</span>
-      )}
-      {warnings > 0 && (
-        <span className="num text-xs text-amber">{warnings} warnings</span>
-      )}
-
-      {version.is_published && !version.prompts_rendered_at && (
-        <span className="text-xs text-amber">prompts still rendering</span>
-      )}
-
-      <span className="ml-auto text-xs text-ash">
+      </td>
+      <td>
         {version.published_at
-          ? `published ${formatDateTime(version.published_at)}`
-          : `created ${formatRelative(version.created_at)}`}
-      </span>
-
-      <div className="flex gap-2">
-        <Link to={`/flows/${version.flow}/versions/${version.id}`}>
-          <Button variant="secondary">
-            {version.is_published ? "Inspect" : "Edit"}
-          </Button>
-        </Link>
-        {canEdit && version.is_published && (
-          <Button variant="ghost" onClick={onClone} loading={cloning}>
-            Clone to draft
-          </Button>
-        )}
-      </div>
-    </li>
+          ? `Published ${formatDateTime(version.published_at)}`
+          : `Created ${formatRelative(version.created_at)}`}
+      </td>
+      <td>
+        <div className="flex justify-end gap-2">
+          <Link
+            to={`/flows/${version.flow}/versions/${version.id}`}
+            className="press inline-flex min-h-9 items-center rounded-xl px-3 text-sm font-medium text-chalk ring-1 ring-inset ring-edge-bright hover:bg-raised"
+          >
+            {version.is_published ? "View" : "Edit"}
+          </Link>
+          {canEdit && version.is_published && (
+            <Button dense variant="ghost" onClick={onClone} loading={cloning}>
+              Clone to draft
+            </Button>
+          )}
+        </div>
+      </td>
+    </tr>
   );
 }
-
-export { cx };

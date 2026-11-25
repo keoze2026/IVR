@@ -4,22 +4,31 @@
  * Painted first from `GET stats/`, then driven by the socket — both come from
  * the same `build_frame`, so the numbers never jump when the socket connects.
  *
- * Every rate tile states its denominator. The API computes `answer` and
- * `human` over *dialed*, and `machine`, `transfer` and `opt_out` over
- * *answered*. A tile that shows five percentages without saying which base
- * each uses produces numbers people quietly stop trusting.
+ * Every rate states its denominator. The API computes `answer` and `human`
+ * over *dialed*, and `machine`, `transfer` and `opt_out` over *answered*.
+ * Percentages without their base produce numbers people stop trusting.
  */
 
+import { useQuery } from "@tanstack/react-query";
 import { useOutletContext } from "react-router-dom";
 
-import { ChannelMeter } from "@/components/styled/ChannelMeter";
-import { Button, Gauge, LiveValue, Panel, Stat, cx } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  ErrorState,
+  Gauge,
+  LiveValue,
+  Panel,
+  PanelHeader,
+  Stat,
+  TableSkeleton,
+  cx,
+} from "@/components/ui";
+import { request } from "@/lib/api";
 import { formatCount, formatDuration, formatRate } from "@/lib/format";
 import { useCampaignStats } from "@/lib/queries/campaigns";
 import { useCampaignSocket } from "@/lib/useCampaignSocket";
 import type { AmdQuality, Campaign, KpiFrame } from "@/types/domain";
-import { useQuery } from "@tanstack/react-query";
-import { request } from "@/lib/api";
 
 export function LivePage() {
   const campaign = useOutletContext<Campaign>();
@@ -39,159 +48,141 @@ export function LivePage() {
   });
 
   if (!kpi) {
+    if (rest.error) {
+      return <ErrorState error={rest.error} onRetry={() => void rest.refetch()} />;
+    }
     return (
-      <Panel className="px-4 py-10 text-center text-sm text-ash">
-        No counters yet.
+      <Panel className="overflow-hidden">
+        {rest.isLoading ? (
+          <TableSkeleton />
+        ) : (
+          <p className="px-4 py-10 text-center text-sm text-ash">No figures yet.</p>
+        )}
       </Panel>
     );
   }
 
   const answered = kpi.answered || 0;
   const reached = kpi.human + kpi.machine;
+  const total = campaign.stats?.total_contacts ?? 0;
 
   return (
-    <div className="space-y-5">
-      {/* --- the thing you actually watch ------------------------------- */}
-      <Panel className="px-5 py-4" accent={dialing}>
-        <div className="flex items-baseline justify-between gap-4">
-          <div>
-            <div className="eyebrow">Channels in use</div>
-            <div className="mt-1 flex items-baseline gap-2">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2 lg:grid-cols-4">
+        <Stat
+          label="Calls placed"
+          value={formatCount(kpi.dialed)}
+          to={`/campaigns/${campaign.id}/calls`}
+        />
+        <Stat
+          label="Answer rate"
+          value={formatRate(kpi.rates.answer)}
+          denominator="of calls placed"
+          tone={kpi.rates.answer < 0.08 ? "amber" : "live"}
+        />
+        <Stat
+          label="Reached a person"
+          value={formatRate(kpi.rates.human)}
+          denominator="of calls placed"
+        />
+        <Stat
+          label="Opted out"
+          value={formatRate(kpi.rates.opt_out)}
+          denominator={`${formatCount(kpi.opted_out)} · of answered calls`}
+          tone={kpi.rates.opt_out > 0.02 ? "amber" : undefined}
+        />
+      </div>
+
+      {kpi.rates.answer < 0.08 && kpi.dialed > 200 && (
+        <p role="alert" className="rounded-xl bg-[#fdf1dc] px-4 py-3 text-sm text-amber">
+          Answer rate is under 8%. Check whether your caller ID is being labelled
+          as spam.
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <Panel className="overflow-hidden" accent={dialing}>
+          <PanelHeader
+            title="Calls in progress"
+            action={
+              <ConnectionBadge state={state} isStale={isStale} onRefresh={refresh} />
+            }
+          />
+          <div className="px-4 py-5">
+            <div className="flex items-baseline gap-2">
               <LiveValue
                 value={String(kpi.live_channels)}
                 className={cx(
-                  "num text-4xl leading-none",
+                  "num text-5xl font-light leading-none",
                   dialing ? "text-live-bright" : "text-chalk",
                 )}
               />
               <span className="num text-sm text-ash">
-                / {campaign.max_concurrent_channels}
+                of {campaign.max_concurrent_channels} lines
               </span>
             </div>
-          </div>
-          <ConnectionBadge state={state} isStale={isStale} onRefresh={refresh} />
-        </div>
-
-        <div className="mt-4">
-          <ChannelMeter
-            live={kpi.live_channels}
-            ceiling={campaign.max_concurrent_channels}
-            size="lg"
-          />
-        </div>
-
-        {campaign.stats && campaign.stats.total_contacts > 0 && (
-          <div className="mt-4 flex items-center justify-between border-t border-edge pt-3 text-xs">
-            <span className="text-ash">
-              <span className="num text-chalk">{formatCount(kpi.dialed)}</span> of{" "}
-              <span className="num">
-                {formatCount(campaign.stats.total_contacts)}
-              </span>{" "}
-              contacts dialed
-            </span>
-            <span className="num text-ash">
-              {formatRate(kpi.dialed / campaign.stats.total_contacts)} complete
-            </span>
-          </div>
-        )}
-      </Panel>
-
-      {/* --- progress beside the headline rates ------------------------- */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,17rem)_1fr]">
-        {campaign.stats && campaign.stats.total_contacts > 0 ? (
-          <Panel className="flex items-center px-5 py-5">
-            <Gauge
-              value={kpi.dialed / campaign.stats.total_contacts}
-              label="Queue worked"
-              caption={`${formatCount(
-                Math.max(0, campaign.stats.total_contacts - kpi.dialed),
-              )} contacts left`}
-            />
-          </Panel>
-        ) : (
-          <Panel className="flex items-center justify-center px-5 py-8 text-center text-sm text-ash">
-            Progress appears once the queue is built.
-          </Panel>
-        )}
-
-        <div className="stagger grid gap-3 sm:grid-cols-2">
-          <Stat
-            label="Answer rate"
-            value={formatRate(kpi.rates.answer)}
-            denominator="of calls placed"
-            accent
-            tone={kpi.rates.answer < 0.08 ? "amber" : undefined}
-          />
-          <Stat
-            label="Dialed"
-            value={formatCount(kpi.dialed)}
-            denominator="calls placed"
-            to={`/campaigns/${campaign.id}/calls`}
-          />
-          <Stat
-            label="Reached a person"
-            value={formatRate(kpi.rates.human)}
-            denominator="of calls placed"
-          />
-          <Stat
-            label="Opted out"
-            value={formatRate(kpi.rates.opt_out)}
-            denominator="of answered calls"
-            tone={kpi.rates.opt_out > 0.02 ? "amber" : undefined}
-          />
-        </div>
-      </div>
-
-      {kpi.rates.answer < 0.08 && kpi.dialed > 200 && (
-        <p className="rounded border border-amber/30 bg-panel px-3 py-2 text-sm text-amber">
-          Answer rate under 8% usually means the caller ID is being labelled,
-          not that the list is bad. Check the number's reputation before blaming
-          the data.
-        </p>
-      )}
-
-      <div className="grid gap-5 lg:grid-cols-3">
-        {/* --- what happened to the calls ----------------------------- */}
-        <Panel className="lg:col-span-2">
-          <div className="border-b border-edge px-4 py-3">
-            <h2 className="display text-sm font-semibold text-chalk">Outcomes</h2>
-          </div>
-          <div className="space-y-3 px-4 py-4">
-            <Bar label="Answered" value={kpi.answered} total={kpi.dialed} tone="live" />
-            <Bar label="No answer" value={kpi.no_answer} total={kpi.dialed} />
-            <Bar label="Busy" value={kpi.busy} total={kpi.dialed} />
-            <Bar label="Failed" value={kpi.failed} total={kpi.dialed} tone="rust" />
-            <Bar
-              label="Suppressed before dial"
-              value={kpi.suppressed}
-              total={kpi.dialed}
-              tone="amber"
+            <LineMeter
+              live={kpi.live_channels}
+              ceiling={campaign.max_concurrent_channels}
             />
           </div>
-
-          <div className="grid grid-cols-2 divide-x divide-edge border-t border-edge sm:grid-cols-4">
-            <Mini label="Confirmed" value={kpi.confirmed} />
-            <Mini label="Transferred" value={kpi.transferred} />
-            <Mini label="Voicemail" value={kpi.voicemail} />
-            <Mini label="Opted out" value={kpi.opted_out} tone="amber" />
-          </div>
+          <dl className="grid grid-cols-1 gap-4 border-t border-edge px-4 py-4 min-[400px]:grid-cols-2">
+            <Mini label="Total talk time" value={formatDuration(kpi.duration_seconds)} />
+            <Mini
+              label="Average per answered call"
+              value={
+                answered > 0
+                  ? formatDuration(Math.round(kpi.duration_seconds / answered))
+                  : "—"
+              }
+            />
+          </dl>
         </Panel>
 
-        {/* --- keypresses --------------------------------------------- */}
-        <Panel>
-          <div className="border-b border-edge px-4 py-3">
-            <h2 className="display text-sm font-semibold text-chalk">
-              Keypresses
-            </h2>
-            <p className="mt-0.5 text-xs text-ash">
-              Key 9 is the opt-out. Watch it.
-            </p>
+        <Panel className="flex flex-col overflow-hidden">
+          <PanelHeader title="Progress" />
+          <div className="flex flex-1 items-center justify-center p-5">
+            {total > 0 ? (
+              <div className="w-full">
+                <Gauge
+                  value={kpi.dialed / total}
+                  label="Contacts called"
+                  caption={`${formatCount(kpi.dialed)} of ${formatCount(total)} · ${formatCount(
+                    Math.max(0, total - kpi.dialed),
+                  )} left`}
+                />
+              </div>
+            ) : (
+              <p className="text-center text-sm text-ash">
+                Shows once calling starts.
+              </p>
+            )}
           </div>
+        </Panel>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <Panel className="overflow-hidden">
+          <PanelHeader title="Outcomes" />
+          <div className="space-y-4 px-4 py-4">
+            <Bar label="Answered" value={kpi.answered} total={kpi.dialed} color="bg-chart-answered" />
+            <Bar label="No answer" value={kpi.no_answer} total={kpi.dialed} color="bg-chart-missed" />
+            <Bar label="Busy" value={kpi.busy} total={kpi.dialed} color="bg-chart-missed" />
+            <Bar label="Failed" value={kpi.failed} total={kpi.dialed} color="bg-chart-failed" />
+            <Bar label="Blocked before calling" value={kpi.suppressed} total={kpi.dialed} color="bg-edge-bright" />
+          </div>
+          <dl className="grid grid-cols-1 gap-4 border-t border-edge px-4 py-4 min-[400px]:grid-cols-3">
+            <Mini label="Confirmed" value={formatCount(kpi.confirmed)} />
+            <Mini label="Transferred" value={formatCount(kpi.transferred)} />
+            <Mini label="Voicemail" value={formatCount(kpi.voicemail)} />
+          </dl>
+        </Panel>
+
+        <Panel className="self-start overflow-hidden">
+          <PanelHeader title="Keys pressed" hint="Key 9 is opt-out." />
           <div className="px-4 py-4">
             {Object.keys(kpi.dtmf).length === 0 ? (
-              <p className="py-6 text-center text-sm text-ash">
-                Nobody has pressed anything yet.
-              </p>
+              <p className="py-6 text-center text-sm text-ash">No key presses yet.</p>
             ) : (
               <Keypad dtmf={kpi.dtmf} />
             )}
@@ -199,59 +190,33 @@ export function LivePage() {
         </Panel>
       </div>
 
-      {/* --- AMD ------------------------------------------------------- */}
       {campaign.amd_enabled && amd.data && (
-        <Panel>
-          <div className="border-b border-edge px-4 py-3">
-            <h2 className="display text-sm font-semibold text-chalk">
-              Machine detection
-            </h2>
-            <p className="mt-0.5 text-xs text-ash">
-              Detection is a classifier. The costly error is calling a human a
-              machine — you hang up on, or leave voicemail in the ear of, a
-              person who answered.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 divide-x divide-edge sm:grid-cols-4">
-            <Mini label="Human" value={amd.data.human} />
-            <Mini label="Machine" value={amd.data.machine} />
+        <Panel className="overflow-hidden">
+          <PanelHeader
+            title="Voicemail detection"
+            hint="Detection can be wrong: a real person may be treated as voicemail."
+          />
+          <dl className="grid grid-cols-2 gap-4 px-4 py-4 lg:grid-cols-4">
+            <Mini label="Person" value={formatCount(amd.data.human)} />
+            <Mini label="Voicemail" value={formatCount(amd.data.machine)} />
             <Mini
-              label="Machine, then pressed"
-              value={amd.data.machine_with_dtmf}
+              label="Voicemail, but pressed a key"
+              value={formatCount(amd.data.machine_with_dtmf)}
               tone="rust"
-              hint="A person was called a machine"
+              hint="Likely a real person treated as voicemail"
             />
-            <Mini label="Unknown" value={amd.data.unknown} />
-          </div>
+            <Mini label="Unknown" value={formatCount(amd.data.unknown)} />
+          </dl>
           {reached > 0 && (
-            <p className="border-t border-edge px-4 py-2.5 text-xs text-ash">
-              <span className="num text-chalk">
+            <p className="border-t border-edge px-4 py-3 text-sm text-ash">
+              <span className="num font-medium text-chalk">
                 {formatRate(amd.data.false_machine_rate)}
               </span>{" "}
-              of machine verdicts look wrong.
+              of voicemail results look wrong.
             </p>
           )}
         </Panel>
       )}
-
-      <div className="flex items-center justify-between text-xs text-ash">
-        <span>
-          Talk time{" "}
-          <span className="num text-chalk">
-            {formatDuration(kpi.duration_seconds)}
-          </span>
-          {answered > 0 && (
-            <>
-              {" · "}avg{" "}
-              <span className="num text-chalk">
-                {formatDuration(Math.round(kpi.duration_seconds / answered))}
-              </span>{" "}
-              per answer
-            </>
-          )}
-        </span>
-        <span className="text-ash-dim">Updated continuously while dialing</span>
-      </div>
     </div>
   );
 }
@@ -266,29 +231,44 @@ function ConnectionBadge({
   onRefresh: () => void;
 }) {
   if (state === "open" && !isStale) {
-    return (
-      <span className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-live-bright">
-        <span className="size-1.5 rounded-full bg-live-bright" aria-hidden />
-        live
-      </span>
-    );
+    return <Badge tone="good">Live</Badge>;
   }
   if (isStale) {
     return (
-      <span className="flex items-center gap-2">
-        <span className="font-mono text-[10px] uppercase tracking-widest text-amber">
-          counters may be stale
-        </span>
-        <Button variant="ghost" onClick={onRefresh}>
+      <span className="flex flex-wrap items-center justify-end gap-2">
+        <Badge tone="warn">Figures may be out of date</Badge>
+        <Button dense onClick={onRefresh}>
           Refresh
         </Button>
       </span>
     );
   }
   return (
-    <span className="font-mono text-[10px] uppercase tracking-widest text-ash">
-      {state === "offline" ? "updating periodically" : "connecting…"}
-    </span>
+    <Badge>{state === "offline" ? "Updating periodically" : "Connecting…"}</Badge>
+  );
+}
+
+/** Lines in use against the campaign's limit. Red if the limit is exceeded. */
+function LineMeter({ live, ceiling }: { live: number; ceiling: number }) {
+  const percent = Math.min(100, (live / Math.max(1, ceiling)) * 100);
+
+  return (
+    <div
+      role="meter"
+      aria-valuenow={live}
+      aria-valuemin={0}
+      aria-valuemax={ceiling}
+      aria-label={`${live} of ${ceiling} lines in use`}
+      className="mt-4 h-3 overflow-hidden rounded-full bg-raised"
+    >
+      <div
+        className={cx(
+          "h-full rounded-full transition-[width] duration-500",
+          live > ceiling ? "bg-rust" : "bg-chart-answered",
+        )}
+        style={{ width: `${percent}%` }}
+      />
+    </div>
   );
 }
 
@@ -296,34 +276,27 @@ function Bar({
   label,
   value,
   total,
-  tone,
+  color,
 }: {
   label: string;
   value: number;
   total: number;
-  tone?: "live" | "amber" | "rust";
+  color: string;
 }) {
   const pct = total > 0 ? Math.min(100, (value / total) * 100) : 0;
-  const fill =
-    tone === "live"
-      ? "bg-live-bright"
-      : tone === "amber"
-        ? "bg-amber"
-        : tone === "rust"
-          ? "bg-rust"
-          : "bg-edge-bright";
 
   return (
     <div>
-      <div className="flex items-baseline justify-between text-xs">
-        <span className="text-ash">{label}</span>
+      <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+        <span className="flex items-center gap-2 text-ash">
+          <span className={cx("size-2.5 rounded-full", color)} aria-hidden />
+          {label}
+        </span>
         <span className="num text-chalk">{formatCount(value)}</span>
       </div>
-      {/* Hatched track, solid fill — the unfilled part is remaining volume,
-          not absent data. */}
-      <div className="hatch mt-1.5 h-2 overflow-hidden rounded-full bg-void">
+      <div className="h-2 overflow-hidden rounded-full bg-raised">
         <div
-          className={cx("h-full rounded-full transition-[width] duration-500", fill)}
+          className={cx("h-full rounded-full transition-[width] duration-500", color)}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -338,21 +311,21 @@ function Mini({
   hint,
 }: {
   label: string;
-  value: number;
-  tone?: "amber" | "rust";
+  value: string;
+  tone?: "rust";
   hint?: string;
 }) {
   return (
-    <div className="px-4 py-3" title={hint}>
-      <div className="eyebrow">{label}</div>
-      <div
+    <div className="min-w-0" title={hint}>
+      <dt className="eyebrow">{label}</dt>
+      <dd
         className={cx(
-          "num mt-1.5 text-lg",
-          tone === "amber" ? "text-amber" : tone === "rust" ? "text-rust" : "text-chalk",
+          "num mt-1 text-xl font-bold",
+          tone === "rust" ? "text-rust" : "text-chalk",
         )}
       >
-        {formatCount(value)}
-      </div>
+        {value}
+      </dd>
     </div>
   );
 }
@@ -369,7 +342,7 @@ function Keypad({ dtmf }: { dtmf: Record<string, number> }) {
   const max = Math.max(1, ...Object.values(dtmf));
 
   return (
-    <div className="grid grid-cols-3 gap-1.5">
+    <div className="grid grid-cols-3 gap-2">
       {KEYS.map((key) => {
         const count = dtmf[key] ?? 0;
         const intensity = count / max;
@@ -378,7 +351,7 @@ function Keypad({ dtmf }: { dtmf: Record<string, number> }) {
           <div
             key={key}
             className={cx(
-              "rounded border px-2 py-2.5 text-center transition-colors",
+              "rounded-xl border px-2 py-2.5 text-center transition-colors",
               count === 0
                 ? "border-edge bg-void"
                 : isOptOut
@@ -389,21 +362,21 @@ function Keypad({ dtmf }: { dtmf: Record<string, number> }) {
               count > 0
                 ? {
                     backgroundColor: isOptOut
-                      ? `color-mix(in oklab, var(--color-amber) ${8 + intensity * 22}%, transparent)`
-                      : `color-mix(in oklab, var(--color-signal) ${8 + intensity * 22}%, transparent)`,
+                      ? `color-mix(in oklab, var(--color-amber) ${8 + intensity * 16}%, transparent)`
+                      : `color-mix(in oklab, var(--color-signal) ${8 + intensity * 16}%, transparent)`,
                   }
                 : undefined
             }
           >
             <div
               className={cx(
-                "num text-sm",
-                count === 0 ? "text-ash-dim" : isOptOut ? "text-amber" : "text-signal",
+                "num text-base font-bold",
+                count === 0 ? "text-ash-dim" : "text-chalk",
               )}
             >
               {key}
             </div>
-            <div className="num mt-0.5 text-[11px] text-chalk">
+            <div className="num mt-0.5 text-xs text-chalk">
               {count > 0 ? formatCount(count) : "·"}
             </div>
           </div>

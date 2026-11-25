@@ -1,129 +1,89 @@
-/**
- * Jobs / All Jobs — matched to the reference dialer screen.
- *
- * Breadcrumb, a Create Job button, four stat tiles (Total / Running /
- * Completed / Failed), then a table with the reference's exact columns:
- * Name, User, Target Number, Max Concurrency, Concurrency Mode, Details
- * (Interval/Step), Status (a control dropdown), Scheduled, Audio Pool,
- * CLI Pool, and a per-row actions menu.
- */
+/** Jobs: what is being called, from which number, and its controls. */
 
-import { useMemo, useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 
-import { Button, EmptyState, Panel, TableSkeleton } from "@/components/ui";
+import { PauseIcon, PlayIcon, PlusIcon, StopIcon, TrashIcon } from "@/components/icons";
+import { Button, EmptyState, ErrorState, Input, PageHeader, Panel, StatusPill, TableSkeleton, cx } from "@/components/ui";
+import { formatDateTime } from "@/lib/format";
 import { useCampaigns, useDeleteJob, useJobAction } from "@/lib/queries/campaigns";
 import type { Campaign } from "@/types/domain";
 
 import { CreateJobModal } from "./CreateJobModal";
 
-const input =
-  "w-full rounded border border-edge bg-void px-3 py-2 text-sm text-chalk placeholder:text-ash/50 focus:border-live-bright focus:outline-none";
-
-const MODE_BADGE: Record<string, string> = {
-  fixed: "border-edge text-ash",
-  pulse: "border-live-bright/40 text-live-bright",
-  ramp: "border-amber/40 text-amber",
-};
-
 export function JobsPage() {
-  // Jobs list refetches on an interval so a status change or a running job's
-  // progress shows without a manual reload.
-  const { data, isLoading } = useCampaigns({}, { refetchInterval: 4000 });
+  // Refetched on an interval so a running job's status moves on its own.
+  const { data, isLoading, error, refetch } = useCampaigns({}, { refetchInterval: 4000 });
   const action = useJobAction();
   const del = useDeleteJob();
   const [creating, setCreating] = useState(false);
-  const [filter, setFilter] = useState("");
+  const [search, setSearch] = useState("");
 
   const all = data?.results ?? [];
-  const jobs = useMemo(() => {
-    const f = filter.trim().toLowerCase();
-    return f ? all.filter((j) => j.name.toLowerCase().includes(f)) : all;
-  }, [all, filter]);
-
-  const total = all.length;
-  const running = all.filter((j) => j.status === "running").length;
-  const completed = all.filter((j) => j.status === "completed").length;
-  const failed = all.filter((j) => j.status === "failed").length;
+  const term = search.trim().toLowerCase();
+  const jobs = term
+    ? all.filter((j) => `${j.name} ${j.target_number}`.toLowerCase().includes(term))
+    : all;
+  const failure = action.error ?? del.error;
 
   return (
-    <div className="space-y-5">
-      <p className="text-xs text-ash">
-        Home <span className="mx-1">›</span>
-        <span className="text-chalk">Jobs</span>
-      </p>
-
-      <div className="flex items-center justify-between">
-        <h1 className="display text-2xl font-semibold text-chalk">Jobs</h1>
-        <Button type="button" onClick={() => setCreating(true)}>
-          Create Job +
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          ["Total Jobs", total, "All jobs", "text-chalk"],
-          ["Running", running, "% of all jobs", "text-live-bright"],
-          ["Completed", completed, "% of all jobs", "text-ash"],
-          ["Failed", failed, "% of all jobs", "text-rust"],
-        ].map(([label, value, sub, tone]) => (
-          <Panel key={label as string} className="p-4">
-            <p className="text-xs uppercase tracking-wider text-ash">{label}</p>
-            <p className={`mt-1 text-3xl tabular-nums ${tone}`}>{value}</p>
-            <p className="mt-1 text-xs text-ash">{sub}</p>
-          </Panel>
-        ))}
-      </div>
-
-      <input
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-        placeholder="Filter by name..."
-        className={`${input} max-w-sm`}
+    <div className="space-y-6">
+      <PageHeader
+        title="Jobs"
+        subtitle="Each job calls one or more numbers and plays your message."
+        actions={
+          <Button variant="primary" onClick={() => setCreating(true)}>
+            <PlusIcon className="size-4" /> New job
+          </Button>
+        }
       />
 
-      {/* A failed status change is no longer silent — the reason shows here. */}
-      {(action.error || del.error) && (
-        <div className="rounded border border-rust/40 bg-panel px-4 py-3 text-sm text-rust">
-          {(action.error ?? del.error)?.message || "That action could not be completed."}
-        </div>
+      {error && <ErrorState error={error} onRetry={() => void refetch()} />}
+      {failure && (
+        <p role="alert" className="rounded-xl bg-[#fdeaea] px-4 py-3 text-sm text-rust">
+          {failure.message || "That action could not be completed."}
+        </p>
       )}
 
-      <Panel className="p-0">
-        {isLoading && <div className="p-4"><TableSkeleton rows={5} /></div>}
+      <Input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search by name or number"
+        aria-label="Search jobs"
+        className="max-w-sm"
+      />
+
+      <Panel className="overflow-hidden">
+        {isLoading && <TableSkeleton rows={5} />}
         {!isLoading && jobs.length === 0 && (
-          <div className="p-8">
-            <EmptyState title="No jobs yet" description="Create a job to dial a number." />
+          <div className="p-6">
+            <EmptyState title="No jobs" description="Create a job to start calling." />
           </div>
         )}
         {jobs.length > 0 && (
           <div className="overflow-x-auto">
-            <table className="w-full whitespace-nowrap text-sm">
+            <table className="table">
               <thead>
-                <tr className="border-b border-edge text-left text-xs uppercase tracking-wider text-ash">
-                  <th className="py-3 pl-4 pr-4">Name</th>
-                  <th className="py-3 pr-4">User</th>
-                  <th className="py-3 pr-4">Target Number</th>
-                  <th className="py-3 pr-4">Max Concurrency</th>
-                  <th className="py-3 pr-4">Concurrency Mode</th>
-                  <th className="py-3 pr-4">Details</th>
-                  <th className="py-3 pr-4">Status</th>
-                  <th className="py-3 pr-4">Scheduled</th>
-                  <th className="py-3 pr-4">Audio Pool</th>
-                  <th className="py-3 pr-4">CLI Pool</th>
-                  <th className="py-3 pr-4" />
+                <tr>
+                  <th>Job</th>
+                  <th>Calling</th>
+                  <th>From</th>
+                  <th>At once</th>
+                  <th>Status</th>
+                  <th>Created</th>
+                  <th><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
-                {jobs.map((j) => (
+                {jobs.map((job) => (
                   <JobRow
-                    key={j.id}
-                    job={j}
-                    busy={action.isPending && action.variables?.id === j.id}
-                    onAction={(a) => action.mutate({ id: j.id, action: a })}
+                    key={job.id}
+                    job={job}
+                    busy={action.isPending && action.variables?.id === job.id}
+                    onAction={(a) => action.mutate({ id: job.id, action: a })}
                     onDelete={() => {
-                      if (confirm(`Delete job "${j.name}"? This cannot be undone.`)) {
-                        del.mutate(j.id);
+                      if (confirm(`Delete job "${job.name}"? This cannot be undone.`)) {
+                        del.mutate(job.id);
                       }
                     }}
                   />
@@ -132,23 +92,12 @@ export function JobsPage() {
             </table>
           </div>
         )}
-        <div className="flex items-center justify-between border-t border-edge px-4 py-3 text-xs text-ash">
-          <span>{jobs.length} row(s) total.</span>
-        </div>
       </Panel>
 
       {creating && <CreateJobModal onClose={() => setCreating(false)} />}
     </div>
   );
 }
-
-const STATUS_TONE_ROW: Record<string, string> = {
-  running: "text-live-bright",
-  completed: "text-ash",
-  paused: "text-amber",
-  draft: "text-ash",
-  failed: "text-rust",
-};
 
 function JobRow({
   job,
@@ -161,70 +110,71 @@ function JobRow({
   onAction: (a: "start" | "pause" | "stop") => void;
   onDelete: () => void;
 }) {
-  const mode = job.dial_mode ?? "fixed";
   const canStart = ["draft", "scheduled", "paused"].includes(job.status);
   const canPause = job.status === "running";
-  const canStop = ["running", "paused", "scheduled"].includes(job.status);
+  const canStop = ["running", "paused", "scheduled", "throttled"].includes(job.status);
+
   return (
-    <tr className="border-b border-edge/50 hover:bg-raised">
-      <td className="py-3 pl-4 pr-4">
-        <Link to={`/campaigns/${job.id}`} className="text-live-bright hover:underline">
+    <tr>
+      <td>
+        <Link to={`/campaigns/${job.id}`} className="font-medium text-chalk hover:text-signal">
           {job.name}
         </Link>
       </td>
-      <td className="py-3 pr-4 text-ash">{job.user || "—"}</td>
-      <td className="py-3 pr-4 font-mono text-ash">{job.target_number || "—"}</td>
-      <td className="py-3 pr-4 tabular-nums text-ash">{job.max_concurrent_channels}</td>
-      <td className="py-3 pr-4">
-        <span className={`rounded border px-2 py-0.5 text-xs capitalize ${MODE_BADGE[mode]}`}>
-          {mode}
-        </span>
+      <td className="num">{job.target_number || "Contact list"}</td>
+      <td className="num">{job.cli_pool_name || job.caller_id_detail?.phone_e164 || "—"}</td>
+      <td className="num">
+        {job.max_concurrent_channels}
+        {job.dial_mode && job.dial_mode !== "fixed" && (
+          <span className="ml-1.5 text-xs capitalize text-ash-dim">{job.dial_mode}</span>
+        )}
       </td>
-      <td className="py-3 pr-4 text-xs text-ash">
-        {mode === "fixed"
-          ? "—"
-          : `Interval: ${job.dial_interval_seconds}s · Step: ${job.dial_batch_size}`}
-      </td>
-      <td className="py-3 pr-4">
-        {/* Status is a control, as in the reference: pick an action to run it.
-            The current status is the shown value; only valid transitions are
-            offered, and the whole control disables while the action is in
-            flight so a second click cannot race. */}
-        <select
-          value=""
-          disabled={busy}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v) onAction(v as "start" | "pause" | "stop");
-          }}
-          className={`rounded border border-edge bg-void px-2 py-1 text-xs capitalize ${STATUS_TONE_ROW[job.status] ?? "text-chalk"}`}
-        >
-          <option value="">{busy ? "Working…" : job.status}</option>
-          {canStart && <option value="start">▶ Start</option>}
-          {canPause && <option value="pause">⏸ Pause</option>}
-          {canStop && <option value="stop">⏹ Stop</option>}
-        </select>
-      </td>
-      <td className="py-3 pr-4 text-ash">
-        {job.scheduled_start ? new Date(job.scheduled_start).toLocaleString() : "—"}
-      </td>
-      <td className="py-3 pr-4 text-ash">{job.audio_pool_name || "—"}</td>
-      <td className="py-3 pr-4 text-ash">{job.cli_pool_name || "—"}</td>
-      <td className="py-3 pr-4 text-right">
-        <Link to={`/campaigns/${job.id}`} className="px-2 text-ash hover:text-chalk">
-          ⋯
-        </Link>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="px-2 text-ash hover:text-rust"
-          title="Delete job"
-          aria-label="Delete job"
-        >
-          🗑
-        </button>
+      <td title={job.pause_reason || undefined}><StatusPill status={job.status} /></td>
+      <td>{formatDateTime(job.scheduled_start ?? job.created_at)}</td>
+      <td>
+        <div className="flex justify-end gap-1">
+          {canStart && (
+            <Action label="Start" disabled={busy} onClick={() => onAction("start")}><PlayIcon className="size-4" /></Action>
+          )}
+          {canPause && (
+            <Action label="Pause" disabled={busy} onClick={() => onAction("pause")}><PauseIcon className="size-4" /></Action>
+          )}
+          {canStop && (
+            <Action label="Stop" disabled={busy} onClick={() => onAction("stop")}><StopIcon className="size-4" /></Action>
+          )}
+          <Action label="Delete" danger onClick={onDelete}><TrashIcon className="size-4" /></Action>
+        </div>
       </td>
     </tr>
   );
 }
 
+function Action({
+  label,
+  children,
+  onClick,
+  disabled,
+  danger,
+}: {
+  label: string;
+  children: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      className={cx(
+        "press flex size-9 items-center justify-center rounded-lg text-ash ring-1 ring-inset ring-edge disabled:opacity-40",
+        danger ? "hover:bg-[#fdeaea] hover:text-rust" : "hover:bg-live hover:text-signal",
+      )}
+    >
+      {children}
+    </button>
+  );
+}

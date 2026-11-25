@@ -1,15 +1,22 @@
 /**
- * Audio pools and CLI pools — laid out to match the reference dialer exactly.
- *
- * Breadcrumb, an Add button top-right that opens a modal, a filter box, and a
- * table whose columns are Name / (Files|Numbers) / User / Created / actions.
- * One component serves both because the two differ only in what a member is —
- * an uploaded sound, or a caller ID.
+ * Audio and number pools. One component serves both because they differ only in
+ * what a member is: an uploaded sound, or a caller ID.
  */
 
 import { useMemo, useState } from "react";
 
-import { Button, EmptyState, Panel, TableSkeleton } from "@/components/ui";
+import { EditIcon, HashIcon, PlusIcon, SoundIcon } from "@/components/icons";
+import {
+  Button,
+  EmptyState,
+  ErrorState,
+  Field,
+  Input,
+  Modal,
+  PageHeader,
+  Panel,
+  TableSkeleton,
+} from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import {
   audioPools,
@@ -19,9 +26,6 @@ import {
   useUploadAudio,
   type Pool,
 } from "@/lib/queries/resources";
-
-const input =
-  "w-full rounded border border-edge bg-void px-3 py-2 text-sm text-chalk placeholder:text-ash/50 focus:border-live-bright focus:outline-none";
 
 type Kind = "audio" | "cli";
 
@@ -42,9 +46,10 @@ function PoolsPage({ kind }: { kind: Kind }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<Pool | null>(null);
 
-  const title = isAudio ? "Audio Pools" : "CLI Pools";
-  const addLabel = isAudio ? "Add Audio Pool" : "Add CLI Pool";
-  const memberHead = isAudio ? "Files" : "Numbers";
+  const title = isAudio ? "Audio" : "Number pools";
+  const addLabel = isAudio ? "Add audio" : "Add pool";
+  const unit = isAudio ? "file" : "number";
+  const Glyph = isAudio ? SoundIcon : HashIcon;
 
   const rows = useMemo(() => {
     const all = list.data?.results ?? [];
@@ -53,80 +58,84 @@ function PoolsPage({ kind }: { kind: Kind }) {
   }, [list.data, filter]);
 
   return (
-    <div className="space-y-5">
-      {/* breadcrumb */}
-      <p className="text-xs text-ash">
-        Home <span className="mx-1">›</span>
-        <span className="text-chalk">{title}</span>
-      </p>
-
-      <div className="flex items-center justify-between">
-        <h1 className="display text-2xl font-semibold text-chalk">{title}</h1>
-        <Button type="button" onClick={() => setAdding(true)}>
-          {addLabel} +
-        </Button>
-      </div>
-
-      <input
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-        placeholder="Filter by name..."
-        className={`${input} max-w-sm`}
+    <div className="space-y-6">
+      <PageHeader
+        title={title}
+        subtitle={isAudio ? "Recordings your jobs can play." : "Groups of numbers to rotate between."}
+        actions={
+          <Button type="button" variant="primary" onClick={() => setAdding(true)}>
+            <PlusIcon className="size-4" /> {addLabel}
+          </Button>
+        }
       />
 
-      <Panel className="p-0">
-        {list.isLoading && <div className="p-4"><TableSkeleton rows={4} /></div>}
-        {!list.isLoading && rows.length === 0 && (
-          <div className="p-8">
-            <EmptyState title="No results." description={`Add ${isAudio ? "an audio" : "a CLI"} pool to get started.`} />
-          </div>
-        )}
-        {rows.length > 0 && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-edge text-left text-xs uppercase tracking-wider text-ash">
-                  <th className="w-8 py-3 pl-4" />
-                  <th className="py-3 pr-4">Name</th>
-                  <th className="py-3 pr-4">{memberHead}</th>
-                  <th className="py-3 pr-4">User</th>
-                  <th className="py-3 pr-4">Created</th>
-                  <th className="py-3 pr-4" />
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((p) => (
-                  <tr key={p.id} className="border-b border-edge/50 hover:bg-raised">
-                    <td className="py-3 pl-4">
-                      <input type="checkbox" className="accent-signal" />
-                    </td>
-                    <td className="py-3 pr-4 font-medium text-chalk">{p.name}</td>
-                    <td className="py-3 pr-4 tabular-nums text-ash">
-                      <span className="inline-flex items-center gap-1.5">
-                        {isAudio ? "♪" : "☎"} {p.member_count}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4 text-ash">{p.user || "—"}</td>
-                    <td className="py-3 pr-4 text-ash">{formatDateTime(p.created_at)}</td>
-                    <td className="py-3 pr-4 text-right">
-                      <button
-                        onClick={() => setEditing(p)}
-                        className="px-2 text-ash hover:text-chalk"
-                        aria-label="Actions"
-                      >
-                        ⋯
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <div className="flex items-center justify-between border-t border-edge px-4 py-3 text-xs text-ash">
-          <span>{rows.length} row(s) total.</span>
-        </div>
-      </Panel>
+      <Input
+        type="search"
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        placeholder="Search by name"
+        aria-label="Search by name"
+        className="max-w-sm"
+      />
+
+      {list.error && <ErrorState error={list.error} onRetry={() => void list.refetch()} />}
+
+      {list.isLoading && (
+        <Panel>
+          <TableSkeleton rows={4} />
+        </Panel>
+      )}
+
+      {list.data && rows.length === 0 && (
+        <EmptyState
+          title={filter.trim() ? "No matches" : "Nothing here yet"}
+          description={
+            filter.trim()
+              ? "Try another name."
+              : isAudio
+                ? "Add audio to play it on calls."
+                : "Add a pool to rotate numbers."
+          }
+        />
+      )}
+
+      {rows.length > 0 && (
+        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {rows.map((p) => (
+            <li key={p.id} className="min-w-0">
+              <Panel className="flex h-full flex-col">
+                <div className="flex items-start gap-3 p-5">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-live text-live-bright">
+                    <Glyph />
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className="display break-words text-base text-chalk">{p.name}</h2>
+                    <p className="num text-sm text-ash">
+                      {p.member_count} {p.member_count === 1 ? unit : `${unit}s`}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-auto flex items-center justify-between gap-3 border-t border-edge px-5 py-3">
+                  <p className="min-w-0 break-words text-xs text-ash-dim">
+                    {p.user ? `${p.user} · ` : ""}
+                    {formatDateTime(p.created_at)}
+                  </p>
+                  <Button
+                    dense
+                    aria-label={`Edit ${p.name}`}
+                    onClick={() => {
+                      remove.reset();
+                      setEditing(p);
+                    }}
+                  >
+                    <EditIcon className="size-4" /> Edit
+                  </Button>
+                </div>
+              </Panel>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {(adding || editing) && (
         <PoolModal
@@ -136,6 +145,8 @@ function PoolsPage({ kind }: { kind: Kind }) {
             setAdding(false);
             setEditing(null);
           }}
+          deleting={remove.isPending}
+          deleteError={remove.error}
           onDelete={
             editing
               ? async () => {
@@ -156,11 +167,15 @@ function PoolModal({
   pool,
   onClose,
   onDelete,
+  deleting,
+  deleteError,
 }: {
   kind: Kind;
   pool: Pool | null;
   onClose: () => void;
   onDelete?: () => void;
+  deleting: boolean;
+  deleteError: Error | null;
 }) {
   const isAudio = kind === "audio";
   const hooks = isAudio ? audioPools : cliPools;
@@ -173,6 +188,7 @@ function PoolModal({
 
   const [name, setName] = useState(pool?.name ?? "");
   const [selected, setSelected] = useState<string[]>(pool?.members ?? []);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const memberOptions = isAudio
     ? (clips.data?.results ?? []).map((c) => ({ id: c.id, label: c.name }))
@@ -195,74 +211,115 @@ function PoolModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4" onClick={onClose}>
-      <div className="my-8 w-full max-w-lg rounded-lg border border-edge bg-panel p-6" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-5 flex items-start justify-between">
-          <h2 className="display text-lg font-semibold text-chalk">
-            {pool ? "Edit pool" : isAudio ? "Add Audio Pool" : "Add CLI Pool"}
-          </h2>
-          <button onClick={onClose} className="text-ash hover:text-chalk">✕</button>
-        </div>
+    <Modal
+      title={pool ? `Edit ${pool.name}` : isAudio ? "Add audio" : "Add number pool"}
+      onClose={onClose}
+    >
+      <div className="space-y-4">
+        <Field label="Name" htmlFor="pool-name">
+          <Input
+            id="pool-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={isAudio ? "e.g. Welcome message" : "e.g. US numbers"}
+            autoFocus
+          />
+        </Field>
 
-        <div className="space-y-4">
-          <div>
-            <span className="mb-1 block text-xs uppercase tracking-wider text-ash">Name</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={isAudio ? "e.g. WOW" : "e.g. global-cli-pool"} className={input} autoFocus />
-          </div>
+        {isAudio && (
+          <Field label="Upload a sound" htmlFor="pool-file">
+            <input
+              id="pool-file"
+              type="file"
+              accept="audio/*"
+              onChange={onFile}
+              className="w-full text-sm text-ash file:mr-3 file:min-h-9 file:rounded-lg file:border-0 file:bg-live file:px-3 file:font-medium file:text-live-bright"
+            />
+            {upload.isPending && <p className="text-xs text-ash">Uploading…</p>}
+            {upload.error && (
+              <p role="alert" className="text-xs text-rust">{upload.error.message}</p>
+            )}
+          </Field>
+        )}
 
-          {isAudio && (
-            <div>
-              <span className="mb-1 block text-xs uppercase tracking-wider text-ash">Upload a sound</span>
-              <input type="file" accept="audio/*" onChange={onFile} className="text-sm text-ash file:mr-3 file:rounded file:border-0 file:bg-live-bright file:px-3 file:py-1.5 file:text-void" />
-              {upload.isPending && <p className="mt-1 text-xs text-ash">Uploading…</p>}
-              {upload.error && <p className="mt-1 text-xs text-rust">{upload.error.message}</p>}
+        <fieldset className="min-w-0">
+          <legend className="eyebrow mb-1.5">{isAudio ? "Files" : "Numbers"}</legend>
+          {memberOptions.length === 0 ? (
+            <p className="text-sm text-ash">
+              {isAudio ? "Upload a sound above to add it." : "Add a number first."}
+            </p>
+          ) : (
+            <div className="max-h-56 divide-y divide-edge overflow-y-auto rounded-xl border border-edge">
+              {memberOptions.map((m) => (
+                <label
+                  key={m.id}
+                  className="flex min-h-11 items-center gap-3 px-3 text-sm text-chalk hover:bg-void"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(m.id)}
+                    onChange={(e) =>
+                      setSelected(e.target.checked ? [...selected, m.id] : selected.filter((x) => x !== m.id))
+                    }
+                    className="size-4 shrink-0 accent-signal"
+                  />
+                  <span className="min-w-0 break-words">{m.label}</span>
+                </label>
+              ))}
             </div>
           )}
+        </fieldset>
 
-          <div>
-            <span className="mb-1 block text-xs uppercase tracking-wider text-ash">
-              {isAudio ? "Files in this pool" : "Numbers in this pool"}
-            </span>
-            {memberOptions.length === 0 ? (
-              <p className="text-sm text-ash">
-                {isAudio ? "Upload a sound above to add it." : "Add a caller ID first."}
-              </p>
-            ) : (
-              <div className="max-h-48 space-y-1 overflow-y-auto">
-                {memberOptions.map((m) => (
-                  <label key={m.id} className="flex items-center gap-2 text-sm text-chalk">
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(m.id)}
-                      onChange={(e) =>
-                        setSelected(e.target.checked ? [...selected, m.id] : selected.filter((x) => x !== m.id))
-                      }
-                      className="accent-signal"
-                    />
-                    {m.label}
-                  </label>
-                ))}
-              </div>
-            )}
+        {(create.error || update.error) && (
+          <p role="alert" className="text-sm text-rust">
+            {(create.error ?? update.error)?.message}
+          </p>
+        )}
+        {deleteError && (
+          <p role="alert" className="text-sm text-rust">{deleteError.message}</p>
+        )}
+
+        {confirmingDelete && onDelete ? (
+          <div role="alert" className="rounded-xl bg-[#fdeaea] p-3">
+            <p className="text-sm text-rust">Delete this pool? This cannot be undone.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button dense type="button" variant="danger" loading={deleting} onClick={onDelete}>
+                Yes, delete
+              </Button>
+              <Button dense type="button" onClick={() => setConfirmingDelete(false)}>
+                Keep it
+              </Button>
+            </div>
           </div>
-
-          {(create.error || update.error) && (
-            <p className="text-sm text-rust">{(create.error ?? update.error)?.message}</p>
-          )}
-
-          <div className="flex justify-between border-t border-edge pt-4">
-            <div className="flex gap-3">
-              <Button type="button" onClick={save} disabled={!name || create.isPending || update.isPending}>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-edge pt-4">
+            {onDelete ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="!text-rust"
+                onClick={() => setConfirmingDelete(true)}
+              >
+                Delete
+              </Button>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+              <Button
+                type="button"
+                variant="primary"
+                onClick={save}
+                loading={create.isPending || update.isPending}
+                disabled={!name}
+              >
                 {pool ? "Save" : "Create"}
               </Button>
-              <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
             </div>
-            {onDelete && (
-              <button onClick={onDelete} className="text-sm text-rust hover:underline">Delete</button>
-            )}
           </div>
-        </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 }

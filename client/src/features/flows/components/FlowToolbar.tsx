@@ -1,8 +1,10 @@
 /**
- * Floating canvas toolbar for zoom controls, auto-layout, and view toggles.
+ * Canvas toolbar: view switch, auto-arrange and zoom controls.
  */
 
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
+
+import { cx } from "@/components/ui";
 
 interface FlowToolbarProps {
   zoom: number;
@@ -30,98 +32,79 @@ export const FlowToolbar: FC<FlowToolbarProps> = ({
   onToggleViewMode,
 }) => {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-edge bg-panel/90 px-3 py-1.5 shadow-lg backdrop-blur-md">
-      {/* View Switcher & Stats */}
+    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-edge bg-panel px-3 py-2">
       <div className="flex items-center gap-3">
-        <div className="flex items-center rounded-lg border border-edge bg-void p-0.5">
-          <button
-            type="button"
-            onClick={() => viewMode !== "canvas" && onToggleViewMode()}
-            className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-              viewMode === "canvas"
-                ? "bg-raised text-signal shadow-sm"
-                : "text-ash hover:text-chalk"
-            }`}
-          >
-            Visual Graph
-          </button>
-          <button
-            type="button"
-            onClick={() => viewMode !== "outline" && onToggleViewMode()}
-            className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-              viewMode === "outline"
-                ? "bg-raised text-signal shadow-sm"
-                : "text-ash hover:text-chalk"
-            }`}
-          >
-            Outline View
-          </button>
+        <div className="flex rounded-xl bg-raised p-1" role="group" aria-label="View">
+          {(
+            [
+              ["canvas", "Canvas"],
+              ["outline", "List"],
+            ] as const
+          ).map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              aria-pressed={viewMode === mode}
+              onClick={() => viewMode !== mode && onToggleViewMode()}
+              className={cx(
+                "press min-h-9 rounded-lg px-3 text-sm font-medium",
+                viewMode === mode
+                  ? "bg-panel text-signal shadow-sm"
+                  : "text-ash hover:text-chalk",
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
-        <div className="hidden items-center gap-2 sm:flex">
-          <span className="num text-xs text-ash">
-            <span className="text-chalk">{nodeCount}</span> nodes
-          </span>
-          <span className="text-edge">·</span>
-          <span className="num text-xs text-ash">
-            <span className="text-chalk">{edgeCount}</span> wires
-          </span>
-        </div>
+        <span className="num hidden text-xs text-ash-dim sm:inline xl:hidden 2xl:inline">
+          {nodeCount} {nodeCount === 1 ? "step" : "steps"} · {edgeCount}{" "}
+          {edgeCount === 1 ? "link" : "links"}
+        </span>
       </div>
 
-      {/* Canvas Actions */}
       {viewMode === "canvas" && (
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            title="Auto-arrange nodes hierarchically"
-            onClick={onAutoLayout}
-            className="flex items-center gap-1 rounded border border-edge bg-void px-2 py-1 text-xs text-ash hover:border-signal/50 hover:text-signal"
-          >
-            <span>🪄</span>
-            <span>Auto Layout</span>
-          </button>
-
-          <div className="h-4 w-px bg-edge mx-1" />
-
-          {/* Zoom controls */}
-          <button
-            type="button"
-            title="Zoom out (-)"
-            onClick={onZoomOut}
-            className="flex size-7 items-center justify-center rounded border border-edge bg-void text-xs font-bold text-ash hover:text-chalk"
-          >
+        <div className="flex flex-wrap items-center gap-1">
+          <ToolButton title="Arrange steps automatically" onClick={onAutoLayout}>
+            Arrange
+          </ToolButton>
+          <ToolButton title="Zoom out" onClick={onZoomOut}>
             −
-          </button>
-
-          <button
-            type="button"
-            title="Reset to 100%"
-            onClick={onResetZoom}
-            className="num min-w-12 rounded border border-edge bg-void px-1.5 py-1 text-center text-xs text-ash hover:text-chalk"
-          >
-            {Math.round(zoom * 100)}%
-          </button>
-
-          <button
-            type="button"
-            title="Zoom in (+)"
-            onClick={onZoomIn}
-            className="flex size-7 items-center justify-center rounded border border-edge bg-void text-xs font-bold text-ash hover:text-chalk"
-          >
+          </ToolButton>
+          <ToolButton title="Reset to 100%" onClick={onResetZoom}>
+            <span className="num min-w-10">{Math.round(zoom * 100)}%</span>
+          </ToolButton>
+          <ToolButton title="Zoom in" onClick={onZoomIn}>
             +
-          </button>
-
-          <button
-            type="button"
-            title="Fit to view"
-            onClick={onFitView}
-            className="rounded border border-edge bg-void px-2 py-1 text-xs text-ash hover:text-chalk"
-          >
+          </ToolButton>
+          <ToolButton title="Fit to view" onClick={onFitView}>
             Fit
-          </button>
+          </ToolButton>
         </div>
       )}
     </div>
   );
 };
+
+function ToolButton({
+  title,
+  onClick,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      className="press flex h-9 min-w-9 items-center justify-center rounded-lg px-2 text-sm font-medium text-ash ring-1 ring-inset ring-edge hover:bg-live hover:text-signal"
+    >
+      {children}
+    </button>
+  );
+}

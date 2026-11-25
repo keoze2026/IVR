@@ -378,7 +378,40 @@ const page = (res, results) =>
 const cursor = (res, results) =>
   json(res, 200, { next: null, previous: null, results });
 
+const ago = (minutes) => new Date(Date.now() - minutes * 60_000).toISOString();
+const POOL = (id, name, n) => ({ id, name, description: "", rotation: "random", members: [], member_count: n, user: "jane", created_at: ago(5000) });
+const WALLET = {
+  id: "w1", balance: "42.1800", currency: "USD", low_balance_threshold: "5.0000",
+  recent: [
+    { id: "t1", kind: "credit", amount: "50.0000", description: "Top up", created_at: ago(3000) },
+    { id: "t2", kind: "call_charge", amount: "-0.3933", description: "Outbound call", created_at: ago(40) },
+  ],
+};
+
+const FIELD = (name, label, widget = "text", extra = {}) => ({ name, label, widget, required: true, editable: true, help: "", ...extra });
+const PLATFORM_SCHEMA = { resources: [
+  { resource: "organizations", label: "Organisations", group: "Tenancy", columns: ["name", "slug", "is_active"], search: ["name"], readonly: false,
+    fields: [FIELD("name", "Name"), FIELD("slug", "Short name"), FIELD("is_active", "Active", "boolean", { required: false })] },
+  { resource: "caller-ids", label: "Caller IDs", group: "Calling", columns: ["phone_e164", "provider", "is_active"], search: ["phone_e164"], readonly: false,
+    fields: [FIELD("phone_e164", "Phone"), FIELD("provider", "Provider"), FIELD("is_active", "Active", "boolean", { required: false })] },
+] };
+const PLATFORM_ROWS = [
+  { id: "o1", display: "Acme Utilities", name: "Acme Utilities", slug: "acme", is_active: true, phone_e164: "+12125550100", provider: "telnyx" },
+];
+
 const ROUTES = [
+  [/^\/api\/v1\/employees\/$/, (res) => page(res, [{ id: "u1", username: "jane", first_name: "Jane", last_name: "Doe", email: "jane@example.com", role: "owner", organization: "o1", is_active: true, last_seen_at: "2026-08-02T14:00:00Z", full_name: "Jane Doe", has_code: true }])],
+  [/^\/api\/v1\/api-keys\/$/, (res) => page(res, [{ id: "k1", name: "Reporting", prefix: "ivrk_abc", role: "analyst", expires_at: null, revoked_at: null, last_used_at: "2026-08-02T14:00:00Z", created_at: "2026-07-01T09:00:00Z", allowed_cidrs: [], is_active: true }])],
+  [/^\/api\/v1\/contact-lists\/[^/]+\/rejects\/$/, (res) => json(res, 200, [])],
+  [/^\/api\/v1\/platform\/schema\/$/, (res) => json(res, 200, PLATFORM_SCHEMA)],
+  [/^\/api\/v1\/platform\/overview\/$/, (res) => json(res, 200, { counts: { organizations: 1, "caller-ids": 2 } })],
+  [/^\/api\/v1\/platform\/[^/]+\/$/, (res) => page(res, PLATFORM_ROWS)],
+  [/^\/api\/v1\/platform\/[^/]+\/[^/]+\/$/, (res) => json(res, 200, PLATFORM_ROWS[0])],
+  [/^\/api\/v1\/wallet\/$/, (res) => page(res, [WALLET])],
+  [/^\/api\/v1\/audio-pools\/$/, (res) => page(res, [POOL("a1", "Welcome message", 2)])],
+  [/^\/api\/v1\/cli-pools\/$/, (res) => page(res, [POOL("p1", "US numbers", 3)])],
+  [/^\/api\/v1\/audio-assets\/$/, (res) => page(res, [])],
+  [/^\/api\/v1\/tariffs\/$/, (res) => page(res, [{ id: "r1", name: "USA", prefix: "+1", per_minute: "0.010000", currency: "USD", is_active: true }])],
   [/^\/api\/v1\/me\/$/, (res) => json(res, 200, ME)],
 
   [/^\/api\/v1\/campaigns\/$/, (res, _m, url) => {
@@ -445,6 +478,11 @@ createServer((req, res) => {
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
   const url = new URL(req.url ?? "/", "http://localhost");
 
+  // Preview-only administrator sign-in: any name and password are accepted.
+  if (url.pathname === "/api/v1/auth/login/") {
+    return json(res, 200, { token: VALID_KEY, user: { username: "admin", is_superuser: true } });
+  }
+
   if (token !== VALID_KEY) {
     return err(res, 401, {
       code: "authentication_failed",
@@ -456,6 +494,7 @@ createServer((req, res) => {
 
   // Writes are accepted but not persisted — enough to exercise the UI paths.
   if (req.method !== "GET") {
+    if (/\/validate\/$/.test(url.pathname)) return json(res, 200, REPORT);
     if (/\/start\/$/.test(url.pathname)) {
       // Warnings without force → 422, the acknowledge-then-retry path.
       let body = "";

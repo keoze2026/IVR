@@ -1,8 +1,6 @@
 /**
- * Console primitives.
- *
- * Deliberately small. The palette does the work: chrome is near-monochrome,
- * and colour is spent only where it carries state.
+ * Shared interface primitives: headers, cards, buttons, form controls, dialogs
+ * and status labels. Every screen is built from these.
  */
 
 import { Link } from "react-router-dom";
@@ -79,6 +77,76 @@ export function BackLink({ to, children }: { to: string; children: ReactNode }) 
 
 // --- surfaces ---------------------------------------------------------
 
+/** Title, one line of context, and the page's actions. */
+export function PageHeader({
+  title,
+  subtitle,
+  actions,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: ReactNode;
+}) {
+  return (
+    <header className="flex flex-wrap items-center justify-between gap-3">
+      <div className="min-w-0">
+        <h1 className="display break-words text-2xl text-chalk">{title}</h1>
+        {subtitle && <p className="mt-0.5 text-sm text-ash">{subtitle}</p>}
+      </div>
+      {actions && <div className="flex items-center gap-2">{actions}</div>}
+    </header>
+  );
+}
+
+/** A centred dialog. Closes on Escape or a click outside. */
+export function Modal({
+  title,
+  subtitle,
+  onClose,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-chalk/40 p-4"
+      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="settle my-8 w-full max-w-lg rounded-[var(--radius-card)] border border-edge bg-panel p-6 shadow-xl"
+      >
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="display text-lg text-chalk">{title}</h2>
+            {subtitle && <p className="text-sm text-ash">{subtitle}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="press -mr-2 -mt-2 flex size-9 items-center justify-center rounded-full text-ash hover:bg-raised hover:text-chalk"
+          >
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function Panel({
   children,
   className,
@@ -91,10 +159,8 @@ export function Panel({
   return (
     <div
       className={cx(
-        "rounded-[--radius-card] border",
-        accent
-          ? "border-signal/30 bg-panel"
-          : "border-edge bg-panel",
+        "rounded-[var(--radius-card)] border bg-panel shadow-[var(--shadow-card)]",
+        accent ? "border-signal/30" : "border-edge",
         className,
       )}
     >
@@ -123,20 +189,76 @@ export function PanelHeader({
   );
 }
 
-/**
- * A figure and what it counts.
- *
- * Anatomy borrowed from the reference dashboard: label top-left, a circular
- * affordance top-right when the figure leads somewhere, the number large
- * enough to read across a desk, and a context line at the base.
- *
- * `denominator` is not decoration — the API's rates use different bases
- * (`answer` over dialed, `transfer` over answered), and a tile that does not
- * say which produces numbers people quietly distrust.
- *
- * The filled variant is used exactly once per row, on the figure the screen
- * exists to show. Two filled cards and neither reads as primary.
- */
+/** A row of rounded filters, one active at a time. */
+export function FilterTabs<T extends string>({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  /** Names the group for screen readers. */
+  label: string;
+  value: T;
+  onChange: (value: T) => void;
+  options: { id: T; label: string; count?: number }[];
+}) {
+  return (
+    <div className="flex flex-wrap gap-2" role="tablist" aria-label={label}>
+      {options.map((option) => (
+        <button
+          key={option.id}
+          type="button"
+          role="tab"
+          aria-selected={value === option.id}
+          onClick={() => onChange(option.id)}
+          className={cx(
+            "press min-h-10 rounded-full border px-4 text-sm",
+            value === option.id
+              ? "border-signal bg-signal text-white"
+              : "border-edge bg-panel text-ash hover:border-edge-bright",
+          )}
+        >
+          {option.label}
+          {option.count !== undefined && (
+            <span className="num ml-1.5 opacity-75">{option.count}</span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** A short coloured label for a fact that is not a job or call status. */
+export function Badge({
+  tone = "quiet",
+  children,
+  title,
+}: {
+  tone?: "good" | "warn" | "bad" | "info" | "quiet";
+  children: ReactNode;
+  title?: string;
+}) {
+  const tones = {
+    good: "bg-live text-live-bright",
+    warn: "bg-[#fdf1dc] text-amber",
+    bad: "bg-[#fdeaea] text-rust",
+    info: "bg-[#e6f0fb] text-[#1d5fa8]",
+    quiet: "bg-raised text-ash",
+  };
+  return (
+    <span
+      title={title}
+      className={cx(
+        "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
+        tones[tone],
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** A figure and what it counts. */
 export function Stat({
   label,
   value,
@@ -150,12 +272,11 @@ export function Stat({
   denominator?: string;
   accent?: boolean;
   tone?: "live" | "amber" | "rust";
-  /** Makes the whole card a link and shows the corner affordance. */
+  /** Makes the whole card a link. */
   to?: string;
 }) {
-  const valueColor = accent
-    ? "text-signal"
-    : tone === "live"
+  const valueColor =
+    accent || tone === "live"
       ? "text-live-bright"
       : tone === "amber"
         ? "text-amber"
@@ -165,70 +286,25 @@ export function Stat({
 
   const body = (
     <>
-      <div className="flex items-start justify-between gap-3">
-        <span className="eyebrow pt-1">{label}</span>
-        {to && (
-          <span
-            aria-hidden
-            className={cx(
-              "flex size-7 shrink-0 items-center justify-center rounded-full border transition-colors",
-              accent
-                ? "border-signal/40 text-signal group-hover:bg-signal group-hover:text-void"
-                : "border-edge-bright text-ash group-hover:border-signal group-hover:text-signal",
-            )}
-          >
-            <ArrowUpRight />
-          </span>
-        )}
-      </div>
-
-      <div className={cx("num mt-3 text-3xl leading-none", valueColor)}>
+      <div className="text-sm text-ash">{label}</div>
+      <div className={cx("num mt-2 text-3xl font-bold leading-none", valueColor)}>
         {value}
       </div>
-
-      {denominator && (
-        <div className="mt-2.5 flex items-center gap-1.5 text-xs text-ash-dim">
-          <span
-            aria-hidden
-            className={cx(
-              "size-1.5 rounded-full",
-              accent ? "bg-panel0" : "bg-edge-bright",
-            )}
-          />
-          {denominator}
-        </div>
-      )}
+      {denominator && <div className="mt-2 text-xs text-ash-dim">{denominator}</div>}
     </>
   );
 
   const shell = cx(
-    "block rounded-[--radius-card] border px-4 py-4 transition-colors",
-    accent
-      ? "border-signal/30 bg-panel"
-      : "border-edge bg-panel",
-    to && "group hover:border-edge-bright",
+    "block rounded-[var(--radius-card)] border border-edge bg-panel px-5 py-4 shadow-[var(--shadow-card)]",
+    to && "transition-colors hover:border-signal/50",
   );
 
   return to ? (
-    <a href={to} className={shell}>
+    <Link to={to} className={shell}>
       {body}
-    </a>
+    </Link>
   ) : (
     <div className={shell}>{body}</div>
-  );
-}
-
-function ArrowUpRight() {
-  return (
-    <svg viewBox="0 0 16 16" className="size-3.5" fill="none" aria-hidden>
-      <path
-        d="M5 11L11 5M11 5H6M11 5V10"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }
 
@@ -312,10 +388,10 @@ export function Gauge({
 type Variant = "primary" | "secondary" | "danger" | "ghost";
 
 const VARIANTS: Record<Variant, string> = {
-  primary: "bg-signal text-void hover:bg-[#c9ff63]",
+  primary: "bg-signal text-white hover:bg-signal-dim",
   secondary:
-    "bg-raised text-chalk ring-1 ring-inset ring-edge-bright hover:bg-edge",
-  danger: "bg-rust text-white hover:bg-[#f05a5f]",
+    "bg-panel text-chalk ring-1 ring-inset ring-edge-bright hover:bg-raised",
+  danger: "bg-rust text-white hover:brightness-95",
   ghost: "text-ash hover:text-chalk hover:bg-raised",
 };
 
@@ -343,7 +419,7 @@ export function Button({
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cx(
-        "press inline-flex items-center justify-center gap-2 rounded-md",
+        "press inline-flex items-center justify-center gap-2 rounded-xl",
         dense ? "min-h-9 px-3 text-sm" : "min-h-11 px-4 text-sm",
         "font-medium disabled:cursor-not-allowed disabled:opacity-40",
         VARIANTS[variant],
@@ -392,8 +468,8 @@ export function Field({
 }
 
 const CONTROL =
-  "w-full min-h-11 rounded-md border bg-void px-3 py-2 text-sm text-chalk " +
-  "placeholder:text-ash-dim transition-colors focus:border-edge-bright";
+  "w-full min-h-11 rounded-xl border bg-panel px-3 py-2 text-sm text-chalk " +
+  "placeholder:text-ash-dim/70 transition-colors focus:border-signal";
 
 export function Input({
   invalid,
@@ -443,41 +519,40 @@ export function Select({
 // --- state ------------------------------------------------------------
 
 /**
- * Campaign status.
- *
- * `running` is the only state that gets the live green — it is the only one
- * where calls are actually going out. `throttled` looks like a warning because
- * it is one: the pacer fans out for RUNNING only, so a throttled campaign
- * places no calls at all.
+ * Status of a job or a call, as a soft coloured label with its name spelled out.
+ * `throttled` looks like a warning because no calls go out while it lasts.
  */
-const STATUS: Record<string, { className: string; label?: string }> = {
-  running: { className: "border-live-bright/40 bg-live text-live-bright" },
-  throttled: {
-    className: "border-amber/40 bg-panel text-amber",
-    label: "throttled",
-  },
-  paused: { className: "border-amber/30 bg-panel text-amber" },
-  failed: { className: "border-rust/40 bg-panel text-rust" },
-  stopped: { className: "border-rust/25 bg-panel text-rust" },
-  completed: { className: "border-edge-bright bg-raised text-ash" },
-  draft: { className: "border-edge bg-void text-ash-dim" },
-  scheduled: { className: "border-signal/30 bg-panel text-signal-dim" },
+const GOOD = "bg-live text-live-bright";
+const WARN = "bg-[#fdf1dc] text-amber";
+const BAD = "bg-[#fdeaea] text-rust";
+const QUIET = "bg-raised text-ash";
+
+const STATUS: Record<string, string> = {
+  running: GOOD,
+  completed: GOOD,
+  in_progress: GOOD,
+  throttled: WARN,
+  paused: WARN,
+  busy: WARN,
+  no_answer: WARN,
+  failed: BAD,
+  stopped: QUIET,
+  canceled: QUIET,
+  draft: QUIET,
+  scheduled: "bg-[#e6f0fb] text-[#1d5fa8]",
 };
 
 export function StatusPill({ status }: { status: string }) {
-  const style = STATUS[status] ?? { className: "border-edge bg-void text-ash" };
+  const label = status.replace(/_/g, " ");
   return (
     <span
       className={cx(
-        "inline-flex items-center gap-1.5 rounded border px-2 py-0.5",
-        "font-mono text-[10px] uppercase tracking-widest",
-        style.className,
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+        STATUS[status] ?? QUIET,
       )}
     >
-      {status === "running" && (
-        <span className="size-1.5 rounded-full bg-live-bright" aria-hidden />
-      )}
-      {style.label ?? status.replace(/_/g, " ")}
+      <span className="size-1.5 rounded-full bg-current" aria-hidden />
+      {label.charAt(0).toUpperCase() + label.slice(1)}
     </span>
   );
 }
@@ -492,7 +567,7 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="rounded-[--radius-card] border border-dashed border-edge bg-panel px-6 py-14 text-center">
+    <div className="rounded-[var(--radius-card)] border border-dashed border-edge bg-panel px-6 py-14 text-center">
       <p className="display text-sm font-semibold text-chalk">{title}</p>
       {description && (
         <p className="mx-auto mt-1.5 max-w-md text-sm text-ash">{description}</p>
@@ -519,7 +594,7 @@ export function ErrorState({
   return (
     <div
       role="alert"
-      className="rounded-[--radius-card] border border-rust/40 bg-panel px-4 py-3.5"
+      className="rounded-[var(--radius-card)] border border-rust/40 bg-panel px-4 py-3.5"
     >
       <p className="display text-sm font-semibold text-rust">
         {api?.isForbidden

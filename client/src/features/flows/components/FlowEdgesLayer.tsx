@@ -7,8 +7,10 @@ import type { GraphEdge } from "../utils/graph";
 import {
   computeBezierPath,
   computeBezierMidpoint,
+  NODE_WIDTH,
   type Point,
 } from "../utils/geometry";
+import { DANGLING_COLOR, KIND_COLORS } from "./nodeMeta";
 
 interface ConnectingState {
   sourceNodeId: string;
@@ -28,8 +30,6 @@ interface FlowEdgesLayerProps {
   onDisconnectEdge: (sourceNodeId: string, portId: string) => void;
 }
 
-const NODE_WIDTH = 260;
-
 export const FlowEdgesLayer: FC<FlowEdgesLayerProps> = ({
   edges,
   nodePositions,
@@ -40,105 +40,28 @@ export const FlowEdgesLayer: FC<FlowEdgesLayerProps> = ({
   onSelectEdge,
   onDisconnectEdge,
 }) => {
-  const getEdgeColor = (kind: GraphEdge["kind"], isDangling: boolean) => {
-    if (isDangling) return "#f05c60"; // rust
-    switch (kind) {
-      case "optout":
-        return "#f0b429"; // amber
-      case "timeout":
-        return "#fb923c"; // orange
-      case "invalid":
-      case "fail":
-        return "#f05c60"; // rust
-      case "dtmf":
-        return "#38bdf8"; // sky blue
-      case "condition":
-        return "#c084fc"; // purple
-      default:
-        return "#2aa866"; // live-bright green
-    }
-  };
+  const markers: [string, string][] = [
+    ...Object.entries(KIND_COLORS),
+    ["dangling", DANGLING_COLOR],
+  ];
 
   return (
     <svg className="pointer-events-none absolute inset-0 size-full overflow-visible">
       <defs>
-        {/* Normal Green Arrow */}
-        <marker
-          id="arrow-next"
-          viewBox="0 0 10 10"
-          refX="6"
-          refY="5"
-          markerWidth="6"
-          markerHeight="6"
-          orient="auto-start-reverse"
-        >
-          <path d="M 0 1 L 8 5 L 0 9 z" fill="#2aa866" />
-        </marker>
-
-        {/* DTMF Blue Arrow */}
-        <marker
-          id="arrow-dtmf"
-          viewBox="0 0 10 10"
-          refX="6"
-          refY="5"
-          markerWidth="6"
-          markerHeight="6"
-          orient="auto-start-reverse"
-        >
-          <path d="M 0 1 L 8 5 L 0 9 z" fill="#38bdf8" />
-        </marker>
-
-        {/* Opt-out Amber Arrow */}
-        <marker
-          id="arrow-optout"
-          viewBox="0 0 10 10"
-          refX="6"
-          refY="5"
-          markerWidth="6"
-          markerHeight="6"
-          orient="auto-start-reverse"
-        >
-          <path d="M 0 1 L 8 5 L 0 9 z" fill="#f0b429" />
-        </marker>
-
-        {/* Red / Dangling Arrow */}
-        <marker
-          id="arrow-rust"
-          viewBox="0 0 10 10"
-          refX="6"
-          refY="5"
-          markerWidth="6"
-          markerHeight="6"
-          orient="auto-start-reverse"
-        >
-          <path d="M 0 1 L 8 5 L 0 9 z" fill="#f05c60" />
-        </marker>
-
-        {/* Purple Condition Arrow */}
-        <marker
-          id="arrow-condition"
-          viewBox="0 0 10 10"
-          refX="6"
-          refY="5"
-          markerWidth="6"
-          markerHeight="6"
-          orient="auto-start-reverse"
-        >
-          <path d="M 0 1 L 8 5 L 0 9 z" fill="#c084fc" />
-        </marker>
-
-        {/* Orange Timeout Arrow */}
-        <marker
-          id="arrow-timeout"
-          viewBox="0 0 10 10"
-          refX="6"
-          refY="5"
-          markerWidth="6"
-          markerHeight="6"
-          orient="auto-start-reverse"
-        >
-          <path d="M 0 1 L 8 5 L 0 9 z" fill="#fb923c" />
-        </marker>
+        {markers.map(([name, color]) => (
+          <marker
+            key={name}
+            id={`arrow-${name}`}
+            viewBox="0 0 10 10"
+            refX="6"
+            refY="5"
+            markerWidth="6"
+            markerHeight="6"
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 1 L 8 5 L 0 9 z" fill={color} />
+          </marker>
+        ))}
       </defs>
 
       {/* Render existing edges */}
@@ -160,22 +83,9 @@ export const FlowEdgesLayer: FC<FlowEdgesLayerProps> = ({
 
         const path = computeBezierPath(sourcePoint, targetPoint);
         const midpoint = computeBezierMidpoint(sourcePoint, targetPoint);
-        const color = getEdgeColor(edge.kind, edge.isDangling);
+        const color = edge.isDangling ? DANGLING_COLOR : KIND_COLORS[edge.kind];
+        const markerId = `arrow-${edge.isDangling ? "dangling" : edge.kind}`;
         const isSelected = selectedEdgeId === edge.id;
-
-        const markerId = edge.isDangling
-          ? "arrow-rust"
-          : edge.kind === "optout"
-            ? "arrow-optout"
-            : edge.kind === "dtmf"
-              ? "arrow-dtmf"
-              : edge.kind === "condition"
-                ? "arrow-condition"
-                : edge.kind === "timeout"
-                  ? "arrow-timeout"
-                  : edge.kind === "invalid" || edge.kind === "fail"
-                    ? "arrow-rust"
-                    : "arrow-next";
 
         return (
           <g key={edge.id} className="group">
@@ -197,7 +107,7 @@ export const FlowEdgesLayer: FC<FlowEdgesLayerProps> = ({
               <path
                 d={path}
                 fill="none"
-                stroke="#b8ff3c"
+                stroke="var(--color-signal)"
                 strokeWidth="5"
                 strokeOpacity="0.4"
               />
@@ -216,38 +126,44 @@ export const FlowEdgesLayer: FC<FlowEdgesLayerProps> = ({
 
             {/* Edge Label Badge */}
             <foreignObject
-              x={midpoint.x - 55}
-              y={midpoint.y - 12}
-              width="110"
-              height="26"
+              x={midpoint.x - 70}
+              y={midpoint.y - 14}
+              width="140"
+              height="28"
               className="pointer-events-none overflow-visible"
             >
-              <div className="flex items-center justify-center">
+              <div className="flex h-7 items-center justify-center">
                 <div
                   onClick={(e) => {
                     e.stopPropagation();
                     onSelectEdge(isSelected ? null : edge.id);
                   }}
-                  className={`pointer-events-auto flex items-center gap-1 rounded-full border px-2 py-0.5 shadow-md backdrop-blur-sm transition-all duration-150 ${
+                  className={`pointer-events-auto flex h-7 items-center gap-1 rounded-full border bg-panel pl-2.5 shadow-sm ${
+                    readOnly ? "pr-2.5" : "pr-0.5"
+                  } ${
                     isSelected
-                      ? "border-signal bg-panel text-signal ring-1 ring-signal/50"
+                      ? "border-signal text-signal ring-1 ring-signal/50"
                       : edge.isDangling
-                        ? "border-rust/80 bg-void text-rust"
-                        : "border-edge-bright bg-void/90 text-chalk hover:border-signal/70 hover:text-signal"
+                        ? "border-rust text-rust"
+                        : "border-edge-bright text-chalk hover:border-signal/70 hover:text-signal"
                   }`}
                 >
-                  <span className="num max-w-[70px] truncate text-[10px] font-medium leading-none">
+                  <span
+                    className="num max-w-[90px] truncate text-[11px] font-medium leading-none"
+                    title={edge.label}
+                  >
                     {edge.label}
                   </span>
                   {!readOnly && (
                     <button
                       type="button"
-                      title="Disconnect transition"
+                      title="Disconnect"
+                      aria-label={`Disconnect ${edge.label}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         onDisconnectEdge(edge.sourceNodeId, edge.sourcePortId);
                       }}
-                      className="ml-0.5 text-[10px] text-ash hover:text-rust"
+                      className="relative flex size-6 items-center justify-center rounded-full text-xs text-ash after:absolute after:-inset-1.5 hover:bg-[#fdeaea] hover:text-rust"
                     >
                       ✕
                     </button>
@@ -265,7 +181,7 @@ export const FlowEdgesLayer: FC<FlowEdgesLayerProps> = ({
           <path
             d={computeBezierPath(connecting.sourcePoint, connecting.currentPoint)}
             fill="none"
-            stroke="#b8ff3c"
+            stroke="var(--color-signal)"
             strokeWidth="2.5"
             strokeDasharray="4 4"
             className="animate-pulse"
@@ -274,7 +190,7 @@ export const FlowEdgesLayer: FC<FlowEdgesLayerProps> = ({
             cx={connecting.currentPoint.x}
             cy={connecting.currentPoint.y}
             r="4"
-            fill="#b8ff3c"
+            fill="var(--color-signal)"
           />
         </g>
       )}

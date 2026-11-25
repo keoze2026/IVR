@@ -8,12 +8,19 @@
  * 4. Draft writes reject dangling transitions and loops without terminal paths.
  */
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 
-import { ClipButton } from "@/components/styled/ClipButton";
 import { PulseLoader } from "@/components/styled/PulseLoader";
-import { BackLink, Button, ErrorState } from "@/components/ui";
+import {
+  BackLink,
+  Badge,
+  Button,
+  ErrorState,
+  PageHeader,
+  Panel,
+  cx,
+} from "@/components/ui";
 import { ApiError } from "@/lib/errors";
 import {
   useFlowVersion,
@@ -35,6 +42,7 @@ import { FlowPalette } from "./components/FlowPalette";
 import { FlowInspector } from "./components/FlowInspector";
 import { FlowToolbar } from "./components/FlowToolbar";
 import { FlowValidationDrawer } from "./components/FlowValidationDrawer";
+import { nodeLabel } from "./components/nodeMeta";
 
 import {
   getGraphEdges,
@@ -44,6 +52,7 @@ import {
 import {
   computeAutoLayout,
   ensureNodePositions,
+  ESTIMATED_NODE_HEIGHT,
 } from "./utils/layout";
 import {
   snapToGrid,
@@ -71,6 +80,12 @@ export function FlowBuilderPage() {
   const [viewMode, setViewMode] = useState<"canvas" | "outline">("canvas");
   const [zoom, setZoom] = useState(1.0);
   const [pan, setPan] = useState<Point>({ x: 40, y: 40 });
+  // The visible canvas area, which differs a lot between a phone and a desktop.
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const viewportSize = () => ({
+    width: viewportRef.current?.clientWidth || 900,
+    height: viewportRef.current?.clientHeight || 500,
+  });
 
   const specs = useMemo(() => {
     const map = new Map<string, NodeSpec>();
@@ -346,9 +361,12 @@ export function FlowBuilderPage() {
     [],
   );
 
+  const readOnly = Boolean(version.data?.is_published) || !canEdit;
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
+        readOnly ||
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
         e.target instanceof HTMLSelectElement
@@ -364,7 +382,7 @@ export function FlowBuilderPage() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedIds, deleteNode, duplicateNode]);
+  }, [readOnly, selectedIds, deleteNode, duplicateNode]);
 
   const handleAutoLayout = useCallback(() => {
     if (!doc) return;
@@ -392,15 +410,16 @@ export function FlowBuilderPage() {
       minX = Math.min(minX, p.x);
       minY = Math.min(minY, p.y);
       maxX = Math.max(maxX, p.x + NODE_WIDTH);
-      maxY = Math.max(maxY, p.y + NODE_MIN_HEIGHT);
+      maxY = Math.max(maxY, p.y + ESTIMATED_NODE_HEIGHT);
     });
 
     const graphWidth = maxX - minX + 160;
     const graphHeight = maxY - minY + 160;
+    const { width, height } = viewportSize();
 
-    const scaleX = 900 / Math.max(graphWidth, 300);
-    const scaleY = 500 / Math.max(graphHeight, 300);
-    const newZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.5), 1.2);
+    const scaleX = width / Math.max(graphWidth, 300);
+    const scaleY = height / Math.max(graphHeight, 300);
+    const newZoom = Math.min(Math.max(Math.min(scaleX, scaleY), 0.3), 1.2);
 
     setZoom(newZoom);
     setPan({
@@ -411,11 +430,11 @@ export function FlowBuilderPage() {
 
   if (version.isLoading || catalogue.isLoading)
     return <PulseLoader label="Loading the flow" />;
-  if (version.error) return <ErrorState error={version.error} />;
+  if (version.error)
+    return <ErrorState error={version.error} onRetry={() => void version.refetch()} />;
   if (!version.data || !doc) return null;
 
   const published = version.data.is_published;
-  const readOnly = published || !canEdit;
   const nodeIds = Object.keys(doc.nodes);
   const edges = getGraphEdges(doc, specs);
 
@@ -428,200 +447,218 @@ export function FlowBuilderPage() {
     .concat(report?.warnings ?? [])
     .filter((i) => i.node && selectedIds.includes(i.node));
 
+  const publishRefused =
+    publish.error instanceof ApiError && publish.error.isInvalidFlow
+      ? publish.error
+      : null;
+
   return (
-    <div className="flex h-[calc(100vh-6rem)] flex-col space-y-3">
+    <div className="space-y-4">
       {/* --- Top Header ---------------------------------------------- */}
-      <header className="flex shrink-0 flex-wrap items-center justify-between gap-4">
-        <div>
-          <BackLink to={`/flows/${version.data.flow}`}>Versions</BackLink>
-          <div className="mt-1 flex items-center gap-3">
-            <h1 className="display text-xl font-semibold text-chalk">
-              Version {version.data.version}
-            </h1>
-            {published ? (
-              <span className="rounded border border-live-bright/40 bg-live px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-live-bright">
-                published · immutable
-              </span>
-            ) : (
-              <span className="rounded border border-signal/40 bg-panel px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-signal">
-                draft
-              </span>
-            )}
-          </div>
-        </div>
-
-        {!readOnly && (
-          <div className="flex items-center gap-3">
-            {blocksSave.length > 0 && (
-              <span className="text-xs text-amber font-medium">
-                {blocksSave.length} error{blocksSave.length > 1 ? "s" : ""} — cannot be saved yet
-              </span>
-            )}
-            <Button
-              variant="secondary"
-              loading={save.isPending}
-              disabled={blocksSave.length > 0}
-              onClick={() => save.mutate({ definition: doc })}
-            >
-              Save Draft
-            </Button>
-            {canPublish && (
-              <ClipButton
-                disabled={(report?.errors.length ?? 0) > 0 || publish.isPending}
-                onClick={() => publish.mutate()}
-              >
-                Publish Flow
-              </ClipButton>
-            )}
-          </div>
-        )}
-      </header>
-
-      {/* --- Publish Error Alert ------------------------------------- */}
-      {publish.error instanceof ApiError && publish.error.isInvalidFlow && (
-        <div className="shrink-0 rounded border border-rust/40 bg-panel px-4 py-3">
-          <p className="text-sm font-medium text-rust">
-            Publish refused. These must be fixed first:
+      <div className="space-y-2">
+        <BackLink to={`/flows/${version.data.flow}`}>Versions</BackLink>
+        <PageHeader
+          title={`Version ${version.data.version}`}
+          actions={
+            <div className="flex flex-wrap items-center gap-2">
+              {published ? (
+                <Badge tone="good">Published · read only</Badge>
+              ) : (
+                <Badge tone="info">{readOnly ? "Draft · read only" : "Draft"}</Badge>
+              )}
+              {!readOnly && (
+                <>
+                  <Button
+                    variant={canPublish ? "secondary" : "primary"}
+                    loading={save.isPending}
+                    disabled={blocksSave.length > 0}
+                    onClick={() => save.mutate({ definition: doc })}
+                  >
+                    Save draft
+                  </Button>
+                  {canPublish && (
+                    <Button
+                      variant="primary"
+                      loading={publish.isPending}
+                      disabled={(report?.errors?.length ?? 0) > 0}
+                      onClick={() => publish.mutate()}
+                    >
+                      Publish
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          }
+        />
+        {!readOnly && blocksSave.length > 0 && (
+          <p className="text-sm font-medium text-amber" role="status">
+            Fix {blocksSave.length} error{blocksSave.length > 1 ? "s" : ""} before
+            saving.
           </p>
-          <ul className="mt-1.5 space-y-1">
-            {((publish.error.detail as ValidationReport)?.errors ?? []).map(
-              (issue, i) => (
-                <li key={i} className="text-xs text-chalk">
-                  <span className="num text-ash">{issue.node || "flow"}</span> — {issue.message}
-                </li>
-              ),
-            )}
-          </ul>
-        </div>
+        )}
+      </div>
+
+      {/* --- Save and publish failures ------------------------------- */}
+      {save.error && <ErrorState error={save.error} />}
+      {publishRefused ? (
+        <Panel className="border-rust/40 px-4 py-3">
+          <div role="alert">
+            <p className="text-sm font-semibold text-rust">
+              Publish refused. Fix these first:
+            </p>
+            <ul className="mt-1.5 space-y-1">
+              {((publishRefused.detail as ValidationReport)?.errors ?? []).map(
+                (issue, i) => (
+                  <li key={i} className="break-words text-sm text-chalk">
+                    <span className="num text-ash">{issue.node || "flow"}</span>:{" "}
+                    {issue.message}
+                  </li>
+                ),
+              )}
+            </ul>
+          </div>
+        </Panel>
+      ) : (
+        publish.error && <ErrorState error={publish.error} />
+      )}
+      {catalogue.error && (
+        <ErrorState error={catalogue.error} onRetry={() => void catalogue.refetch()} />
       )}
 
-      {/* --- Main Workspace Canvas Area ----------------------------- */}
-      <div className="flex min-h-0 flex-1 gap-3 overflow-hidden">
-        {/* Left: Node Palette */}
-        <FlowPalette
-          specs={catalogue.data?.nodes ?? []}
-          readOnly={readOnly}
-          onAddNode={addNode}
-        />
-
-        {/* Center: Canvas / Outline View Container */}
-        <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-[--radius-card] border border-edge bg-void">
-          {/* Top Canvas Toolbar */}
-          <div className="absolute left-4 right-4 top-3 z-10">
-            <FlowToolbar
-              zoom={zoom}
-              nodeCount={nodeIds.length}
-              edgeCount={edges.length}
-              viewMode={viewMode}
-              onZoomIn={() => setZoom((z) => Math.min(z + 0.15, 2.0))}
-              onZoomOut={() => setZoom((z) => Math.max(z - 0.15, 0.3))}
-              onResetZoom={() => setZoom(1.0)}
-              onFitView={handleFitView}
-              onAutoLayout={handleAutoLayout}
-              onToggleViewMode={() =>
-                setViewMode((m) => (m === "canvas" ? "outline" : "canvas"))
-              }
+      {/* --- Workspace: palette, canvas, inspector ------------------- */}
+      <div
+        className={cx(
+          "grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_300px]",
+          !readOnly && "xl:grid-cols-[200px_minmax(0,1fr)_290px]",
+        )}
+      >
+        {!readOnly && (
+          <div className="min-w-0 lg:col-span-2 xl:col-span-1 xl:h-[max(36rem,calc(100dvh-20rem))]">
+            <FlowPalette
+              specs={catalogue.data?.nodes ?? []}
+              readOnly={readOnly}
+              onAddNode={addNode}
             />
           </div>
+        )}
 
-          {/* Interactive Visual Graph Canvas */}
-          {viewMode === "canvas" ? (
-            <FlowCanvas
-              doc={doc}
-              specs={specs}
-              selectedNodeIds={selectedIds}
-              report={report}
-              readOnly={readOnly}
-              zoom={zoom}
-              pan={pan}
-              onPanChange={setPan}
-              onZoomChange={setZoom}
-              onSelectNodes={setSelectedIds}
-              onUpdatePositions={updatePositions}
-              onAddNode={addNode}
-              onConnect={connectWire}
-              onSetEntry={setEntryNode}
-              onDeleteNode={deleteNode}
-              onDuplicateNode={duplicateNode}
-            />
-          ) : (
-            /* Outline / Tabular View */
-            <div className="flex-1 overflow-y-auto p-4 pt-16">
-              <div className="space-y-2">
+        {/* Center: Canvas / Outline View Container */}
+        <Panel className="flex h-[28rem] min-w-0 flex-col overflow-hidden lg:h-[max(36rem,calc(100dvh-20rem))]">
+          <FlowToolbar
+            zoom={zoom}
+            nodeCount={nodeIds.length}
+            edgeCount={edges.length}
+            viewMode={viewMode}
+            onZoomIn={() => setZoom((z) => Math.min(z + 0.15, 2.0))}
+            onZoomOut={() => setZoom((z) => Math.max(z - 0.15, 0.3))}
+            onResetZoom={() => setZoom(1.0)}
+            onFitView={handleFitView}
+            onAutoLayout={handleAutoLayout}
+            onToggleViewMode={() =>
+              setViewMode((m) => (m === "canvas" ? "outline" : "canvas"))
+            }
+          />
+
+          <div ref={viewportRef} className="relative min-h-0 flex-1">
+            {viewMode === "canvas" ? (
+              <FlowCanvas
+                doc={doc}
+                specs={specs}
+                selectedNodeIds={selectedIds}
+                report={report}
+                readOnly={readOnly}
+                zoom={zoom}
+                pan={pan}
+                onPanChange={setPan}
+                onZoomChange={setZoom}
+                onSelectNodes={setSelectedIds}
+                onUpdatePositions={updatePositions}
+                onAddNode={addNode}
+                onConnect={connectWire}
+                onSetEntry={setEntryNode}
+                onDeleteNode={deleteNode}
+                onDuplicateNode={duplicateNode}
+              />
+            ) : (
+              /* Outline / list view */
+              <ul className="h-full space-y-2 overflow-y-auto bg-void p-3">
                 {nodeIds.map((id) => {
                   const node = doc.nodes[id]!;
                   const isSelected = selectedIds.includes(id);
 
                   return (
-                    <div
-                      key={id}
-                      onClick={(e) => {
-                        if (e.ctrlKey || e.metaKey || e.shiftKey) {
-                          setSelectedIds((prev) =>
-                            prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-                          );
-                        } else {
-                          setSelectedIds([id]);
-                        }
-                      }}
-                      className={`cursor-pointer rounded-lg border p-3 transition-colors ${
-                        isSelected
-                          ? "border-signal bg-panel"
-                          : "border-edge bg-void hover:border-edge-bright"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {id === doc.entry && (
-                            <span className="rounded bg-signal px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase text-void">
-                              Entry
-                            </span>
+                    <li key={id}>
+                      <button
+                        type="button"
+                        aria-pressed={isSelected}
+                        onClick={(e) => {
+                          if (e.ctrlKey || e.metaKey || e.shiftKey) {
+                            setSelectedIds((prev) =>
+                              prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+                            );
+                          } else {
+                            setSelectedIds([id]);
+                          }
+                        }}
+                        className={cx(
+                          "block min-h-12 w-full rounded-xl border bg-panel p-3 text-left",
+                          isSelected
+                            ? "border-signal ring-1 ring-signal"
+                            : "border-edge hover:border-edge-bright",
+                        )}
+                      >
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="num break-all text-sm font-semibold text-chalk">{id}</span>
+                          <span className="text-xs text-ash-dim">{nodeLabel(node.type)}</span>
+                          {id === doc.entry && <Badge tone="good">Start</Badge>}
+                          {node.disposition && (
+                            <Badge>Outcome: {node.disposition.replace(/_/g, " ")}</Badge>
                           )}
-                          <span className="num text-sm font-semibold text-chalk">{id}</span>
-                          <span className="num text-xs text-ash">({node.type})</span>
-                        </div>
-                        {node.disposition && (
-                          <span className="rounded border border-edge px-1.5 py-0.5 text-[10px] text-ash">
-                            disposition: {node.disposition}
+                        </span>
+                        {node.prompt?.text && (
+                          <span className="mt-1 block break-words text-sm text-ash">
+                            “{node.prompt.text}”
                           </span>
                         )}
-                      </div>
-                      {node.prompt?.text && (
-                        <p className="mt-1 text-xs italic text-ash">“{node.prompt.text}”</p>
-                      )}
-                    </div>
+                      </button>
+                    </li>
                   );
                 })}
-              </div>
-            </div>
-          )}
-        </div>
+              </ul>
+            )}
+          </div>
+        </Panel>
 
         {/* Right: Property Inspector Panel */}
-        <FlowInspector
-          doc={doc}
-          selectedIds={selectedIds}
-          spec={selectedIds.length === 1 ? specs.get(doc.nodes[selectedIds[0]!]?.type ?? "") : undefined}
-          issues={selectedNodeIssues}
-          readOnly={readOnly}
-          onChange={updateNode}
-          onRenameNode={renameNode}
-          onClose={() => setSelectedIds([])}
-        />
+        <div className="min-w-0 lg:h-[max(36rem,calc(100dvh-20rem))]">
+          <FlowInspector
+            doc={doc}
+            selectedIds={selectedIds}
+            spec={selectedIds.length === 1 ? specs.get(doc.nodes[selectedIds[0]!]?.type ?? "") : undefined}
+            issues={selectedNodeIssues}
+            readOnly={readOnly}
+            onChange={updateNode}
+            onRenameNode={renameNode}
+            onClose={() => setSelectedIds([])}
+          />
+        </div>
       </div>
 
-      {/* --- Bottom: Live Validation Drawer -------------------------- */}
+      {/* --- Live Validation ----------------------------------------- */}
       <FlowValidationDrawer
         report={report}
         isValidating={validate.isPending}
+        failure={validate.error}
         onSelectNode={(nodeId) => {
           setSelectedIds([nodeId]);
           // Auto-center pan on the node if in canvas mode
           if (doc.metadata?.positions?.[nodeId]) {
             const pos = doc.metadata.positions[nodeId]!;
+            const { width, height } = viewportSize();
             setPan({
-              x: 300 - pos.x * zoom,
-              y: 200 - pos.y * zoom,
+              x: width / 2 - (pos.x + NODE_WIDTH / 2) * zoom,
+              y: height / 2 - (pos.y + ESTIMATED_NODE_HEIGHT / 2) * zoom,
             });
           }
         }}

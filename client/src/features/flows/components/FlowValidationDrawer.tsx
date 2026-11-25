@@ -1,20 +1,25 @@
 /**
- * Bottom drawer displaying real-time flow validation results and short-circuit notices.
+ * Live validation results, with the short-circuit notice.
  */
 
 import { useState, type FC } from "react";
-import type { ValidationReport } from "@/types/domain";
-import { Panel } from "@/components/ui";
+
+import { ChevronIcon } from "@/components/icons";
+import { Badge, ErrorState, Panel, cx } from "@/components/ui";
+import type { ValidationIssue, ValidationReport } from "@/types/domain";
 
 interface FlowValidationDrawerProps {
   report: ValidationReport | null;
   isValidating: boolean;
+  /** Set when the check itself could not run, so the results may be stale. */
+  failure?: unknown;
   onSelectNode: (nodeId: string) => void;
 }
 
 export const FlowValidationDrawer: FC<FlowValidationDrawerProps> = ({
   report,
   isValidating,
+  failure,
   onSelectNode,
 }) => {
   const [collapsed, setCollapsed] = useState(false);
@@ -29,116 +34,102 @@ export const FlowValidationDrawer: FC<FlowValidationDrawerProps> = ({
   const graphChecksRan = structuralErrors.length === 0;
 
   return (
-    <Panel className="overflow-hidden border-t border-edge">
-      {/* Drawer Header */}
-      <div
+    <Panel className="overflow-hidden">
+      <button
+        type="button"
         onClick={() => setCollapsed(!collapsed)}
-        className="flex cursor-pointer items-center justify-between border-b border-edge/80 px-4 py-2.5 hover:bg-raised"
+        aria-expanded={!collapsed}
+        className="flex min-h-12 w-full items-center justify-between gap-3 px-4 py-2 text-left hover:bg-void"
       >
-        <div className="flex items-center gap-2">
-          <span className="eyebrow">Flow Checks</span>
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="display text-sm font-semibold text-chalk">Checks</span>
           {isValidating ? (
-            <span className="text-[11px] text-ash animate-pulse">verifying…</span>
+            <span className="animate-pulse text-xs text-ash">Checking…</span>
           ) : report?.ok && warnings.length === 0 ? (
-            <span className="rounded bg-live/20 px-2 py-0.5 text-[10px] font-medium text-live-bright">
-              ✓ Ready to Publish
-            </span>
+            <Badge tone="good">Ready to publish</Badge>
           ) : (
-            <div className="flex items-center gap-1.5">
+            <>
               {errors.length > 0 && (
-                <span className="rounded bg-rust/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-rust">
+                <Badge tone="bad">
                   {errors.length} error{errors.length > 1 ? "s" : ""}
-                </span>
+                </Badge>
               )}
               {warnings.length > 0 && (
-                <span className="rounded bg-amber/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-amber">
+                <Badge tone="warn">
                   {warnings.length} warning{warnings.length > 1 ? "s" : ""}
-                </span>
+                </Badge>
               )}
-            </div>
+            </>
           )}
-        </div>
+        </span>
 
-        <button
-          type="button"
-          className="text-xs text-ash hover:text-chalk"
-        >
-          {collapsed ? "▲ Expand" : "▼ Collapse"}
-        </button>
-      </div>
+        <ChevronIcon className={cx("size-5 text-ash", !collapsed && "rotate-180")} />
+      </button>
 
-      {/* Drawer Body */}
       {!collapsed && (
-        <div>
-          {!graphChecksRan && (
-            <div className="border-b border-amber/30 bg-void px-4 py-2 text-xs text-amber">
-              ⚠️ Fix the {structuralErrors.length} field error
-              {structuralErrors.length > 1 ? "s" : ""} below to see reachability and
-              dangling-transition checks — they only run once the document parses cleanly.
+        <div className={cx((failure || !graphChecksRan || totalCount > 0) && "border-t border-edge")}>
+          {Boolean(failure) && (
+            <div className="p-3">
+              <ErrorState error={failure} />
             </div>
           )}
 
-          <div className="max-h-44 divide-y divide-edge/60 overflow-y-auto">
-            {totalCount === 0 && report?.ok && (
-              <div className="p-4 text-center text-xs text-live-bright">
-                All transitions and node configurations are valid. No publish blockers found.
-              </div>
-            )}
+          {!graphChecksRan && (
+            <p className="border-b border-edge bg-[#fdf1dc] px-4 py-2 text-sm text-amber">
+              Fix the {structuralErrors.length} field error
+              {structuralErrors.length > 1 ? "s" : ""} first. Broken-link and
+              unreachable-step checks run after that.
+            </p>
+          )}
 
-            {errors.map((issue, idx) => (
-              <div
-                key={`e-${idx}`}
-                onClick={() => issue.node && onSelectNode(issue.node)}
-                className={`flex items-start justify-between px-4 py-2 transition-colors ${
-                  issue.node ? "cursor-pointer hover:bg-raised" : ""
-                }`}
-              >
-                <div className="flex items-start gap-2">
-                  <span className="mt-1 size-1.5 shrink-0 rounded-full bg-rust" />
-                  <div>
-                    <span className="text-xs font-medium text-chalk">
-                      {issue.message}
-                    </span>
-                    <span className="num ml-2 text-[10px] text-ash-dim">
-                      [{issue.code}]
-                    </span>
-                  </div>
-                </div>
-                {issue.node && (
-                  <span className="num rounded border border-edge bg-void px-1.5 py-0.5 text-[10px] text-signal">
-                    {issue.node} →
-                  </span>
-                )}
-              </div>
-            ))}
-
-            {warnings.map((issue, idx) => (
-              <div
-                key={`w-${idx}`}
-                onClick={() => issue.node && onSelectNode(issue.node)}
-                className={`flex items-start justify-between px-4 py-2 transition-colors ${
-                  issue.node ? "cursor-pointer hover:bg-raised" : ""
-                }`}
-              >
-                <div className="flex items-start gap-2">
-                  <span className="mt-1 size-1.5 shrink-0 rounded-full bg-amber" />
-                  <div>
-                    <span className="text-xs text-chalk">{issue.message}</span>
-                    <span className="num ml-2 text-[10px] text-ash-dim">
-                      [{issue.code}]
-                    </span>
-                  </div>
-                </div>
-                {issue.node && (
-                  <span className="num rounded border border-edge bg-void px-1.5 py-0.5 text-[10px] text-ash">
-                    {issue.node} →
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
+          {totalCount > 0 && (
+            <ul className="max-h-56 divide-y divide-edge overflow-y-auto">
+              {errors.map((issue, idx) => (
+                <IssueRow key={`e-${idx}`} issue={issue} tone="bad" onSelectNode={onSelectNode} />
+              ))}
+              {warnings.map((issue, idx) => (
+                <IssueRow key={`w-${idx}`} issue={issue} tone="warn" onSelectNode={onSelectNode} />
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </Panel>
   );
 };
+
+function IssueRow({
+  issue,
+  tone,
+  onSelectNode,
+}: {
+  issue: ValidationIssue;
+  tone: "bad" | "warn";
+  onSelectNode: (nodeId: string) => void;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        title={issue.code}
+        disabled={!issue.node}
+        onClick={() => issue.node && onSelectNode(issue.node)}
+        className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left enabled:hover:bg-void"
+      >
+        <span
+          className={cx("size-2 shrink-0 rounded-full", tone === "bad" ? "bg-rust" : "bg-amber")}
+          aria-hidden
+        />
+        <span className="min-w-0 flex-1 break-words text-sm text-chalk">
+          <span className="sr-only">{tone === "bad" ? "Error: " : "Warning: "}</span>
+          {issue.message}
+        </span>
+        {issue.node && (
+          <span className="num max-w-[40%] shrink-0 truncate rounded-lg bg-raised px-2 py-1 text-xs text-signal">
+            {issue.node} →
+          </span>
+        )}
+      </button>
+    </li>
+  );
+}

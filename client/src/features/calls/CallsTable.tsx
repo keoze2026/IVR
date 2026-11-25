@@ -1,28 +1,28 @@
 /**
  * The call log.
  *
- * Cursor-paginated, so there is no total and no page number — only next and
- * previous, and the cursors are opaque (G-11). There is also no date filter
- * (G-09), which is the single most-missed control here: at the documented
- * load this table cannot be narrowed to "yesterday afternoon". The header says
- * so rather than pretending otherwise.
+ * Cursor-paginated, so there is no total and no page number — only newer and
+ * older, and the cursors are opaque (G-11). There is no date filter (G-09).
  */
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import {
+  Badge,
   Button,
   EmptyState,
   ErrorState,
+  FilterTabs,
   Panel,
   StatusPill,
   TableSkeleton,
-  cx,
 } from "@/components/ui";
 import { formatCost, formatDuration, formatRelative } from "@/lib/format";
 import { useCalls, type CallFilters } from "@/lib/queries/resources";
 import type { CallSummary } from "@/types/domain";
+
+import { answeredByLabel } from "./shared";
 
 const DISPOSITIONS = [
   "",
@@ -33,7 +33,23 @@ const DISPOSITIONS = [
   "no_input",
   "abandoned",
   "unreachable",
-];
+].map((id) => ({ id, label: id ? sentence(id) : "Any outcome" }));
+
+function sentence(value: string): string {
+  const words = value.replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** What the person on the call chose, or how the flow ended for them. */
+export function DispositionBadge({ value }: { value: string }) {
+  const tone =
+    value === "opted_out"
+      ? "warn"
+      : value === "confirmed" || value === "transferred"
+        ? "good"
+        : "quiet";
+  return <Badge tone={tone}>{sentence(value)}</Badge>;
+}
 
 export function CallsTable({
   campaignId,
@@ -52,83 +68,62 @@ export function CallsTable({
   return (
     <div className="space-y-4">
       {!compact && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          {DISPOSITIONS.map((d) => {
-            const active = (filters.disposition ?? "") === d;
-            return (
-              <button
-                key={d || "any"}
-                onClick={() =>
-                  setFilters({ ...filters, disposition: d, cursor: undefined })
-                }
-                className={cx(
-                  "press min-h-9 rounded-full border px-3.5 font-mono text-[11px] uppercase tracking-wider",
-                  active
-                    ? "border-signal bg-signal text-void"
-                    : "border-edge bg-panel text-ash hover:border-edge-bright hover:text-chalk",
-                )}
-              >
-                {d ? d.replace(/_/g, " ") : "Any outcome"}
-              </button>
-            );
-          })}
-        </div>
+        <FilterTabs
+          label="Filter by outcome"
+          value={filters.disposition ?? ""}
+          onChange={(disposition) =>
+            setFilters({ ...filters, disposition, cursor: undefined })
+          }
+          options={DISPOSITIONS}
+        />
       )}
 
       {error && <ErrorState error={error} onRetry={() => void refetch()} />}
 
-      <Panel className="overflow-hidden">
-        {isLoading && <TableSkeleton />}
+      {(isLoading || data) && (
+        <Panel className="overflow-hidden">
+          {isLoading && <TableSkeleton />}
 
-        {data && rows.length === 0 && (
-          <EmptyState
-            title="No calls here yet"
-            description={
-              filters.disposition
-                ? "Nothing with that outcome."
-                : "Calls appear as soon as the campaign starts dialing."
-            }
-          />
-        )}
+          {data && rows.length === 0 && (
+            <div className="p-4 sm:p-6">
+              <EmptyState
+                title="No calls here yet"
+                description={
+                  filters.disposition
+                    ? "Nothing with that outcome."
+                    : "Calls appear as soon as the campaign starts dialing."
+                }
+              />
+            </div>
+          )}
 
-        {rows.length > 0 && (
-          <>
-            <table className="hidden w-full text-sm md:table">
-              <thead>
-                <tr className="border-b border-edge bg-void text-left">
-                  {["To", "State", "Outcome", "Answered by", "Duration", "Cost", "When"].map(
-                    (h, i) => (
-                      <th
-                        key={h}
-                        className={cx(
-                          "eyebrow px-4 py-2.5 font-normal",
-                          i >= 4 && "text-right",
-                        )}
-                      >
-                        {h}
-                      </th>
-                    ),
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-edge">
-                {rows.map((call) => (
-                  <CallRow key={call.id} call={call} />
-                ))}
-              </tbody>
-            </table>
-
-            <ul className="divide-y divide-edge md:hidden">
-              {rows.map((call) => (
-                <MobileCallRow key={call.id} call={call} />
-              ))}
-            </ul>
-          </>
-        )}
-      </Panel>
+          {rows.length > 0 && (
+            <div className="overflow-x-auto">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Number</th>
+                    <th>Status</th>
+                    <th>Outcome</th>
+                    <th>Answered by</th>
+                    <th>Duration</th>
+                    <th>Cost</th>
+                    <th>When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((call) => (
+                    <CallRow key={call.id} call={call} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+      )}
 
       {data && (data.next || data.previous) && (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <Button
             disabled={!data.previous}
             onClick={() =>
@@ -137,10 +132,6 @@ export function CallsTable({
           >
             Newer
           </Button>
-          {/* No count — cursor pagination omits it, so no "page 3 of 40". */}
-          <span className="text-xs text-ash-dim">
-            Showing the most recent calls
-          </span>
           <Button
             disabled={!data.next}
             onClick={() => setFilters({ ...filters, cursor: cursorOf(data.next) })}
@@ -162,109 +153,34 @@ function cursorOf(url: string | null): string | undefined {
   }
 }
 
-function MobileCallRow({ call }: { call: CallSummary }) {
-  const machine = call.answered_by.startsWith("machine");
-
-  return (
-    <li>
-      <Link
-        to={`/calls/${call.id}`}
-        className="press block px-4 py-3.5 active:bg-raised"
-      >
-        <div className="flex items-center justify-between gap-3">
-          <span className="num text-sm text-chalk">{call.to_masked}</span>
-          <StatusPill status={call.status} />
-        </div>
-
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-          {call.disposition && (
-            <span
-              className={cx(
-                call.disposition === "opted_out"
-                  ? "text-amber"
-                  : call.disposition === "confirmed" ||
-                      call.disposition === "transferred"
-                    ? "text-live-bright"
-                    : "text-ash",
-              )}
-            >
-              {call.disposition.replace(/_/g, " ")}
-            </span>
-          )}
-          {call.answered_by && (
-            <span className="text-ash">{machine ? "machine" : "person"}</span>
-          )}
-          {call.duration_seconds > 0 && (
-            <span className="num text-ash">
-              {formatDuration(call.duration_seconds)}
-            </span>
-          )}
-          {call.attempt_number > 1 && (
-            <span className="num text-ash-dim">attempt {call.attempt_number}</span>
-          )}
-          <span className="ml-auto text-ash-dim">
-            {formatRelative(call.created_at)}
-          </span>
-        </div>
-      </Link>
-    </li>
-  );
-}
-
 function CallRow({ call }: { call: CallSummary }) {
-  const machine = call.answered_by.startsWith("machine");
-
   return (
-    <tr className="group transition-colors hover:bg-raised">
-      <td className="px-4 py-2.5">
+    <tr>
+      <td>
         <Link
           to={`/calls/${call.id}`}
-          className="num text-chalk transition-colors group-hover:text-signal"
+          className="num inline-flex min-h-9 items-center font-medium text-chalk hover:text-signal"
         >
           {call.to_masked}
         </Link>
         {call.attempt_number > 1 && (
-          <span className="num ml-2 text-[10px] text-ash-dim">
+          <span className="num ml-2 text-xs text-ash-dim">
             attempt {call.attempt_number}
           </span>
         )}
       </td>
-      <td className="px-4 py-2.5">
+      <td>
         <StatusPill status={call.status} />
       </td>
-      <td className="px-4 py-2.5">
-        {call.disposition ? (
-          <span
-            className={cx(
-              "text-xs",
-              call.disposition === "opted_out"
-                ? "text-amber"
-                : call.disposition === "confirmed" ||
-                    call.disposition === "transferred"
-                  ? "text-live-bright"
-                  : "text-ash",
-            )}
-          >
-            {call.disposition.replace(/_/g, " ")}
-          </span>
-        ) : (
-          <span className="text-ash-dim">—</span>
-        )}
+      <td>
+        {call.disposition ? <DispositionBadge value={call.disposition} /> : "—"}
       </td>
-      <td className="px-4 py-2.5">
-        <span className={cx("text-xs", machine ? "text-ash" : "text-chalk")}>
-          {call.answered_by ? (machine ? "machine" : call.answered_by) : "—"}
-        </span>
-      </td>
-      <td className="num px-4 py-2.5 text-right text-chalk">
+      <td>{answeredByLabel(call.answered_by)}</td>
+      <td className="num">
         {call.duration_seconds > 0 ? formatDuration(call.duration_seconds) : "—"}
       </td>
-      <td className="num px-4 py-2.5 text-right text-ash">
-        {call.cost ? formatCost(call.cost) : "—"}
-      </td>
-      <td className="px-4 py-2.5 text-right text-xs text-ash">
-        {formatRelative(call.created_at)}
-      </td>
+      <td className="num">{call.cost ? formatCost(call.cost) : "—"}</td>
+      <td>{formatRelative(call.created_at)}</td>
     </tr>
   );
 }

@@ -1,83 +1,98 @@
 /**
  * Campaign list.
  *
- * Filters are exactly the three the backend supports. There is deliberately no
- * search box and no sortable column: `?search=` does not exist and
- * `?ordering=` is silently ignored on nine of ten viewsets (G-10). A control
- * that looks like it works and does nothing is worse than no control.
+ * Status is the only filter. There is deliberately no search box and no
+ * sortable column: `?search=` does not exist and `?ordering=` is silently
+ * ignored on nine of ten viewsets (G-10). A control that looks like it works
+ * and does nothing is worse than no control.
+ *
+ * The filter lives in the address, so the summary cards can link to it.
  */
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
-import { ClipButton } from "@/components/styled/ClipButton";
+import { PlusIcon } from "@/components/icons";
 import {
   Button,
   EmptyState,
   ErrorState,
+  FilterTabs,
+  PageHeader,
   Panel,
   Stat,
   StatusPill,
   TableSkeleton,
-  cx,
 } from "@/components/ui";
 import { formatCount, formatRate, formatRelative } from "@/lib/format";
-import { useCampaigns, type CampaignFilters } from "@/lib/queries/campaigns";
+import { useCampaigns } from "@/lib/queries/campaigns";
 import { useCan } from "@/lib/session";
 import type { Campaign, CampaignStatus } from "@/types/domain";
 
-const FILTERS: { value: CampaignStatus | ""; label: string }[] = [
-  { value: "", label: "All" },
-  { value: "running", label: "Dialing" },
-  { value: "throttled", label: "Throttled" },
-  { value: "paused", label: "Paused" },
-  { value: "draft", label: "Draft" },
-  { value: "completed", label: "Completed" },
-  { value: "stopped", label: "Stopped" },
+type Filter = CampaignStatus | "all";
+
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "running", label: "Running" },
+  { id: "throttled", label: "Throttled" },
+  { id: "paused", label: "Paused" },
+  { id: "draft", label: "Draft" },
+  { id: "completed", label: "Completed" },
+  { id: "stopped", label: "Stopped" },
 ];
 
 export function CampaignsPage() {
-  const [filters, setFilters] = useState<CampaignFilters>({ page: 1 });
+  const [params, setParams] = useSearchParams();
+  const filter: Filter =
+    FILTERS.find((f) => f.id === params.get("status"))?.id ?? "all";
+
+  // The page number belongs to one filter; changing filter starts again at 1.
+  const [paging, setPaging] = useState({ filter, page: 1 });
+  const page = paging.filter === filter ? paging.page : 1;
+  const goTo = (next: number) => setPaging({ filter, page: next });
+
   const canEdit = useCan("campaign.edit");
-  const { data, isLoading, error, refetch } = useCampaigns(filters);
+  const { data, isLoading, error, refetch } = useCampaigns({
+    status: filter === "all" ? "" : filter,
+    page,
+  });
 
   const rows = data?.results ?? [];
-  const dialing = rows.filter((c) => c.status === "running").length;
+  const running = rows.filter((c) => c.status === "running").length;
   const attention = rows.filter(
     (c) => c.status === "throttled" || c.status === "failed",
   ).length;
 
+  const newCampaign = (label: string) => (
+    <Link
+      to="/campaigns/new"
+      className="press inline-flex min-h-11 items-center gap-2 rounded-xl bg-signal px-4 text-sm font-medium text-white hover:bg-signal-dim"
+    >
+      <PlusIcon className="size-4" /> {label}
+    </Link>
+  );
+
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
-        <div>
-          <h1 className="display text-xl font-semibold text-chalk sm:text-2xl">Campaigns</h1>
-          <p className="mt-1 text-sm text-ash">
-            A campaign pins one published flow, one caller ID, and the lists it
-            may dial.
-          </p>
-        </div>
-        {canEdit && (
-          <Link to="/campaigns/new">
-            <ClipButton>New campaign</ClipButton>
-          </Link>
-        )}
-      </header>
+      <PageHeader
+        title="Campaigns"
+        subtitle="Call your contact lists with a call flow."
+        actions={canEdit ? newCampaign("New campaign") : undefined}
+      />
 
       {data && rows.length > 0 && (
-        <div className="stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {/* One filled card per row, on the figure the screen exists for. */}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Stat
-            label="Dialing now"
-            value={String(dialing)}
-            denominator={`of ${data.count} campaigns`}
+            label="Running now"
+            value={String(running)}
+            denominator={`of ${formatCount(data.count)} campaigns`}
             accent
             to="/campaigns?status=running"
           />
           <Stat
             label="Needs attention"
             value={String(attention)}
-            denominator="throttled or failed"
+            denominator="Throttled or failed"
             tone={attention > 0 ? "amber" : undefined}
             to="/campaigns?status=throttled"
           />
@@ -86,7 +101,7 @@ export function CampaignsPage() {
             value={formatCount(
               rows.reduce((sum, c) => sum + (c.stats?.dialed ?? 0), 0),
             )}
-            denominator="across these campaigns"
+            denominator="Campaigns listed below"
             to="/calls"
           />
           <Stat
@@ -94,30 +109,19 @@ export function CampaignsPage() {
             value={formatCount(
               rows.reduce((sum, c) => sum + (c.stats?.answered ?? 0), 0),
             )}
-            denominator="across these campaigns"
+            denominator="Campaigns listed below"
           />
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        {FILTERS.map((f) => {
-          const active = (filters.status ?? "") === f.value;
-          return (
-            <button
-              key={f.value || "all"}
-              onClick={() => setFilters({ ...filters, status: f.value, page: 1 })}
-              className={cx(
-                "press min-h-9 rounded-full border px-3.5 font-mono text-[11px] uppercase tracking-wider",
-                active
-                  ? "border-signal bg-signal text-void"
-                  : "border-edge bg-panel text-ash hover:border-edge-bright hover:text-chalk",
-              )}
-            >
-              {f.label}
-            </button>
-          );
-        })}
-      </div>
+      <FilterTabs
+        label="Filter campaigns by status"
+        value={filter}
+        onChange={(next) =>
+          setParams(next === "all" ? {} : { status: next }, { replace: true })
+        }
+        options={FILTERS}
+      />
 
       {error && <ErrorState error={error} onRetry={() => void refetch()} />}
 
@@ -125,55 +129,50 @@ export function CampaignsPage() {
         {isLoading && <TableSkeleton />}
 
         {data && rows.length === 0 && (
-          <EmptyState
-            title={
-              filters.status
-                ? `Nothing ${FILTERS.find((f) => f.value === filters.status)?.label.toLowerCase()}`
-                : "No campaigns yet"
-            }
-            description={
-              filters.status
-                ? "Try another filter."
-                : "You will need a published flow, a verified caller ID, and at least one contact list."
-            }
-            action={
-              canEdit && !filters.status ? (
-                <Link to="/campaigns/new">
-                  <ClipButton>Create the first one</ClipButton>
-                </Link>
-              ) : undefined
-            }
-          />
+          <div className="p-6">
+            <EmptyState
+              title={
+                filter === "all"
+                  ? "No campaigns yet"
+                  : `No ${filter} campaigns`
+              }
+              description={
+                filter === "all"
+                  ? "You need a published flow, an active caller ID and a contact list."
+                  : "Try another filter."
+              }
+              action={
+                canEdit && filter === "all"
+                  ? newCampaign("Create the first one")
+                  : undefined
+              }
+            />
+          </div>
         )}
 
-        {/* A seven-column table on a phone means sideways scrolling, so below
+        {/* A six-column table on a phone means sideways scrolling, so below
             `md` each row becomes a card carrying the same facts. */}
         {rows.length > 0 && (
           <>
-            <table className="hidden w-full text-sm md:table">
-              <thead>
-                <tr className="border-b border-edge bg-void text-left">
-                  {["Campaign", "State", "Flow", "Dialed", "Answer", "Updated"].map(
-                    (h, i) => (
-                      <th
-                        key={h}
-                        className={cx(
-                          "eyebrow px-4 py-2.5 font-normal",
-                          i >= 3 && "text-right",
-                        )}
-                      >
-                        {h}
-                      </th>
-                    ),
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-edge">
-                {rows.map((campaign) => (
-                  <Row key={campaign.id} campaign={campaign} />
-                ))}
-              </tbody>
-            </table>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Campaign</th>
+                    <th>Status</th>
+                    <th>Flow</th>
+                    <th>Calls placed</th>
+                    <th>Answer rate</th>
+                    <th>Updated</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((campaign) => (
+                    <Row key={campaign.id} campaign={campaign} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             <ul className="divide-y divide-edge md:hidden">
               {rows.map((campaign) => (
@@ -185,20 +184,14 @@ export function CampaignsPage() {
       </Panel>
 
       {data && (data.next || data.previous) && (
-        <div className="flex items-center justify-between">
-          <Button
-            disabled={!data.previous}
-            onClick={() => setFilters({ ...filters, page: (filters.page ?? 1) - 1 })}
-          >
+        <div className="flex items-center justify-between gap-3">
+          <Button disabled={!data.previous} onClick={() => goTo(page - 1)}>
             Previous
           </Button>
-          <span className="num text-xs text-ash">
-            page {filters.page ?? 1} · {formatCount(data.count)} total
+          <span className="num text-center text-xs text-ash">
+            Page {page} · {formatCount(data.count)} total
           </span>
-          <Button
-            disabled={!data.next}
-            onClick={() => setFilters({ ...filters, page: (filters.page ?? 1) + 1 })}
-          >
+          <Button disabled={!data.next} onClick={() => goTo(page + 1)}>
             Next
           </Button>
         </div>
@@ -207,51 +200,73 @@ export function CampaignsPage() {
   );
 }
 
+/** Why a throttled or paused campaign is not calling, if the server says. */
+function reasonFor(campaign: Campaign): { text: string; tone: string } | null {
+  if (!campaign.pause_reason) return null;
+  if (campaign.status === "throttled") {
+    return { text: `Not calling: ${campaign.pause_reason}`, tone: "text-amber" };
+  }
+  if (campaign.status === "paused") {
+    return { text: campaign.pause_reason, tone: "text-ash-dim" };
+  }
+  return null;
+}
+
 /**
- * The same row, stacked.
- *
- * Whole card is the tap target — a 44px link inside a list row is a smaller
- * target than the row itself, and people aim at the row.
+ * Figures for a campaign that has run. `queue_built_at` null means it never
+ * started, so its counters are zero because nothing was queued; showing a 0%
+ * answer rate there would mislead.
  */
-function MobileRow({ campaign }: { campaign: Campaign }) {
+function figuresFor(campaign: Campaign) {
   const started = campaign.queue_built_at !== null;
   const stats = campaign.stats;
+  return {
+    dialed: started ? formatCount(stats?.dialed ?? 0) : "—",
+    rate: started && stats ? formatRate(stats.answer_rate) : "—",
+    low: Boolean(started && stats && stats.answer_rate <= 0.08),
+  };
+}
+
+/** The same row, stacked. The whole card is the tap target. */
+function MobileRow({ campaign }: { campaign: Campaign }) {
+  const figures = figuresFor(campaign);
+  const reason = reasonFor(campaign);
 
   return (
     <li>
       <Link
         to={`/campaigns/${campaign.id}`}
-        className="press block px-4 py-3.5 active:bg-raised"
+        className="press block px-4 py-4 active:bg-raised"
       >
         <div className="flex items-start justify-between gap-3">
-          <span className="display font-medium text-chalk">{campaign.name}</span>
+          <span className="min-w-0 font-medium text-chalk [overflow-wrap:anywhere]">
+            {campaign.name}
+          </span>
           <StatusPill status={campaign.status} />
         </div>
 
-        <div className="mt-1 text-xs text-ash">
+        <div className="mt-1 text-xs text-ash-dim [overflow-wrap:anywhere]">
           {campaign.flow_name}
-          <span className="num ml-1.5 text-ash-dim">
-            v{campaign.flow_version_number}
-          </span>
+          <span className="num ml-1.5">v{campaign.flow_version_number}</span>
         </div>
 
-        {campaign.status === "throttled" && campaign.pause_reason && (
-          <p className="mt-2 text-xs text-amber">
-            Stopped dialing — {campaign.pause_reason}
+        {reason && (
+          <p className={`mt-2 text-xs [overflow-wrap:anywhere] ${reason.tone}`}>
+            {reason.text}
           </p>
         )}
 
-        <dl className="mt-3 flex items-baseline gap-5 text-xs">
+        <dl className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-2">
           <div>
-            <dt className="eyebrow">Dialed</dt>
-            <dd className="num mt-0.5 text-sm text-chalk">
-              {started ? formatCount(stats?.dialed ?? 0) : "—"}
-            </dd>
+            <dt className="eyebrow">Calls placed</dt>
+            <dd className="num mt-0.5 text-sm text-chalk">{figures.dialed}</dd>
           </div>
           <div>
-            <dt className="eyebrow">Answer</dt>
-            <dd className="num mt-0.5 text-sm text-chalk">
-              {started && stats ? formatRate(stats.answer_rate) : "—"}
+            <dt className="eyebrow">Answer rate</dt>
+            <dd
+              className={`num mt-0.5 text-sm ${figures.low ? "text-amber" : "text-chalk"}`}
+            >
+              {figures.rate}
             </dd>
           </div>
           <div className="ml-auto text-right">
@@ -267,56 +282,43 @@ function MobileRow({ campaign }: { campaign: Campaign }) {
 }
 
 function Row({ campaign }: { campaign: Campaign }) {
-  // queue_built_at null means the campaign has never started, so the counters
-  // are zero-because-unbuilt rather than zero-because-nothing-answered. Showing
-  // 0% answer rate on a campaign that has not dialed is a lie of omission.
-  const started = campaign.queue_built_at !== null;
-  const stats = campaign.stats;
+  const figures = figuresFor(campaign);
+  const reason = reasonFor(campaign);
 
   return (
-    <tr className="group transition-colors hover:bg-raised">
-      <td className="px-4 py-3">
+    <tr>
+      <td>
         <Link
           to={`/campaigns/${campaign.id}`}
-          className="display font-medium text-chalk transition-colors group-hover:text-signal"
+          className="inline-flex min-h-9 items-center font-medium text-chalk hover:text-signal"
         >
           {campaign.name}
         </Link>
-        {campaign.status === "throttled" && campaign.pause_reason && (
-          <p className="mt-1 max-w-md truncate text-xs text-amber">
-            Stopped dialing — {campaign.pause_reason}
-          </p>
-        )}
-        {campaign.status === "paused" && campaign.pause_reason && (
-          <p className="mt-1 max-w-md truncate text-xs text-ash">
-            {campaign.pause_reason}
+        {reason && (
+          <p
+            className={`max-w-xs truncate text-xs ${reason.tone}`}
+            title={campaign.pause_reason}
+          >
+            {reason.text}
           </p>
         )}
       </td>
-      <td className="px-4 py-3">
+      <td>
         <StatusPill status={campaign.status} />
       </td>
-      <td className="px-4 py-3 text-ash">
-        <span className="text-chalk">{campaign.flow_name}</span>
+      <td>
+        {campaign.flow_name}
         <span className="num ml-1.5 text-xs text-ash-dim">
           v{campaign.flow_version_number}
         </span>
       </td>
-      <td className="num px-4 py-3 text-right text-chalk">
-        {started ? formatCount(stats?.dialed ?? 0) : "—"}
+      <td className="num">{figures.dialed}</td>
+      <td className="num">
+        <span className={figures.low ? "text-amber" : undefined}>
+          {figures.rate}
+        </span>
       </td>
-      <td className="num px-4 py-3 text-right">
-        {started && stats ? (
-          <span className={stats.answer_rate > 0.08 ? "text-chalk" : "text-amber"}>
-            {formatRate(stats.answer_rate)}
-          </span>
-        ) : (
-          <span className="text-ash-dim">—</span>
-        )}
-      </td>
-      <td className="px-4 py-3 text-right text-xs text-ash">
-        {formatRelative(campaign.updated_at)}
-      </td>
+      <td>{formatRelative(campaign.updated_at)}</td>
     </tr>
   );
 }

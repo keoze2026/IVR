@@ -44,23 +44,21 @@ and [`IVR/deploy/OPERATIONS.md`](./IVR/deploy/OPERATIONS.md) for running it.
 
 ### Frontend
 
-A Vite SPA plus a thin Hono BFF. The BFF holds the API key server-side and
+A Vite SPA plus a thin Hono BFF. The BFF holds the credential server-side and
 gives the browser a session cookie, so no credential ever reaches the client
-and CORS never enters the picture. See
-[`docs/FRONTEND-ARCHITECTURE.md`](./docs/FRONTEND-ARCHITECTURE.md).
+and CORS never enters the picture.
 
-**Current state: phase 1.** Auth, app shell, and the campaign list are built.
-The campaign wizard, live dashboard, flow builder, call log, and compliance
-screens are scaffolded routes that say so.
+**Design.** A light theme with one green accent. Colours, radius and table
+style are defined once in `client/src/index.css`; shared components are in
+`client/src/components/ui/` and icons in `client/src/components/icons.tsx`.
 
-> **The backend is unmodified.** The portal is built against the API exactly as
-> it stands at commit `cba8ef3`. Four things it needs are missing or broken
-> there — including one defect that makes every write endpoint return 500 for
-> API-key clients. Those are specified in
-> [`docs/BACKEND-REQUIREMENTS.md`](./docs/BACKEND-REQUIREMENTS.md).
+**Screens.** The sidebar holds Dashboard, Jobs, Call history, Numbers, Audio and
+Billing. Campaigns, Contact lists, Call flows, Number pools and Rates are under
+**Advanced**, with Compliance, People and Access keys. The administration
+portal at `/admin` uses the same design.
 
-To look at the UI without a backend, `client/mock/upstream.mjs` is a fixture
-server — the real login flow, fake data, no changes to shipping code.
+To look at the UI without a backend, run `npm run demo` in `client/`.
+`client/mock/upstream.mjs` is a fixture server with fake data.
 
 ---
 
@@ -123,7 +121,7 @@ Open http://localhost:5173 and paste the API key.
 
 ### Adding a phone number
 
-In the portal, open **My Numbers**, type the number, choose the carrier and press
+In the portal, open **Numbers**, type the number, choose the carrier and press
 **Add number** (owner role). The number must already be yours at that carrier.
 
 ### Checks

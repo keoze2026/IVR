@@ -11,8 +11,8 @@
 
 import { useState, type FormEvent } from "react";
 
-import { ClipButton } from "@/components/styled/ClipButton";
-import { Field, Input } from "@/components/ui";
+import { SoundIcon } from "@/components/icons";
+import { Button, Field, Input } from "@/components/ui";
 import { ApiError } from "@/lib/errors";
 import { useSession } from "@/lib/session";
 
@@ -34,7 +34,7 @@ export function LoginPage() {
       // before the refreshed session propagates, and the guard then bounces
       // straight back to this login form. Reloading re-resolves it cleanly —
       // the same approach the admin sign-in uses.
-      window.location.assign("/campaigns");
+      window.location.assign("/dashboard");
     } catch (cause) {
       // One message for every rejection, except being locked out — that one a
       // person can act on, and withholding it just has them retrying into a
@@ -56,68 +56,31 @@ export function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
-      {/* --- the standing rules ---------------------------------------- */}
-      <section className="hidden flex-col justify-between border-r border-edge bg-panel p-12 lg:flex">
+    <main className="grid min-h-dvh lg:grid-cols-2">
+      <section className="hidden flex-col justify-between bg-signal p-12 text-white lg:flex">
         <div className="flex items-center gap-2.5">
-          <span className="size-2 rounded-full bg-signal" aria-hidden />
-          <span className="display text-sm font-semibold tracking-wide text-chalk">
-            Outbound
+          <span className="flex size-10 items-center justify-center rounded-xl bg-white text-signal">
+            <SoundIcon />
           </span>
+          <span className="display text-xl">Outbound</span>
         </div>
-
         <div className="max-w-md">
-          <h1 className="display text-4xl font-semibold leading-[1.1] text-chalk">
-            Every call on this system
-            <br />
-            can be reconstructed.
-          </h1>
-          <p className="mt-5 text-[15px] leading-relaxed text-ash">
-            Which consent record authorised it, which flow version ran, which
-            node the caller reached, what they pressed, and what it cost.
+          <h1 className="display text-4xl leading-tight">Reach people with voice.</h1>
+          <p className="mt-4 text-base text-white/85">
+            Create calling jobs, follow them live and review every call in one place.
           </p>
-
-          <dl className="stagger mt-10 space-y-4 border-t border-edge pt-8">
-            {[
-              [
-                "Consent first",
-                "A number with no consent on file is never dialled",
-              ],
-              [
-                "Paced, not blasted",
-                "Rate and channel limits apply to your whole account",
-              ],
-              [
-                "Local hours",
-                "Calling windows follow the time where the person answers",
-              ],
-            ].map(([term, detail]) => (
-              <div key={term} className="grid grid-cols-[9rem_minmax(0,1fr)] gap-4">
-                <dt className="eyebrow pt-0.5">{term}</dt>
-                <dd className="text-sm leading-snug text-ash">{detail}</dd>
-              </div>
-            ))}
-          </dl>
         </div>
-
-        <p className="text-xs text-ash-dim">
-          Automated outbound calling is regulated. Controls enforced here do not
-          substitute for legal review of your consent model.
-        </p>
+        <p className="text-sm text-white/70">Only call people who agreed to be called.</p>
       </section>
 
-      {/* --- the key --------------------------------------------------- */}
-      <section className="flex items-center justify-center p-8">
+      <section className="flex items-center justify-center bg-panel p-8">
         <form onSubmit={onSubmit} className="w-full max-w-sm" noValidate>
-          <h2 className="display text-lg font-semibold text-chalk">
-            Sign in
-          </h2>
+          <h2 className="display text-2xl text-chalk">Sign in</h2>
           <p className="mt-1 text-sm text-ash">
-            Use the name and the five-character code your administrator gave
-            you.
+            Use your name and five-character code.
           </p>
 
-          <div className="mt-8 space-y-6">
+          <div className="mt-8 space-y-5">
             <Field label="Your name" htmlFor="username">
               <Input
                 id="username"
@@ -140,23 +103,25 @@ export function LoginPage() {
                 placeholder="5 characters"
                 // Upper-cased as they type: codes are issued in upper case and
                 // nobody should be refused for holding shift.
-                className="font-mono text-lg tracking-[0.4em] uppercase"
+                className="font-mono text-lg uppercase tracking-[0.4em] placeholder:font-sans placeholder:text-sm placeholder:normal-case placeholder:tracking-normal"
                 value={code}
                 invalid={Boolean(error)}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
               />
             </Field>
 
-            <ClipButton
+            <Button
               type="submit"
-              disabled={username.trim().length === 0 || code.trim().length < 5 || busy}
-              style={{ width: "100%" }}
+              variant="primary"
+              loading={busy}
+              disabled={username.trim().length === 0 || code.trim().length < 5}
+              className="w-full"
             >
-              {busy ? "Checking…" : "Sign in"}
-            </ClipButton>
+              Sign in
+            </Button>
 
             <p className="text-center text-xs text-ash-dim">
-              <a href="/admin/login" className="hover:text-ash">
+              <a href="/admin/login" className="hover:text-signal">
                 System administrator sign-in
               </a>
             </p>

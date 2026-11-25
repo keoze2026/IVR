@@ -8,6 +8,9 @@
 
 import { useState } from "react";
 
+import { SettingsIcon } from "@/components/icons";
+import { Button, Field, Input } from "@/components/ui";
+
 export function AdminLoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -43,60 +46,71 @@ export function AdminLoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-void px-4">
-      <div className="w-full max-w-sm">
-        <h1 className="display text-2xl font-semibold text-chalk">
-          System administration
-        </h1>
-        <p className="mt-2 text-sm text-ash">
-          Sign in with the administrator account for this system. If you manage
-          campaigns rather than the system itself,{" "}
-          <a href="/login" className="text-live-bright underline">
-            sign in here instead
-          </a>
-          .
-        </p>
+    <main className="grid min-h-dvh lg:grid-cols-2">
+      <section className="hidden flex-col justify-between bg-signal p-12 text-white lg:flex">
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-10 items-center justify-center rounded-xl bg-white text-signal">
+            <SettingsIcon />
+          </span>
+          <span className="display text-xl">Outbound</span>
+        </div>
+        <div className="max-w-md">
+          <p className="display text-4xl leading-tight">System administration</p>
+          <p className="mt-4 text-base text-white/85">
+            Manage organisations, people and records.
+          </p>
+        </div>
+        <p className="text-sm text-white/70">Administrators only.</p>
+      </section>
 
-        <form onSubmit={submit} className="mt-8 space-y-4">
-          <label className="block">
-            <span className="mb-1 block text-xs uppercase tracking-wider text-ash">
-              Username
-            </span>
-            <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              autoComplete="username"
-              autoFocus
-              required
-              className="w-full rounded border border-edge bg-panel px-3 py-2 text-sm text-chalk focus:border-live-bright focus:outline-none"
-            />
-          </label>
+      <section className="flex items-center justify-center bg-panel px-6 py-10">
+        <form onSubmit={submit} className="w-full max-w-sm">
+          <h1 className="display text-2xl text-chalk">Administrator sign-in</h1>
 
-          <label className="block">
-            <span className="mb-1 block text-xs uppercase tracking-wider text-ash">
-              Password
-            </span>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              required
-              className="w-full rounded border border-edge bg-panel px-3 py-2 text-sm text-chalk focus:border-live-bright focus:outline-none"
-            />
-          </label>
+          <div className="mt-8 space-y-5">
+            <Field label="Username" htmlFor="admin-username">
+              <Input
+                id="admin-username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                spellCheck={false}
+                autoFocus
+                required
+                invalid={Boolean(error)}
+              />
+            </Field>
 
-          {error && <p className="text-sm text-rust">{error}</p>}
+            <Field label="Password" htmlFor="admin-password" error={error ?? undefined}>
+              <Input
+                id="admin-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+                invalid={Boolean(error)}
+              />
+            </Field>
 
-          <button
-            type="submit"
-            disabled={busy || !username || !password}
-            className="w-full rounded bg-live-bright px-4 py-2.5 text-sm font-semibold uppercase tracking-wider text-void disabled:opacity-50"
-          >
-            {busy ? "Signing in…" : "Sign in"}
-          </button>
+            <Button
+              type="submit"
+              variant="primary"
+              loading={busy}
+              disabled={!username || !password}
+              className="w-full"
+            >
+              {busy ? "Signing in…" : "Sign in"}
+            </Button>
+
+            <p className="text-center text-sm text-ash-dim">
+              <a href="/login" className="inline-flex min-h-9 items-center hover:text-signal">
+                Staff sign-in
+              </a>
+            </p>
+          </div>
         </form>
-      </div>
+      </section>
     </main>
   );
 }

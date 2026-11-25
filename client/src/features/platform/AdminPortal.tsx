@@ -11,13 +11,37 @@
  *     An administrator here can delete an organisation and every call it ever
  *     placed; that should never be one misplaced click.
  *
- *   * Nothing is hidden behind an icon. Labels are words, because the people
- *     using this are not using it daily and should not have to remember.
+ *   * Actions are labelled with words, because the people using this are not
+ *     using it daily and should not have to remember what an icon means.
  */
 
-import { useState } from "react";
-import { Link, Navigate, useNavigate, useParams, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, NavLink, Navigate, useNavigate, useParams, useLocation } from "react-router-dom";
 
+import {
+  ChevronIcon,
+  HomeIcon,
+  LogOutIcon,
+  MenuIcon,
+  PhoneOutIcon,
+  PlusIcon,
+  SettingsIcon,
+} from "@/components/icons";
+import { PulseLoader } from "@/components/styled/PulseLoader";
+import {
+  BackLink,
+  Badge,
+  Button,
+  EmptyState,
+  ErrorState,
+  Input,
+  PageHeader,
+  Panel,
+  PanelHeader,
+  TableSkeleton,
+  cx,
+} from "@/components/ui";
+import type { ApiError } from "@/lib/errors";
 import {
   useCreateRow,
   useDeleteRow,
@@ -31,7 +55,7 @@ import {
 } from "@/lib/queries/platform";
 import { useSession } from "@/lib/session";
 
-import { RecordForm } from "./RecordForm";
+import { RecordForm, editableFields } from "./RecordForm";
 
 // ---------------------------------------------------------------- helpers
 
@@ -53,231 +77,400 @@ function humanise(name: string): string {
   return name.replace(/_/g, " ").replace(/\bid\b/i, "").trim() || name;
 }
 
+function capitalise(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** The label for one of something, for "Add …" buttons. */
+function singular(label: string): string {
+  return label
+    .replace(/\bPeople$/i, "person")
+    .replace(/ies$/, "y")
+    .replace(/s$/, "")
+    .toLowerCase();
+}
+
+function groupResources(resources: ResourceSchema[]) {
+  return Object.entries(
+    resources.reduce<Record<string, ResourceSchema[]>>((acc, r) => {
+      (acc[r.group] ??= []).push(r);
+      return acc;
+    }, {}),
+  );
+}
+
 // ---------------------------------------------------------------- shell
 
+/** The same frame as the calling portal: sidebar, top bar, drawer below `lg`. */
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const { data } = usePlatformSchema();
   const { me, signOut } = useSession();
-  const resources = data?.resources ?? [];
+  const { pathname } = useLocation();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const groups = resources.reduce<Record<string, ResourceSchema[]>>((acc, r) => {
-    (acc[r.group] ??= []).push(r);
-    return acc;
-  }, {});
+  useEffect(() => setDrawerOpen(false), [pathname]);
+
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setDrawerOpen(false);
+    document.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [drawerOpen]);
+
+  const name = me?.session_username ?? "administrator";
+  const sidebar = (
+    <AdminSidebar resources={data?.resources ?? []} onSignOut={() => void signOut()} />
+  );
 
   return (
-    <div className="flex min-h-screen bg-void text-chalk">
-      <aside className="hidden w-60 shrink-0 border-r border-edge bg-panel md:block">
-        <div className="border-b border-edge px-4 py-4">
-          <Link to="/admin" className="display text-sm font-semibold text-chalk">
-            System administration
-          </Link>
-          <p className="mt-1 text-xs text-ash">
-            Signed in as {me?.session_username ?? "administrator"}
-          </p>
-        </div>
-
-        <nav className="space-y-2 px-3 py-4" aria-label="Administration sections">
-          {Object.entries(groups).map(([group, items]) => (
-            <AdminNavGroup key={group} group={group} items={items} />
-          ))}
-        </nav>
-
-        <div className="border-t border-edge px-3 py-3">
-          <Link
-            to="/campaigns"
-            className="block rounded px-2 py-1.5 text-sm text-ash hover:text-chalk"
-          >
-            Go to the campaigns portal
-          </Link>
-          <button
-            type="button"
-            onClick={() => signOut()}
-            className="mt-1 block w-full rounded px-2 py-1.5 text-left text-sm text-ash hover:text-chalk"
-          >
-            Sign out
-          </button>
-        </div>
+    <div className="min-h-dvh bg-void text-chalk lg:flex">
+      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-edge bg-panel lg:flex">
+        {sidebar}
       </aside>
 
-      <main className="flex-1 overflow-x-auto px-4 py-6 sm:px-8">{children}</main>
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setDrawerOpen(false)}
+            className="absolute inset-0 bg-chalk/40"
+          />
+          <div className="settle absolute inset-y-0 left-0 flex w-64 max-w-[85vw] flex-col border-r border-edge bg-panel">
+            {sidebar}
+          </div>
+        </div>
+      )}
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-16 shrink-0 items-center gap-3 border-b border-edge bg-panel px-4 lg:px-8">
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open menu"
+            aria-expanded={drawerOpen}
+            className="press -ml-2 flex size-11 items-center justify-center rounded-xl text-ash hover:bg-raised lg:hidden"
+          >
+            <MenuIcon />
+          </button>
+
+          <div className="ml-auto flex min-w-0 items-center gap-3">
+            <div className="min-w-0 text-right leading-tight">
+              <div className="truncate text-sm font-medium text-chalk">{name}</div>
+              <div className="truncate text-xs text-ash-dim">System administrator</div>
+            </div>
+            <span
+              aria-hidden
+              className="flex size-9 shrink-0 items-center justify-center rounded-full bg-signal text-sm font-bold text-white"
+            >
+              {name.slice(0, 1).toUpperCase()}
+            </span>
+          </div>
+        </header>
+
+        <main className="mx-auto w-full min-w-0 max-w-7xl flex-1 overflow-x-hidden px-4 py-6 lg:px-8 lg:py-8">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+const NAV_ITEM = "press flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm";
+
+function navClass({ isActive }: { isActive: boolean }) {
+  return cx(
+    NAV_ITEM,
+    isActive
+      ? "bg-live font-medium text-live-bright"
+      : "text-ash hover:bg-raised hover:text-chalk",
+  );
+}
+
+function AdminSidebar({
+  resources,
+  onSignOut,
+}: {
+  resources: ResourceSchema[];
+  onSignOut: () => void;
+}) {
+  return (
+    <>
+      <Link to="/admin" className="flex h-16 shrink-0 items-center gap-2.5 px-5">
+        <span className="flex size-9 items-center justify-center rounded-xl bg-signal text-white">
+          <SettingsIcon />
+        </span>
+        <span className="display text-lg text-chalk">Administration</span>
+      </Link>
+
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3" aria-label="Administration sections">
+        <NavLink to="/admin" end className={navClass}>
+          <HomeIcon />
+          Overview
+        </NavLink>
+        {groupResources(resources).map(([group, items]) => (
+          <AdminNavGroup key={group} group={group} items={items} />
+        ))}
+      </nav>
+
+      <div className="space-y-1 border-t border-edge px-3 py-3">
+        <Link to="/dashboard" className={cx(NAV_ITEM, "text-ash hover:bg-raised hover:text-chalk")}>
+          <PhoneOutIcon />
+          Calling portal
+        </Link>
+        <button
+          type="button"
+          onClick={onSignOut}
+          className={cx(NAV_ITEM, "w-full text-ash hover:bg-raised hover:text-chalk")}
+        >
+          <LogOutIcon />
+          Sign out
+        </button>
+      </div>
+    </>
+  );
+}
+
+function AdminNavGroup({ group, items }: { group: string; items: ResourceSchema[] }) {
+  const { pathname } = useLocation();
+  // Open the group by default if it contains the currently active page.
+  const isActive = items.some(
+    (r) => pathname === `/admin/${r.resource}` || pathname.startsWith(`/admin/${r.resource}/`),
+  );
+  const [open, setOpen] = useState(isActive);
+
+  useEffect(() => {
+    if (isActive) setOpen(true);
+  }, [isActive]);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="press mt-1 flex min-h-11 w-full items-center justify-between rounded-xl px-3 text-xs font-medium text-ash-dim hover:bg-raised"
+      >
+        {group}
+        <ChevronIcon className={cx("size-4 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="space-y-1">
+          {items.map((r) => (
+            <NavLink
+              key={r.resource}
+              to={`/admin/${r.resource}`}
+              className={(state) => cx(navClass(state), "pl-6")}
+            >
+              {r.label}
+            </NavLink>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 // ---------------------------------------------------------------- overview
 
-function AdminNavGroup({ group, items }: { group: string; items: ResourceSchema[] }) {
-  const location = useLocation();
-  // Open the group by default if it contains the currently active page.
-  const isActive = items.some((r) => location.pathname.startsWith(`/admin/${r.resource}`));
-  
+export function AdminOverviewPage() {
+  const schema = usePlatformSchema();
+  const overview = usePlatformOverview();
+  const resources = schema.data?.resources ?? [];
+
   return (
-    <details open={isActive} className="group">
-      <summary className="cursor-pointer list-none px-2 py-1.5 text-[0.65rem] uppercase tracking-widest text-ash hover:text-chalk [&::-webkit-details-marker]:hidden flex items-center justify-between select-none">
-        {group}
-        <span className="text-[10px] text-ash/50 transition-transform group-open:rotate-180">▼</span>
-      </summary>
-      <div className="mt-1 space-y-0.5 pb-2">
-        {items.map((r) => {
-          const isCurrent = location.pathname.startsWith(`/admin/${r.resource}`);
-          return (
-            <Link
-              key={r.resource}
-              to={`/admin/${r.resource}`}
-              className={`block rounded px-2 py-1.5 text-sm ${
-                isCurrent
-                  ? "bg-void font-medium text-chalk"
-                  : "text-ash hover:bg-void hover:text-chalk"
-              }`}
-            >
-              {r.label}
-            </Link>
-          );
-        })}
+    <div className="space-y-6">
+      <PageHeader title="Overview" subtitle="Changes apply immediately and are logged." />
+
+      {schema.error && <ErrorState error={schema.error} onRetry={() => void schema.refetch()} />}
+      {overview.error && (
+        <ErrorState error={overview.error} onRetry={() => void overview.refetch()} />
+      )}
+      {schema.isLoading && (
+        <Panel>
+          <TableSkeleton rows={6} />
+        </Panel>
+      )}
+
+      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {groupResources(resources).map(([group, items]) => (
+          <Panel key={group} className="overflow-hidden">
+            <PanelHeader title={group} />
+            <ul className="divide-y divide-edge">
+              {items.map((r) => (
+                <li key={r.resource}>
+                  <Link
+                    to={`/admin/${r.resource}`}
+                    className="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-void"
+                  >
+                    <span className="min-w-0 flex-1 text-sm text-ash">{r.label}</span>
+                    {r.readonly && <Badge>View only</Badge>}
+                    <span className="num min-w-10 text-right text-xl font-bold text-chalk">
+                      {overview.data?.counts?.[r.resource] ?? "—"}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        ))}
       </div>
-    </details>
+    </div>
   );
 }
 
-export function AdminOverviewPage() {
-  const { data: schema } = usePlatformSchema();
-  const { data: overview } = usePlatformOverview();
-  const resources = schema?.resources ?? [];
+// ---------------------------------------------------------------- schema gate
 
-  const groups = resources.reduce<Record<string, ResourceSchema[]>>((acc, r) => {
-    (acc[r.group] ??= []).push(r);
-    return acc;
-  }, {});
+/** Resolves the resource in the address, or says why it cannot be shown. */
+function ResourceGate({
+  children,
+}: {
+  children: (schema: ResourceSchema) => React.ReactNode;
+}) {
+  const { resource = "", id } = useParams();
+  const { data, error, refetch } = usePlatformSchema();
+  const schema = data?.resources.find((r) => r.resource === resource);
 
+  if (schema) {
+    // Keyed so a search box or a revealed code never carries over to another page.
+    return <div key={`${resource}/${id ?? ""}`}>{children(schema)}</div>;
+  }
+  if (error) return <ErrorState error={error} onRetry={() => void refetch()} />;
+  if (data) return <EmptyState title="No such section" />;
   return (
-    <div className="space-y-8">
-      <header>
-        <h1 className="display text-2xl font-semibold">Everything in the system</h1>
-        <p className="mt-1 max-w-2xl text-sm text-ash">
-          You can view, add, change and remove any record here, across every
-          organisation. Changes take effect immediately and are recorded in the
-          audit log.
-        </p>
-      </header>
-
-      {Object.entries(groups).map(([group, items]) => (
-        <section key={group}>
-          <h2 className="mb-3 text-xs uppercase tracking-widest text-ash">{group}</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {items.map((r) => (
-              <Link
-                key={r.resource}
-                to={`/admin/${r.resource}`}
-                className="rounded border border-edge bg-panel p-4 hover:border-live-bright"
-              >
-                <p className="text-sm font-semibold text-chalk">{r.label}</p>
-                <p className="mt-1 text-2xl tabular-nums text-live-bright">
-                  {overview?.counts?.[r.resource] ?? "—"}
-                </p>
-                {r.readonly && (
-                  <p className="mt-1 text-xs text-ash">View only</p>
-                )}
-              </Link>
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
+    <Panel>
+      <TableSkeleton />
+    </Panel>
   );
+}
+
+/** A save error that no single field on the form is able to show. */
+function FormError({ error, schema }: { error: ApiError | null; schema: ResourceSchema }) {
+  if (!error) return null;
+  const shown = new Set(editableFields(schema).map((f) => f.name));
+  const names = Object.keys(error.fieldErrors ?? {});
+  if (names.length > 0 && names.every((n) => shown.has(n))) return null;
+  return <ErrorState error={error} />;
 }
 
 // ---------------------------------------------------------------- list
 
 export function AdminListPage() {
-  const { resource = "" } = useParams();
+  return <ResourceGate>{(schema) => <ResourceList schema={schema} />}</ResourceGate>;
+}
+
+function ResourceList({ schema }: { schema: ResourceSchema }) {
+  const { resource } = schema;
   const navigate = useNavigate();
-  const { data: schemaData } = usePlatformSchema();
-  const schema = schemaData?.resources.find((r) => r.resource === resource);
-
   const [search, setSearch] = useState("");
-  const { data, isLoading, error } = usePlatformList(resource, search);
+  const { data, isLoading, error, refetch } = usePlatformList(resource, search);
   const rows = data?.results ?? [];
+  const total = data?.count;
 
-  if (!schema) {
-    return <p className="text-sm text-ash">Loading…</p>;
-  }
+  const subtitle = [
+    total == null
+      ? data && `${rows.length} shown`
+      : total > rows.length
+        ? `Showing ${rows.length} of ${total} records`
+        : `${total} record${total === 1 ? "" : "s"}`,
+    schema.readonly && "View only",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <div className="space-y-5">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="display text-2xl font-semibold">{schema.label}</h1>
-          <p className="mt-1 text-sm text-ash">
-            {data?.count != null
-              ? `${data.count} record${data.count === 1 ? "" : "s"}`
-              : `${rows.length} shown`}
-            {schema.readonly && " · view only, this record cannot be changed"}
-          </p>
-        </div>
-        {!schema.readonly && (
-          <button
-            type="button"
-            onClick={() => navigate(`/admin/${resource}/new`)}
-            className="rounded bg-live-bright px-4 py-2 text-sm font-semibold uppercase tracking-wider text-void"
-          >
-            Add {schema.label.replace(/s$/, "").toLowerCase()}
-          </button>
-        )}
-      </header>
+    <div className="space-y-6">
+      <PageHeader
+        title={schema.label}
+        subtitle={subtitle || undefined}
+        actions={
+          !schema.readonly && (
+            <Button variant="primary" onClick={() => navigate(`/admin/${resource}/new`)}>
+              <PlusIcon className="size-4" /> Add {singular(schema.label)}
+            </Button>
+          )
+        }
+      />
 
       {schema.search.length > 0 && (
-        <input
+        <Input
+          type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={`Search by ${schema.search.map(humanise).join(", ")}`}
-          className="w-full max-w-md rounded border border-edge bg-panel px-3 py-2 text-sm text-chalk placeholder:text-ash/60 focus:border-live-bright focus:outline-none"
+          aria-label={`Search ${schema.label}`}
+          className="max-w-md"
         />
       )}
 
-      {isLoading && <p className="text-sm text-ash">Loading…</p>}
-      {error && <p className="text-sm text-rust">{error.message}</p>}
+      {error && <ErrorState error={error} onRetry={() => void refetch()} />}
 
-      {!isLoading && rows.length === 0 && (
-        <p className="rounded border border-dashed border-edge px-4 py-8 text-center text-sm text-ash">
-          {search ? "Nothing matched that search." : "There is nothing here yet."}
-        </p>
+      {isLoading && (
+        <Panel>
+          <TableSkeleton rows={6} />
+        </Panel>
+      )}
+
+      {data && rows.length === 0 && (
+        <EmptyState
+          title={search ? "Nothing matched that search" : "There is nothing here yet"}
+        />
       )}
 
       {rows.length > 0 && (
-        <div className="overflow-x-auto rounded border border-edge">
-          <table className="w-full text-sm">
-            <thead className="bg-panel">
-              <tr className="text-left text-xs uppercase tracking-wider text-ash">
-                {schema.columns.map((c) => (
-                  <th key={c} className="whitespace-nowrap px-3 py-2">
-                    {humanise(c)}
-                  </th>
-                ))}
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id} className="border-t border-edge/60 hover:bg-raised">
+        <Panel className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead>
+                <tr>
                   {schema.columns.map((c) => (
-                    <td key={c} className="whitespace-nowrap px-3 py-2 text-ash">
-                      {cell(row[c])}
-                    </td>
+                    <th key={c}>{capitalise(humanise(c))}</th>
                   ))}
-                  <td className="px-3 py-2 text-right">
-                    <Link
-                      to={`/admin/${resource}/${row.id}`}
-                      className="text-live-bright hover:underline"
-                    >
-                      {schema.readonly ? "View" : "Change"}
-                    </Link>
-                  </td>
+                  <th><span className="sr-only">Actions</span></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id}>
+                    {schema.columns.map((c, i) => {
+                      const text = cell(row[c]);
+                      return (
+                        <td key={c}>
+                          {i === 0 ? (
+                            <Link
+                              to={`/admin/${resource}/${row.id}`}
+                              title={text}
+                              className="flex min-h-9 max-w-64 items-center font-medium text-chalk hover:text-signal"
+                            >
+                              <span className="truncate">{text}</span>
+                            </Link>
+                          ) : (
+                            <span title={text} className="block max-w-64 truncate">
+                              {text}
+                            </span>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="text-right">
+                      <Link
+                        to={`/admin/${resource}/${row.id}`}
+                        aria-label={`${schema.readonly ? "View" : "Change"} ${row.display ?? cell(row[schema.columns[0] ?? "id"])}`}
+                        className="press inline-flex min-h-9 items-center rounded-lg px-3 text-sm font-medium text-signal ring-1 ring-inset ring-edge hover:bg-live"
+                      >
+                        {schema.readonly ? "View" : "Change"}
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
       )}
     </div>
   );
@@ -286,82 +479,81 @@ export function AdminListPage() {
 // ---------------------------------------------------------------- create
 
 export function AdminCreatePage() {
-  const { resource = "" } = useParams();
+  return <ResourceGate>{(schema) => <ResourceCreate schema={schema} />}</ResourceGate>;
+}
+
+/** A one-time sign-in code with its copy button. */
+function SignInCode({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <div role="status" className="flex flex-wrap items-center gap-3">
+      <code className="rounded-xl bg-live px-4 py-2.5 font-mono text-2xl tracking-[0.3em] text-live-bright">
+        {code}
+      </code>
+      <Button
+        type="button"
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(code);
+            setCopied(true);
+          } catch {
+            // The code stays on screen to be copied by hand.
+            setCopied(false);
+          }
+        }}
+      >
+        {copied ? "Copied" : "Copy"}
+      </Button>
+    </div>
+  );
+}
+
+function ResourceCreate({ schema }: { schema: ResourceSchema }) {
+  const { resource } = schema;
   const navigate = useNavigate();
-  const { data } = usePlatformSchema();
-  const schema = data?.resources.find((r) => r.resource === resource);
   const create = useCreateRow(resource);
   // A person's sign-in code is generated on creation and can be read exactly
   // once. When the server returns one, hold the create page open and show it
   // rather than navigating straight back to the list, where it would be lost.
   const [issued, setIssued] = useState<{ name: string; code: string } | null>(null);
 
-  if (!schema) return <p className="text-sm text-ash">Loading…</p>;
-
   if (issued) {
     return (
-      <div className="max-w-lg space-y-5">
-        <h1 className="display text-2xl font-semibold">Person added</h1>
-        <div className="rounded-lg border border-live-bright/40 bg-panel p-6">
+      <div className="max-w-lg space-y-6">
+        <PageHeader title="Person added" />
+        <Panel accent className="space-y-4 p-5">
           <p className="text-sm text-ash">
             Give this person their sign-in details. The code is shown{" "}
-            <span className="text-chalk">once</span> — it cannot be read again,
+            <strong className="text-chalk">once</strong>. It cannot be read again,
             only reset.
           </p>
-          <div className="mt-4 space-y-3">
-            <p className="text-sm">
-              <span className="text-ash">Name:</span>{" "}
-              <span className="text-chalk">{issued.name}</span>
-            </p>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-ash">Code:</span>
-              <span className="font-mono text-2xl tracking-[0.3em] text-live-bright">
-                {issued.code}
-              </span>
-              <button
-                type="button"
-                onClick={() => navigator.clipboard?.writeText(issued.code)}
-                className="rounded border border-edge px-2 py-1 text-xs text-ash hover:text-chalk"
-              >
-                Copy
-              </button>
-            </div>
+          <p className="break-words text-sm">
+            <span className="text-ash">Name:</span>{" "}
+            <strong className="text-chalk">{issued.name}</strong>
+          </p>
+          <SignInCode code={issued.code} />
+          <div className="flex flex-wrap justify-end gap-2 border-t border-edge pt-4">
+            <Button type="button" onClick={() => setIssued(null)}>
+              Add another
+            </Button>
+            <Button type="button" variant="primary" onClick={() => navigate(`/admin/${resource}`)}>
+              Done
+            </Button>
           </div>
-        </div>
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(`/admin/${resource}`)}
-            className="rounded bg-live-bright px-4 py-2 text-sm font-semibold uppercase tracking-wider text-void"
-          >
-            Done
-          </button>
-          <button
-            type="button"
-            onClick={() => setIssued(null)}
-            className="rounded border border-edge px-4 py-2 text-sm text-ash hover:text-chalk"
-          >
-            Add another
-          </button>
-        </div>
+        </Panel>
       </div>
     );
   }
 
   return (
-    <div className="max-w-3xl space-y-5">
-      <header>
-        <Link to={`/admin/${resource}`} className="text-sm text-ash hover:text-chalk">
-          ← Back to {schema.label.toLowerCase()}
-        </Link>
-        <h1 className="display mt-2 text-2xl font-semibold">
-          Add {schema.label.replace(/s$/, "").toLowerCase()}
-        </h1>
-      </header>
+    <div className="max-w-3xl space-y-6">
+      <div className="space-y-2">
+        <BackLink to={`/admin/${resource}`}>Back to {schema.label.toLowerCase()}</BackLink>
+        <PageHeader title={`Add ${singular(schema.label)}`} />
+      </div>
 
-      {create.error && !create.error.fieldErrors && (
-        <p className="text-sm text-rust">{create.error.message}</p>
-      )}
+      <FormError error={create.error} schema={schema} />
 
       <RecordForm
         schema={schema}
@@ -407,149 +599,169 @@ function stripEmpty(values: Record<string, unknown>): Record<string, unknown> {
 // ---------------------------------------------------------------- edit
 
 export function AdminEditPage() {
-  const { resource = "", id = "" } = useParams();
+  return <ResourceGate>{(schema) => <ResourceEdit schema={schema} />}</ResourceGate>;
+}
+
+function ResourceEdit({ schema }: { schema: ResourceSchema }) {
+  const { resource } = schema;
+  const { id = "" } = useParams();
   const navigate = useNavigate();
-  const { data } = usePlatformSchema();
-  const schema = data?.resources.find((r) => r.resource === resource);
-  const { data: row, isLoading } = usePlatformRow(resource, id);
+  const { data: row, isLoading, error, refetch } = usePlatformRow(resource, id);
   const update = useUpdateRow(resource);
   const remove = useDeleteRow(resource);
   const resetCode = useResetCode(resource);
   const [confirming, setConfirming] = useState(false);
   const [newCode, setNewCode] = useState<string | null>(null);
 
-  if (!schema || isLoading) return <p className="text-sm text-ash">Loading…</p>;
-  if (!row) return <p className="text-sm text-rust">That record was not found.</p>;
+  if (isLoading) {
+    return (
+      <Panel>
+        <TableSkeleton />
+      </Panel>
+    );
+  }
+  if (!row) {
+    return (
+      <div className="space-y-4">
+        <BackLink to={`/admin/${resource}`}>Back to {schema.label.toLowerCase()}</BackLink>
+        {error && error.status !== 404 ? (
+          <ErrorState error={error} onRetry={() => void refetch()} />
+        ) : (
+          <EmptyState title="That record was not found" />
+        )}
+      </div>
+    );
+  }
+
+  const hasSide = resource === "users" || !schema.readonly;
 
   return (
-    <div className="max-w-3xl space-y-6">
-      <header>
-        <Link to={`/admin/${resource}`} className="text-sm text-ash hover:text-chalk">
-          ← Back to {schema.label.toLowerCase()}
-        </Link>
-        <h1 className="display mt-2 text-2xl font-semibold">
-          {row.display ?? schema.label}
-        </h1>
-        <p className="mt-1 text-xs text-ash">Reference: {row.id}</p>
-      </header>
-
-      {update.error && !update.error.fieldErrors && (
-        <p className="text-sm text-rust">{update.error.message}</p>
-      )}
-
-      {schema.readonly ? (
-        <dl className="grid gap-3 rounded border border-edge bg-panel p-4 sm:grid-cols-2">
-          {schema.fields.map((f) => (
-            <div key={f.name}>
-              <dt className="text-xs uppercase tracking-wider text-ash">{f.label}</dt>
-              <dd className="text-sm text-chalk">{cell(row[f.name])}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : (
-        <RecordForm
-          schema={schema}
-          initial={row}
-          submitLabel="Save changes"
-          submitting={update.isPending}
-          fieldErrors={update.error?.fieldErrors}
-          onCancel={() => navigate(`/admin/${resource}`)}
-          onSubmit={async (values) => {
-            await update.mutateAsync({ id, body: values });
-            navigate(`/admin/${resource}`);
-          }}
+    <div className="space-y-6">
+      <div className="space-y-2 [overflow-wrap:anywhere]">
+        <BackLink to={`/admin/${resource}`}>Back to {schema.label.toLowerCase()}</BackLink>
+        <PageHeader
+          title={String(row.display ?? schema.label)}
+          subtitle={`Reference: ${row.id}`}
         />
-      )}
+      </div>
 
-      {resource === "users" && (
-        <section className="rounded border border-edge bg-panel p-4">
-          <h2 className="text-sm font-semibold text-chalk">Sign-in code</h2>
-          <p className="mt-1 text-sm text-ash">
-            A code can't be read back — it's stored hashed. Reset to issue a new
-            one and show it here once; the old code stops working immediately.
-          </p>
-          {newCode ? (
-            <div className="mt-3 flex items-center gap-3">
-              <span className="font-mono text-2xl tracking-[0.3em] text-live-bright">
-                {newCode}
-              </span>
-              <button
-                type="button"
-                onClick={() => navigator.clipboard?.writeText(newCode)}
-                className="rounded border border-edge px-2 py-1 text-xs text-ash hover:text-chalk"
-              >
-                Copy
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              disabled={resetCode.isPending}
-              onClick={async () => {
-                const r = await resetCode.mutateAsync(id);
-                setNewCode(r.access_code);
-              }}
-              className="mt-3 rounded border border-edge px-3 py-1.5 text-sm text-chalk hover:bg-raised disabled:opacity-50"
-            >
-              {resetCode.isPending ? "Issuing…" : "Reset sign-in code"}
-            </button>
-          )}
-          {resetCode.error && (
-            <p className="mt-2 text-sm text-rust">{resetCode.error.message}</p>
-          )}
-        </section>
-      )}
+      <FormError error={update.error} schema={schema} />
 
-      {!schema.readonly && (
-        <section className="rounded border border-rust/40 bg-panel p-4">
-          <h2 className="text-sm font-semibold text-chalk">Delete this record</h2>
-          {!confirming ? (
-            <>
-              <p className="mt-1 text-sm text-ash">
-                Permanently removes it, along with anything that belongs to it.
-                This cannot be undone.
-              </p>
-              <button
-                type="button"
-                onClick={() => setConfirming(true)}
-                className="mt-3 rounded border border-rust px-3 py-1.5 text-sm text-rust hover:bg-rust hover:text-void"
-              >
-                Delete
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="mt-1 text-sm text-chalk">
-                Delete <strong>{row.display ?? "this record"}</strong>? Everything
-                belonging to it is deleted too.
-              </p>
-              {remove.error && (
-                <p className="mt-2 text-sm text-rust">{remove.error.message}</p>
-              )}
-              <div className="mt-3 flex gap-3">
-                <button
-                  type="button"
-                  disabled={remove.isPending}
-                  onClick={async () => {
-                    await remove.mutateAsync(id);
-                    navigate(`/admin/${resource}`);
-                  }}
-                  className="rounded bg-rust px-3 py-1.5 text-sm font-semibold text-void disabled:opacity-50"
-                >
-                  {remove.isPending ? "Deleting…" : "Yes, delete it"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirming(false)}
-                  className="rounded border border-edge px-3 py-1.5 text-sm text-ash hover:text-chalk"
-                >
-                  Keep it
-                </button>
-              </div>
-            </>
-          )}
-        </section>
-      )}
+      <div
+        className={cx(
+          "grid grid-cols-1 items-start gap-4",
+          hasSide && "lg:grid-cols-[minmax(0,1fr)_320px]",
+        )}
+      >
+        {schema.readonly ? (
+          <Panel className="min-w-0 overflow-hidden">
+            <PanelHeader title="Details" action={<Badge>View only</Badge>} />
+            <dl className="divide-y divide-edge text-sm">
+              {schema.fields.map((f) => (
+                <div key={f.name} className="grid gap-1 px-4 py-3 sm:grid-cols-[14rem_1fr] sm:gap-3">
+                  <dt className="text-ash">{f.label}</dt>
+                  <dd className="min-w-0 break-words font-medium text-chalk [overflow-wrap:anywhere]">
+                    {cell(row[f.name])}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </Panel>
+        ) : (
+          <RecordForm
+            schema={schema}
+            initial={row}
+            submitLabel="Save changes"
+            submitting={update.isPending}
+            fieldErrors={update.error?.fieldErrors}
+            onCancel={() => navigate(`/admin/${resource}`)}
+            onSubmit={async (values) => {
+              await update.mutateAsync({ id, body: values });
+              navigate(`/admin/${resource}`);
+            }}
+          />
+        )}
+
+        {hasSide && (
+          <div className="min-w-0 space-y-4">
+            {resource === "users" && (
+              <Panel>
+                <PanelHeader title="Sign-in code" />
+                <div className="space-y-3 p-4">
+                  <p className="text-sm text-ash">
+                    Codes cannot be read back. A reset stops the old one
+                    immediately and shows the new one once.
+                  </p>
+                  {newCode ? (
+                    <SignInCode code={newCode} />
+                  ) : (
+                    <Button
+                      type="button"
+                      loading={resetCode.isPending}
+                      onClick={async () => {
+                        const r = await resetCode.mutateAsync(id);
+                        setNewCode(r.access_code);
+                      }}
+                    >
+                      {resetCode.isPending ? "Issuing…" : "Reset sign-in code"}
+                    </Button>
+                  )}
+                  {resetCode.error && <ErrorState error={resetCode.error} />}
+                </div>
+              </Panel>
+            )}
+
+            {!schema.readonly && (
+              <section className="rounded-[var(--radius-card)] border border-rust/40 bg-panel shadow-[var(--shadow-card)]">
+                <h2 className="display border-b border-edge px-4 py-3 text-sm text-chalk">
+                  Delete this record
+                </h2>
+                <div className="space-y-3 p-4 [overflow-wrap:anywhere]">
+                  {!confirming ? (
+                    <>
+                      <p className="text-sm text-ash">
+                        Removes it and everything that belongs to it. This cannot
+                        be undone.
+                      </p>
+                      <Button
+                        type="button"
+                        className="!text-rust"
+                        onClick={() => setConfirming(true)}
+                      >
+                        Delete
+                      </Button>
+                    </>
+                  ) : (
+                    <div role="alert" className="space-y-3">
+                      <p className="text-sm text-chalk">
+                        Delete <strong>{row.display ?? "this record"}</strong>?
+                        Everything belonging to it is deleted too.
+                      </p>
+                      {remove.error && <ErrorState error={remove.error} />}
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="danger"
+                          loading={remove.isPending}
+                          onClick={async () => {
+                            await remove.mutateAsync(id);
+                            navigate(`/admin/${resource}`);
+                          }}
+                        >
+                          {remove.isPending ? "Deleting…" : "Yes, delete it"}
+                        </Button>
+                        <Button type="button" onClick={() => setConfirming(false)}>
+                          Keep it
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -559,7 +771,13 @@ export function AdminEditPage() {
 /** Sends anyone who is not an administrator to the right sign-in page. */
 export function RequireAdmin({ children }: { children: React.ReactNode }) {
   const { me, isLoading } = useSession();
-  if (isLoading) return <p className="p-8 text-sm text-ash">Loading…</p>;
+  if (isLoading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <PulseLoader label="Loading" />
+      </div>
+    );
+  }
   if (me?.session_kind !== "admin") return <Navigate to="/admin/login" replace />;
   return <>{children}</>;
 }

@@ -2,14 +2,17 @@
  * Context-aware property inspector for the currently selected IVR flow node.
  */
 
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import type {
+  BranchCondition,
   FlowDefinition,
   FlowNode,
   NodeSpec,
   ValidationIssue,
 } from "@/types/domain";
-import { Panel, Select } from "@/components/ui";
+import { Input, Panel, Select, Textarea, cx } from "@/components/ui";
+
+import { NodeIcon, nodeLabel } from "./nodeMeta";
 
 interface FlowInspectorProps {
   doc: FlowDefinition;
@@ -23,13 +26,13 @@ interface FlowInspectorProps {
 }
 
 const BRANCH_OPS = [
-  { value: "eq", label: "==" },
-  { value: "neq", label: "!=" },
-  { value: "gt", label: ">" },
-  { value: "gte", label: ">=" },
-  { value: "lt", label: "<" },
-  { value: "lte", label: "<=" },
-  { value: "in", label: "in list" },
+  { value: "eq", label: "equals" },
+  { value: "neq", label: "is not" },
+  { value: "gt", label: "is more than" },
+  { value: "gte", label: "is at least" },
+  { value: "lt", label: "is less than" },
+  { value: "lte", label: "is at most" },
+  { value: "in", label: "is in list" },
   { value: "starts_with", label: "starts with" },
   { value: "is_set", label: "is set" },
   { value: "is_empty", label: "is empty" },
@@ -45,25 +48,19 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
   onRenameNode,
   onClose,
 }) => {
-  if (selectedIds.length === 0) {
+  if (selectedIds.length !== 1) {
+    const many = selectedIds.length > 1;
     return (
-      <Panel className="flex h-full w-80 shrink-0 flex-col items-center justify-center p-6 text-center">
-        <span className="text-2xl text-ash-dim">👆</span>
-        <p className="mt-2 text-sm font-medium text-chalk">No Node Selected</p>
-        <p className="mt-1 text-xs text-ash">
-          Click any node or wire on the canvas to inspect and configure its settings.
+      <Panel className="flex min-h-28 flex-col items-center justify-center p-6 text-center lg:h-full">
+        <p className="display text-sm font-semibold text-chalk">
+          {many ? `${selectedIds.length} steps selected` : "No step selected"}
         </p>
-      </Panel>
-    );
-  }
-
-  if (selectedIds.length > 1) {
-    return (
-      <Panel className="flex h-full w-80 shrink-0 flex-col items-center justify-center p-6 text-center">
-        <span className="text-2xl text-ash-dim">🗂️</span>
-        <p className="mt-2 text-sm font-medium text-chalk">{selectedIds.length} Nodes Selected</p>
-        <p className="mt-1 text-xs text-ash">
-          Group editing is not supported. Please select a single node to inspect its properties.
+        <p className="mt-1 text-sm text-ash">
+          {many
+            ? readOnly
+              ? "Select one step to see its settings."
+              : "Select one to edit it. Delete removes them; Ctrl+D copies them."
+            : "Select a step to see its settings."}
         </p>
       </Panel>
     );
@@ -79,55 +76,90 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
   const errors = issues.filter((i) => i.level === "error");
   const warnings = issues.filter((i) => i.level === "warning");
 
+  const targetOptions = targetChoices.map((t) => (
+    <option key={t} value={t}>
+      {t}
+    </option>
+  ));
+
+  /** One "go to step" setting. */
+  const transition = (field: string, label: string, empty: string) => (
+    <Labelled label={label}>
+      <Select
+        value={(node[field] as string) ?? ""}
+        disabled={readOnly}
+        onChange={(e) =>
+          onChange(selectedId, { [field]: e.target.value || undefined })
+        }
+      >
+        <option value="">{empty}</option>
+        {targetOptions}
+      </Select>
+    </Labelled>
+  );
+
+  const setCondition = (idx: number, patch: Partial<BranchCondition>) => {
+    const next = [...(node.conditions ?? [])];
+    next[idx] = { ...next[idx]!, ...patch };
+    onChange(selectedId, { conditions: next });
+  };
+
   return (
-    <Panel className="flex h-full w-80 shrink-0 flex-col overflow-hidden">
+    <Panel className="flex min-h-0 flex-col overflow-hidden lg:h-full">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-edge px-4 py-3">
+      <div className="flex items-center gap-3 border-b border-edge px-4 py-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-live text-signal">
+          <NodeIcon type={node.type} />
+        </span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="eyebrow">Inspector</span>
-            <span className="num rounded bg-void px-1.5 py-0.5 text-[10px] text-signal">
-              {node.type}
-            </span>
-          </div>
-          <p className="num mt-0.5 truncate text-sm font-semibold text-chalk">
+          <h2 className="num truncate text-sm font-semibold text-chalk">
             {selectedId}
+          </h2>
+          <p className="text-xs text-ash-dim first-letter:uppercase">
+            {nodeLabel(node.type)}
           </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="rounded p-1 text-ash hover:bg-raised hover:text-chalk"
+          aria-label="Close step settings"
+          className="press flex size-9 shrink-0 items-center justify-center rounded-full text-ash hover:bg-raised hover:text-chalk"
         >
           ✕
         </button>
       </div>
 
       {/* Body scrollable form */}
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
+      <div className="flex-1 space-y-4 p-4 lg:min-h-0 lg:overflow-y-auto">
         {/* Validation Issues on this Node */}
         {issues.length > 0 && (
-          <div className="space-y-1.5 rounded-lg border border-edge bg-void p-3">
-            <span className="eyebrow text-rust">Node Checks</span>
-            {errors.map((e, idx) => (
-              <div key={idx} className="flex items-start gap-1.5 text-xs text-rust">
-                <span className="mt-0.5">●</span>
-                <span>{e.message}</span>
-              </div>
+          <ul className="space-y-1.5 rounded-xl border border-edge bg-void p-3">
+            {[...errors, ...warnings].map((issue, idx) => (
+              <li
+                key={idx}
+                className={cx(
+                  "flex items-start gap-2 text-sm",
+                  issue.level === "error" ? "text-rust" : "text-amber",
+                )}
+              >
+                <span className="mt-2 size-1.5 shrink-0 rounded-full bg-current" aria-hidden />
+                <span className="min-w-0 break-words">
+                  <span className="sr-only">
+                    {issue.level === "error" ? "Error: " : "Warning: "}
+                  </span>
+                  {issue.message}
+                </span>
+              </li>
             ))}
-            {warnings.map((w, idx) => (
-              <div key={idx} className="flex items-start gap-1.5 text-xs text-amber">
-                <span className="mt-0.5">●</span>
-                <span>{w.message}</span>
-              </div>
-            ))}
-          </div>
+          </ul>
         )}
 
-        {/* Node Identifier */}
-        <div>
-          <label className="eyebrow mb-1 block">Node ID</label>
-          <input
+        {spec?.description && (
+          <p className="text-xs text-ash">{spec.description}</p>
+        )}
+
+        <Labelled label="Step name">
+          <Input
             type="text"
             value={selectedId}
             disabled={readOnly}
@@ -137,35 +169,15 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
                 onRenameNode(selectedId, newId);
               }
             }}
-            className="num w-full rounded border border-edge bg-void px-3 py-1.5 text-xs text-chalk focus:border-signal focus:outline-none"
+            className="num"
           />
-        </div>
-
-        {/* Node Description from Spec */}
-        {spec?.description && (
-          <p className="text-xs text-ash">{spec.description}</p>
-        )}
+        </Labelled>
 
         {/* Prompts (TTS / Audio / Live Say) */}
         {node.prompt !== undefined && (
-          <div className="space-y-2 border-t border-edge/80 pt-3">
-            <div className="flex items-center justify-between">
-              <span className="eyebrow">Prompt Audio</span>
-              <label className="flex items-center gap-1.5 text-[11px] text-ash">
-                <input
-                  type="checkbox"
-                  checked={node.barge_in ?? false}
-                  disabled={readOnly}
-                  onChange={(e) =>
-                    onChange(selectedId, { barge_in: e.target.checked })
-                  }
-                  className="rounded border-edge bg-void text-signal focus:ring-0"
-                />
-                Barge-in
-              </label>
-            </div>
-
+          <Section title="Message">
             <Select
+              aria-label="Message type"
               value={node.prompt.kind}
               disabled={readOnly}
               onChange={(e) =>
@@ -174,217 +186,206 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
                 })
               }
             >
-              <option value="tts">Speak (pre-rendered TTS)</option>
-              <option value="say">Speak (dynamic per-contact)</option>
-              <option value="audio">Play Audio Asset (Upload)</option>
+              <option value="tts">Text to speech</option>
+              <option value="say">Text to speech, personalised per contact</option>
+              <option value="audio">Audio file</option>
             </Select>
 
             {node.prompt.kind === "audio" ? (
-              <input
+              <Input
                 type="text"
+                aria-label="Audio asset ID"
                 value={node.prompt.asset ?? ""}
                 disabled={readOnly}
-                placeholder="Asset UUID (e.g. ast_1234)"
+                placeholder="Audio asset ID"
                 onChange={(e) =>
                   onChange(selectedId, {
                     prompt: { ...node.prompt!, asset: e.target.value },
                   })
                 }
-                className="num w-full rounded border border-edge bg-void px-3 py-1.5 text-xs text-chalk focus:border-signal focus:outline-none"
+                className="num"
               />
             ) : (
-              <textarea
+              <Textarea
+                aria-label="Message text"
                 value={node.prompt.text ?? ""}
                 disabled={readOnly}
                 rows={3}
-                placeholder="Prompt text (e.g. Hello {{first_name}}...)"
+                placeholder="Hello {{first_name}}..."
                 onChange={(e) =>
                   onChange(selectedId, {
                     prompt: { ...node.prompt!, text: e.target.value },
                   })
                 }
-                className="w-full rounded border border-edge bg-void px-3 py-1.5 text-xs text-chalk focus:border-signal focus:outline-none"
               />
             )}
-          </div>
+
+            <label className="flex min-h-9 items-center gap-2 text-sm text-ash">
+              <input
+                type="checkbox"
+                checked={node.barge_in ?? false}
+                disabled={readOnly}
+                onChange={(e) =>
+                  onChange(selectedId, { barge_in: e.target.checked })
+                }
+                className="size-4 accent-[var(--color-signal)]"
+              />
+              Keypress can interrupt
+            </label>
+          </Section>
         )}
 
         {/* Menu Keypresses & Options */}
         {node.type === "menu" && (
-          <div className="space-y-2 border-t border-edge/80 pt-3">
-            <div className="flex items-center justify-between">
-              <span className="eyebrow">Keypress Routes</span>
-              <span className="num text-[10px] text-ash-dim">
-                {Object.keys(node.options ?? {}).length}/12
-              </span>
-            </div>
-
-            <div className="space-y-1.5">
-              {Object.entries(node.options ?? {}).map(([digit, target]) => (
-                <div key={digit} className="flex items-center gap-1.5">
-                  <span className="num flex size-7 shrink-0 items-center justify-center rounded border border-edge bg-void text-xs font-bold text-signal">
-                    {digit}
-                  </span>
-                  <Select
-                    value={target}
-                    disabled={readOnly}
-                    onChange={(e) =>
-                      onChange(selectedId, {
-                        options: { ...node.options, [digit]: e.target.value },
-                      })
-                    }
-                    className="text-xs"
+          <Section
+            title="Keys"
+            aside={`${Object.keys(node.options ?? {}).length}/12`}
+          >
+            {Object.entries(node.options ?? {}).map(([digit, target]) => (
+              <div key={digit} className="flex items-center gap-2">
+                <span className="num flex size-9 shrink-0 items-center justify-center rounded-lg bg-live text-sm font-bold text-signal">
+                  {digit}
+                </span>
+                <Select
+                  aria-label={`Key ${digit} goes to`}
+                  value={target}
+                  disabled={readOnly}
+                  onChange={(e) =>
+                    onChange(selectedId, {
+                      options: { ...node.options, [digit]: e.target.value },
+                    })
+                  }
+                  className="min-w-0"
+                >
+                  <option value="">Choose a step…</option>
+                  {targetOptions}
+                </Select>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    aria-label={`Remove key ${digit}`}
+                    onClick={() => {
+                      const next = { ...node.options };
+                      delete next[digit];
+                      onChange(selectedId, { options: next });
+                    }}
+                    className="press flex size-9 shrink-0 items-center justify-center rounded-lg text-ash hover:bg-[#fdeaea] hover:text-rust"
                   >
-                    <option value="">— select target —</option>
-                    {targetChoices.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </Select>
-                  {!readOnly && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const next = { ...node.options };
-                        delete next[digit];
-                        onChange(selectedId, { options: next });
-                      }}
-                      className="p-1 text-ash hover:text-rust"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
 
             {/* Quick-add digit buttons */}
             {!readOnly && (
-              <div className="flex flex-wrap gap-1 pt-1">
-                {"123456789*0#"
-                  .split("")
-                  .filter((d) => !(node.options ?? {})[d])
-                  .map((digit) => (
-                    <button
-                      key={digit}
-                      type="button"
-                      onClick={() =>
-                        onChange(selectedId, {
-                          options: {
-                            ...node.options,
-                            [digit]: targetChoices[0] || "",
-                          },
-                        })
-                      }
-                      className="num rounded border border-edge bg-void px-2 py-0.5 text-xs text-ash hover:border-signal hover:text-signal"
-                    >
-                      +{digit}
-                    </button>
-                  ))}
+              <div>
+                <span className="eyebrow mb-1 block">Add a key</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {"123456789*0#"
+                    .split("")
+                    .filter((d) => !(node.options ?? {})[d])
+                    .map((digit) => (
+                      <button
+                        key={digit}
+                        type="button"
+                        aria-label={`Add key ${digit}`}
+                        onClick={() =>
+                          onChange(selectedId, {
+                            options: {
+                              ...node.options,
+                              [digit]: targetChoices[0] || "",
+                            },
+                          })
+                        }
+                        className="press num size-9 rounded-lg text-sm text-ash ring-1 ring-inset ring-edge hover:bg-live hover:text-signal"
+                      >
+                        {digit}
+                      </button>
+                    ))}
+                </div>
               </div>
             )}
-          </div>
+          </Section>
         )}
 
         {/* Collect Node Inputs */}
         {node.type === "collect" && (
-          <div className="space-y-2 border-t border-edge/80 pt-3">
-            <span className="eyebrow">Collect Digits</span>
-            <div>
-              <label className="text-[11px] text-ash">Save into Variable</label>
-              <input
+          <Section title="Collect digits">
+            <Labelled label="Save digits as">
+              <Input
                 type="text"
                 value={(node as any).variable ?? ""}
                 disabled={readOnly}
-                placeholder="e.g. account_number"
+                placeholder="account_number"
                 onChange={(e) =>
                   onChange(selectedId, { variable: e.target.value } as any)
                 }
-                className="num mt-1 w-full rounded border border-edge bg-void px-3 py-1.5 text-xs text-chalk focus:border-signal focus:outline-none"
+                className="num"
               />
-            </div>
-          </div>
+            </Labelled>
+          </Section>
         )}
 
         {/* Branch Conditions */}
         {node.type === "branch" && (
-          <div className="space-y-2 border-t border-edge/80 pt-3">
-            <span className="eyebrow">Branch Conditions</span>
+          <Section title="Conditions">
             {(node.conditions ?? []).map((cond, idx) => (
-              <div key={idx} className="space-y-1 rounded border border-edge bg-void p-2">
+              <div key={idx} className="space-y-2 rounded-xl border border-edge bg-void p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-ash">Rule #{idx + 1}</span>
+                  <span className="eyebrow">Rule {idx + 1}</span>
                   {!readOnly && (
                     <button
                       type="button"
+                      aria-label={`Remove rule ${idx + 1}`}
                       onClick={() => {
                         const next = [...(node.conditions ?? [])];
                         next.splice(idx, 1);
                         onChange(selectedId, { conditions: next });
                       }}
-                      className="text-[10px] text-ash hover:text-rust"
+                      className="press min-h-9 rounded-lg px-2 text-xs font-medium text-ash hover:text-rust"
                     >
                       Remove
                     </button>
                   )}
                 </div>
-                <div className="grid grid-cols-2 gap-1">
-                  <input
-                    type="text"
-                    value={cond.variable}
-                    disabled={readOnly}
-                    placeholder="variable"
-                    onChange={(e) => {
-                      const next = [...(node.conditions ?? [])];
-                      next[idx] = { ...next[idx]!, variable: e.target.value };
-                      onChange(selectedId, { conditions: next });
-                    }}
-                    className="num rounded border border-edge bg-panel px-2 py-1 text-xs text-chalk"
-                  />
-                  <Select
-                    value={cond.op}
-                    disabled={readOnly}
-                    onChange={(e) => {
-                      const next = [...(node.conditions ?? [])];
-                      next[idx] = { ...next[idx]!, op: e.target.value };
-                      onChange(selectedId, { conditions: next });
-                    }}
-                  >
-                    {BRANCH_OPS.map((op) => (
-                      <option key={op.value} value={op.value}>
-                        {op.label}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-                <input
+                <Input
                   type="text"
-                  value={(cond.value as string) ?? ""}
+                  aria-label={`Rule ${idx + 1} variable`}
+                  value={cond.variable}
                   disabled={readOnly}
-                  placeholder="value to compare"
-                  onChange={(e) => {
-                    const next = [...(node.conditions ?? [])];
-                    next[idx] = { ...next[idx]!, value: e.target.value };
-                    onChange(selectedId, { conditions: next });
-                  }}
-                  className="w-full rounded border border-edge bg-panel px-2 py-1 text-xs text-chalk"
+                  placeholder="Variable"
+                  onChange={(e) => setCondition(idx, { variable: e.target.value })}
+                  className="num"
                 />
                 <Select
-                  value={cond.then}
+                  aria-label={`Rule ${idx + 1} comparison`}
+                  value={cond.op}
                   disabled={readOnly}
-                  onChange={(e) => {
-                    const next = [...(node.conditions ?? [])];
-                    next[idx] = { ...next[idx]!, then: e.target.value };
-                    onChange(selectedId, { conditions: next });
-                  }}
+                  onChange={(e) => setCondition(idx, { op: e.target.value })}
                 >
-                  <option value="">— target if matched —</option>
-                  {targetChoices.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
+                  {BRANCH_OPS.map((op) => (
+                    <option key={op.value} value={op.value}>
+                      {op.label}
                     </option>
                   ))}
+                </Select>
+                <Input
+                  type="text"
+                  aria-label={`Rule ${idx + 1} value`}
+                  value={(cond.value as string) ?? ""}
+                  disabled={readOnly}
+                  placeholder="Value"
+                  onChange={(e) => setCondition(idx, { value: e.target.value })}
+                />
+                <Select
+                  aria-label={`Rule ${idx + 1} goes to`}
+                  value={cond.then}
+                  disabled={readOnly}
+                  onChange={(e) => setCondition(idx, { then: e.target.value })}
+                >
+                  <option value="">Then go to…</option>
+                  {targetOptions}
                 </Select>
               </div>
             ))}
@@ -397,142 +398,88 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
                   next.push({ variable: "status", op: "eq", value: "active", then: "" });
                   onChange(selectedId, { conditions: next });
                 }}
-                className="w-full rounded border border-dashed border-edge py-1.5 text-xs text-ash hover:border-signal hover:text-signal"
+                className="press min-h-10 w-full rounded-xl border border-dashed border-edge-bright text-sm font-medium text-signal hover:bg-live"
               >
-                + Add Condition Rule
+                + Add rule
               </button>
             )}
-          </div>
+          </Section>
         )}
 
         {/* Fall-through / Standard Transitions */}
-        <div className="space-y-2 border-t border-edge/80 pt-3">
-          <span className="eyebrow">Transitions</span>
-
-          {node.type !== "hangup" && node.type !== "voicemail" && (
-            <div>
-              <label className="text-[11px] text-ash">Next Step</label>
-              <Select
-                value={node.next ?? ""}
-                disabled={readOnly}
-                onChange={(e) => onChange(selectedId, { next: e.target.value || undefined })}
-              >
-                <option value="">— none (hangup) —</option>
-                {targetChoices.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          )}
+        <Section title="What happens next">
+          {node.type !== "hangup" &&
+            node.type !== "voicemail" &&
+            transition("next", "Next step", "None (hang up)")}
 
           {(node.type === "menu" || node.type === "collect") && (
             <>
-              <div>
-                <label className="text-[11px] text-ash">On Timeout</label>
-                <Select
-                  value={node.on_timeout ?? ""}
-                  disabled={readOnly}
-                  onChange={(e) =>
-                    onChange(selectedId, { on_timeout: e.target.value || undefined })
-                  }
-                >
-                  <option value="">— none —</option>
-                  {targetChoices.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <label className="text-[11px] text-ash">On Invalid Input</label>
-                <Select
-                  value={node.on_invalid ?? ""}
-                  disabled={readOnly}
-                  onChange={(e) =>
-                    onChange(selectedId, { on_invalid: e.target.value || undefined })
-                  }
-                >
-                  <option value="">— none —</option>
-                  {targetChoices.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </Select>
-              </div>
+              {transition("on_timeout", "If no key is pressed", "None")}
+              {transition("on_invalid", "If the wrong key is pressed", "None")}
             </>
           )}
 
-          {node.type === "transfer" && (
-            <div>
-              <label className="text-[11px] text-ash">On Transfer Fail</label>
-              <Select
-                value={(node as any).on_fail ?? ""}
-                disabled={readOnly}
-                onChange={(e) =>
-                  onChange(selectedId, { on_fail: e.target.value || undefined } as any)
-                }
-              >
-                <option value="">— none —</option>
-                {targetChoices.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          )}
+          {node.type === "transfer" &&
+            transition("on_fail", "If the transfer fails", "None")}
 
-          {node.type === "branch" && (
-            <div>
-              <label className="text-[11px] text-ash">Default Target (Fallback)</label>
-              <Select
-                value={(node as any).default ?? ""}
-                disabled={readOnly}
-                onChange={(e) =>
-                  onChange(selectedId, { default: e.target.value || undefined } as any)
-                }
-              >
-                <option value="">— none —</option>
-                {targetChoices.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          )}
-        </div>
+          {node.type === "branch" &&
+            transition("default", "Otherwise go to", "None")}
 
-        {/* Call Disposition / Outcome */}
-        <div className="border-t border-edge/80 pt-3">
-          <label className="eyebrow mb-1 block">Records Outcome As</label>
-          <Select
-            value={node.disposition ?? ""}
-            disabled={readOnly}
-            onChange={(e) =>
-              onChange(selectedId, { disposition: e.target.value || undefined })
-            }
-          >
-            <option value="">— none —</option>
-            {[
-              "confirmed",
-              "transferred",
-              "opted_out",
-              "voicemail",
-              "no_input",
-              "abandoned",
-            ].map((d) => (
-              <option key={d} value={d}>
-                {d.replace(/_/g, " ")}
-              </option>
-            ))}
-          </Select>
-        </div>
+          <Labelled label="Record outcome as">
+            <Select
+              value={node.disposition ?? ""}
+              disabled={readOnly}
+              onChange={(e) =>
+                onChange(selectedId, { disposition: e.target.value || undefined })
+              }
+            >
+              <option value="">None</option>
+              {[
+                "confirmed",
+                "transferred",
+                "opted_out",
+                "voicemail",
+                "no_input",
+                "abandoned",
+              ].map((d) => (
+                <option key={d} value={d}>
+                  {d.replace(/_/g, " ")}
+                </option>
+              ))}
+            </Select>
+          </Labelled>
+        </Section>
       </div>
     </Panel>
   );
 };
+
+function Section({
+  title,
+  aside,
+  children,
+}: {
+  title: string;
+  aside?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="space-y-2 border-t border-edge pt-3">
+      <div className="flex items-center justify-between">
+        <h3 className="display text-sm font-semibold text-chalk">{title}</h3>
+        {aside && <span className="num text-xs text-ash-dim">{aside}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** A caption wrapped around its control, so no ids are needed. */
+function Labelled({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="block space-y-1.5">
+      <span className="eyebrow block">{label}</span>
+      {children}
+    </label>
+  );
+}
