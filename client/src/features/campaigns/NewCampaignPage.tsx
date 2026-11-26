@@ -152,9 +152,9 @@ export function NewCampaignPage() {
               disabled={i > 0 && !complete[i - 1]}
               aria-current={i === step ? "step" : undefined}
               className={cx(
-                "press flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40",
+                "press flex min-h-11 items-center gap-2 rounded-lg border px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40",
                 i === step
-                  ? "neon border-transparent"
+                  ? "btn-solid border-transparent"
                   : complete[i]
                     ? "border-edge-bright bg-panel text-ash hover:text-chalk"
                     : "border-edge bg-panel text-ash-dim",

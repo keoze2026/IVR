@@ -383,9 +383,9 @@ function Chip({
       disabled={disabled}
       onClick={onClick}
       className={cx(
-        "press min-h-10 min-w-12 rounded-full border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60",
+        "press min-h-10 min-w-12 rounded-lg border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60",
         on
-          ? "neon border-transparent"
+          ? "btn-solid border-transparent"
           : "border-edge bg-panel text-ash hover:border-edge-bright",
       )}
     >

@@ -131,23 +131,23 @@ export function DashboardPage() {
           {calls.length > 0 && <RecentCalls rows={calls.slice(0, 10)} />}
         </Panel>
 
-        <div className="surface-forest rounded-[var(--radius-card)] p-6 shadow-[var(--shadow-raised)]">
+        <div className="rounded-[var(--radius-card)] border border-edge bg-panel p-6 shadow-[var(--shadow-card)]">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-bold text-white/75">Total Utilization</span>
-            <span className="flex size-10 items-center justify-center rounded-2xl bg-white/10 text-mint">
+            <span className="text-sm font-bold text-ash">Total Utilization</span>
+            <span className="flex size-10 items-center justify-center rounded-lg bg-live text-live-bright">
               <WalletIcon />
             </span>
           </div>
           <div className="num display mt-2 text-4xl">{isLoading ? "—" : `$${t.spend.toFixed(2)}`}</div>
-          <div className="mt-1 text-xs font-semibold text-white/65">Spend so far</div>
+          <div className="mt-1 text-xs font-semibold text-ash-dim">Spend so far</div>
           <dl className="mt-5 grid grid-cols-2 gap-3">
-            <div className="rounded-2xl bg-white/[0.08] p-3">
-              <dt className="text-xs font-semibold text-white/65">Average talk time</dt>
-              <dd className="num display mt-1 text-xl text-mint">{isLoading ? "—" : minutes(average)}</dd>
+            <div className="rounded-lg bg-void p-3">
+              <dt className="text-xs font-semibold text-ash-dim">Average talk time</dt>
+              <dd className="num display mt-1 text-xl text-chalk">{isLoading ? "—" : minutes(average)}</dd>
             </div>
-            <div className="rounded-2xl bg-white/[0.08] p-3">
-              <dt className="text-xs font-semibold text-white/65">Total Duration</dt>
-              <dd className="num display mt-1 text-xl text-mint">{isLoading ? "—" : minutes(t.durationSec)}</dd>
+            <div className="rounded-lg bg-void p-3">
+              <dt className="text-xs font-semibold text-ash-dim">Total Duration</dt>
+              <dd className="num display mt-1 text-xl text-chalk">{isLoading ? "—" : minutes(t.durationSec)}</dd>
             </div>
           </dl>
         </div>
@@ -266,7 +266,7 @@ function RecentCalls({ rows }: { rows: CallSummary[] }) {
             <tr key={c.id}>
               <td>
                 <div className="flex items-center gap-3">
-                  <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full bg-forest text-mint">
+                  <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full bg-live text-live-bright">
                     <PhoneOutIcon className="size-[18px]" />
                   </span>
                   <span className="num font-bold text-chalk">{c.to_masked}</span>
@@ -309,21 +309,20 @@ function Metric({
     <div
       className={cx(
         "rounded-[var(--radius-card)] p-5",
-        featured
-          ? "surface-forest shadow-[var(--shadow-raised)]"
-          : "card border border-edge bg-panel shadow-[var(--shadow-card)]",
+        "border bg-panel shadow-[var(--shadow-card)]",
+        featured ? "border-signal" : "border-edge",
       )}
     >
       <div className="flex items-center gap-3">
-        <span className={cx("flex size-11 items-center justify-center rounded-2xl", featured ? "neon" : badge)}>
+        <span className={cx("flex size-11 items-center justify-center rounded-lg", featured ? "btn-solid" : badge)}>
           <Icon className="size-[22px]" />
         </span>
-        <span className={cx("text-sm font-bold", featured ? "text-white/80" : "text-ash")}>{label}</span>
+        <span className="text-sm font-bold text-ash">{label}</span>
       </div>
       <div className="mt-4 flex items-end justify-between gap-3">
         <div>
-          <div className={cx("num display text-4xl leading-none", featured ? "text-white" : "text-chalk")}>{value}</div>
-          <div className={cx("mt-2 text-xs font-semibold", featured ? "text-white/65" : "text-ash-dim")}>{note}</div>
+          <div className="num display text-4xl leading-none text-chalk">{value}</div>
+          <div className="mt-2 text-xs font-semibold text-ash-dim">{note}</div>
         </div>
         {/* Shape of the day for this figure; the large chart gives the values. */}
         <div aria-hidden className="flex h-12 w-28 items-end gap-[2px]">
@@ -377,17 +376,11 @@ function ActivityChart({ hours }: { hours: number[] }) {
         </div>
         <div className="relative h-64 min-w-0 flex-1" onMouseLeave={() => setHover(null)}>
           <svg viewBox="0 0 1000 240" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible" aria-hidden>
-            <defs>
-              <linearGradient id="activity-fill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--color-chart-answered)" stopOpacity="0.32" />
-                <stop offset="100%" stopColor="var(--color-chart-answered)" stopOpacity="0" />
-              </linearGradient>
-            </defs>
             {[0, 1, 2, 3, 4].map((i) => (
               <line key={i} x1="0" x2="1000" y1={y((top / 4) * i)} y2={y((top / 4) * i)} stroke="var(--color-edge)" vectorEffect="non-scaling-stroke" />
             ))}
-            <path d={`${line} L1000 240 L0 240 Z`} fill="url(#activity-fill)" />
-            <path className="glow" d={line} fill="none" stroke="var(--color-signal)" strokeWidth="2.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+            <path d={`${line} L1000 240 L0 240 Z`} fill="var(--color-chart-answered)" fillOpacity="0.1" />
+            <path d={line} fill="none" stroke="var(--color-signal)" strokeWidth="2.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
           </svg>
 
           {at !== null && (
@@ -395,7 +388,7 @@ function ActivityChart({ hours }: { hours: number[] }) {
               <span aria-hidden className="absolute bottom-0 top-0 w-px bg-signal/30" style={{ left: `${(at / 23) * 100}%` }} />
               <span
                 aria-hidden
-                className="absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-panel bg-mint shadow"
+                className="absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-panel bg-signal shadow"
                 style={{ left: `${(at / 23) * 100}%`, top: `${(y(hours[at] ?? 0) / 240) * 100}%` }}
               />
             </>
@@ -467,7 +460,7 @@ function Donut({
 
 function Legend({ label, count, percent, color }: { label: string; count: number; percent: number; color: string }) {
   return (
-    <li className="flex items-center gap-3 rounded-2xl bg-void px-4 py-2.5 text-sm font-semibold">
+    <li className="flex items-center gap-3 rounded-lg bg-void px-4 py-2.5 text-sm font-semibold">
       <span className={cx("size-3 rounded-full", color)} aria-hidden />
       <span className="text-ash">{label}</span>
       <span className="num ml-auto font-extrabold text-chalk">{count}</span>

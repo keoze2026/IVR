@@ -84,9 +84,9 @@ export function CampaignDetailLayout() {
             end={tab.end}
             className={({ isActive }) =>
               cx(
-                "press inline-flex min-h-10 items-center rounded-full border px-4 text-sm",
+                "press inline-flex min-h-10 items-center rounded-lg border px-4 text-sm",
                 isActive
-                  ? "neon border-transparent"
+                  ? "btn-solid border-transparent"
                   : "border-edge bg-panel text-ash hover:border-edge-bright",
               )
             }

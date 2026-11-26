@@ -51,7 +51,7 @@ export function CampaignsPage() {
   const newCampaign = (label: string) => (
     <Link
       to="/campaigns/new"
-      className="press inline-flex min-h-11 items-center gap-2 rounded-full neon px-5 text-sm font-bold"
+      className="press inline-flex min-h-11 items-center gap-2 rounded-lg btn-solid px-5 text-sm font-bold"
     >
       <PlusIcon className="size-4" /> {label}
     </Link>

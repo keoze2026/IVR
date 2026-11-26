@@ -68,7 +68,7 @@ export function RecordingButton({ call }: { call: CallSummary }) {
           setLoading(false);
         }
       }}
-      className={`press inline-flex size-9 items-center justify-center rounded-full bg-panel ring-1 ring-inset ring-edge-bright hover:bg-live ${failed ? "text-rust" : "text-signal"}`}
+      className={`press inline-flex size-9 items-center justify-center rounded-lg bg-panel ring-1 ring-inset ring-edge-bright hover:bg-live ${failed ? "text-rust" : "text-signal"}`}
     >
       {loading ? "…" : <PlayIcon className="size-3.5" />}
     </button>

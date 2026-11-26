@@ -6,7 +6,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { TrashIcon } from "@/components/icons";
+import { PhoneOutIcon, TrashIcon } from "@/components/icons";
 import { Badge, Button, EmptyState, ErrorState, Input, PageHeader, Panel, Stat, TableSkeleton, cx } from "@/components/ui";
 import { useCampaigns, useDeleteJob, useJobAction } from "@/lib/queries/campaigns";
 import type { Campaign } from "@/types/domain";
@@ -142,8 +142,8 @@ function JobRow({
     <tr>
       <td>
         <div className="flex items-center gap-3">
-          <span aria-hidden className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-forest text-sm font-extrabold uppercase text-mint">
-            {job.name.slice(0, 1)}
+          <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-live text-live-bright">
+            <PhoneOutIcon className="size-[18px]" />
           </span>
           <Link to={`/campaigns/${job.id}`} className="font-bold text-chalk hover:text-signal">
             {job.name}
@@ -194,7 +194,7 @@ function JobRow({
         <div className="flex justify-end gap-1">
           <Link
             to={`/campaigns/${job.id}`}
-            className="press flex size-10 items-center justify-center rounded-full bg-panel text-ash ring-1 ring-inset ring-edge hover:bg-live hover:text-signal"
+            className="press flex size-10 items-center justify-center rounded-lg bg-panel text-ash ring-1 ring-inset ring-edge hover:bg-live hover:text-signal"
           >
             ⋯
           </Link>
@@ -203,7 +203,7 @@ function JobRow({
             onClick={onDelete}
             title="Delete job"
             aria-label="Delete job"
-            className="press flex size-10 items-center justify-center rounded-full bg-panel text-ash ring-1 ring-inset ring-edge hover:bg-bad-soft hover:text-rust"
+            className="press flex size-10 items-center justify-center rounded-lg bg-panel text-ash ring-1 ring-inset ring-edge hover:bg-bad-soft hover:text-rust"
           >
             <TrashIcon className="size-4" />
           </button>

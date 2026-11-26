@@ -5,7 +5,6 @@
 
 import { useState } from "react";
 
-import { WalletIcon } from "@/components/icons";
 import { Badge, Button, EmptyState, Input, PageHeader, Panel, Stat, TableSkeleton } from "@/components/ui";
 import {
   useCreateTariff,
@@ -29,16 +28,7 @@ export function WalletPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Total Wallets" value={wallet ? "1" : "0"} denominator={`$${balance.toFixed(2)} total balance`} />
-        <div className="surface-forest rounded-[var(--radius-card)] p-5 shadow-[var(--shadow-raised)]">
-          <div className="flex items-center gap-3 text-sm font-bold text-white/75">
-            <span className="flex size-12 items-center justify-center rounded-2xl neon">
-              <WalletIcon className="size-[22px]" />
-            </span>
-            Total Balance
-          </div>
-          <div className="num display mt-3 text-4xl">${balance.toFixed(2)}</div>
-          <div className="mt-1.5 text-xs font-medium text-white/65">{wallet?.recent.length ?? 0} transactions</div>
-        </div>
+        <Stat label="Total Balance" value={`$${balance.toFixed(2)}`} denominator={`${wallet?.recent.length ?? 0} transactions`} accent />
         <Stat label="Credits" value={`$${creditSum.toFixed(2)}`} denominator={`${credits.length} transactions`} tone="live" />
         <Stat label="Debits" value={`$${debitSum.toFixed(2)}`} denominator={`${debits.length} transactions`} tone="rust" />
       </div>

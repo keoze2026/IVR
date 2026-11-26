@@ -19,8 +19,21 @@ import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams, useLocation } from "react-router-dom";
 
 import {
+  AlertIcon,
+  ChartIcon,
+  CheckIcon,
   ChevronIcon,
+  ClockIcon,
+  FlowIcon,
+  HashIcon,
+  KeyIcon,
+  ListIcon,
   LogOutIcon,
+  PhoneIcon,
+  ShieldIcon,
+  SoundIcon,
+  UsersIcon,
+  WalletIcon,
   MenuIcon,
   PhoneOutIcon,
   PlusIcon,
@@ -29,6 +42,7 @@ import {
 import { PulseLoader } from "@/components/styled/PulseLoader";
 import {
   BackLink,
+  Stat,
   Badge,
   Button,
   EmptyState,
@@ -88,6 +102,56 @@ function groupResources(resources: ResourceSchema[]) {
   );
 }
 
+/** A picture for each group in the menu. */
+const GROUP_ICONS: Record<string, typeof ChartIcon> = {
+  Tenancy: UsersIcon,
+  Calling: PhoneIcon,
+  Billing: WalletIcon,
+  Contacts: ListIcon,
+  Compliance: ShieldIcon,
+  Scripts: FlowIcon,
+  "Call data": ChartIcon,
+};
+
+/** A picture for each kind of record on the overview. */
+const RESOURCE_ICONS: Record<string, typeof ChartIcon> = {
+  organizations: UsersIcon, users: UsersIcon, "api-keys": KeyIcon,
+  "audio-pools": SoundIcon, "cli-pools": HashIcon, "caller-ids": HashIcon,
+  campaigns: PhoneIcon, "campaign-contacts": ListIcon, wallets: WalletIcon,
+  tariffs: ChartIcon, "contact-lists": ListIcon, contacts: UsersIcon,
+  consent: CheckIcon, dnc: ShieldIcon, "calling-windows": ClockIcon,
+  "npa-jurisdictions": HashIcon, "scrub-jobs": ClockIcon, incidents: AlertIcon,
+  flows: FlowIcon, "flow-versions": FlowIcon, "transfer-endpoints": PhoneIcon,
+  audio: SoundIcon, calls: PhoneIcon, dtmf: HashIcon, "audit-log": ListIcon,
+};
+
+/** The records an administrator looks at first, shown as headline figures. */
+const HEADLINES = ["organizations", "users", "campaigns", "contacts"];
+
+/** Horizontal bars comparing record counts, longest bar first or in menu order. */
+function BarChart({ title, rows }: { title: string; rows: { label: string; total: number }[] }) {
+  const max = Math.max(...rows.map((r) => r.total), 0);
+  return (
+    <Panel className="overflow-hidden">
+      <PanelHeader title={title} />
+      <ul className="space-y-4 p-5">
+        {rows.map(({ label, total }) => (
+          <li key={label} className="grid grid-cols-[8rem_1fr_3.5rem] items-center gap-3 text-sm">
+            <span className="truncate font-semibold text-ash">{label}</span>
+            <span aria-hidden className="block h-2 overflow-hidden rounded-full bg-raised">
+              <span
+                className="block h-full rounded-full bg-signal"
+                style={{ width: total && max ? `${Math.max(2, (total / max) * 100)}%` : 0 }}
+              />
+            </span>
+            <span className="num text-right font-bold text-chalk">{total.toLocaleString()}</span>
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
 // ---------------------------------------------------------------- shell
 
 /** The same frame as the calling portal: sidebar, top bar, drawer below `lg`. */
@@ -116,8 +180,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-dvh text-chalk lg:flex lg:gap-4 lg:p-4">
-      <aside className="surface-forest sticky top-4 hidden h-[calc(100dvh-2rem)] w-64 shrink-0 flex-col overflow-hidden rounded-[var(--radius-shell)] lg:flex">
+    <div className="min-h-dvh text-chalk lg:flex">
+      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col overflow-hidden border-r border-edge bg-panel lg:flex">
         {sidebar}
       </aside>
 
@@ -127,16 +191,16 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             type="button"
             aria-label="Close menu"
             onClick={() => setDrawerOpen(false)}
-            className="absolute inset-0 bg-scrim/75 backdrop-blur-sm"
+            className="absolute inset-0 bg-scrim/50"
           />
-          <div className="surface-forest settle absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col rounded-r-[var(--radius-shell)]">
+          <div className="settle absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-panel shadow-[var(--shadow-raised)]">
             {sidebar}
           </div>
         </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="m-3 mb-0 flex min-h-14 shrink-0 items-center gap-3 lg:mx-6 lg:mt-1">
+        <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-edge bg-panel px-4 lg:px-6">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
@@ -147,13 +211,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <MenuIcon />
           </button>
 
-          <div className="card ml-auto flex min-w-0 items-center gap-3 rounded-full border border-edge bg-panel/80 p-1.5 pl-5 backdrop-blur-md">
+          <div className="ml-auto flex min-w-0 items-center gap-3">
             <div className="min-w-0 text-right leading-tight">
               <div className="truncate text-sm font-medium text-chalk">Signed in as {name}</div>
             </div>
             <span
               aria-hidden
-              className="flex size-11 shrink-0 items-center justify-center rounded-full bg-forest text-sm font-extrabold text-mint ring-4 ring-live"
+              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-live text-sm font-bold text-live-bright"
             >
               {name.slice(0, 1).toUpperCase()}
             </span>
@@ -168,8 +232,8 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-const NAV_ITEM = "press flex min-h-12 items-center gap-3 rounded-full px-4 text-sm font-semibold";
-const NAV_IDLE = "text-white/75 hover:bg-white/10 hover:text-white";
+const NAV_ITEM = "press flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-semibold";
+const NAV_IDLE = "text-ash hover:bg-raised hover:text-chalk";
 
 function navClass({ isActive }: { isActive: boolean }) {
   return cx(
@@ -188,10 +252,10 @@ function AdminSidebar({
   return (
     <>
       <Link to="/admin" className="flex h-20 shrink-0 items-center gap-3 px-6">
-        <span className="flex size-11 items-center justify-center rounded-2xl neon">
+        <span className="flex size-10 items-center justify-center rounded-lg btn-solid">
           <SettingsIcon className="size-6" />
         </span>
-        <span className="display text-lg leading-tight text-white">System administration</span>
+        <span className="display text-base leading-tight text-chalk">System administration</span>
       </Link>
 
       <nav className="flex-1 space-y-1.5 overflow-y-auto px-4 py-2" aria-label="Administration sections">
@@ -200,7 +264,7 @@ function AdminSidebar({
         ))}
       </nav>
 
-      <div className="m-4 mt-2 space-y-1 rounded-3xl bg-white/[0.07] p-2">
+      <div className="m-3 mt-2 space-y-1 rounded-xl border border-edge bg-void p-2">
         <Link to="/campaigns" className={cx(NAV_ITEM, NAV_IDLE)}>
           <PhoneOutIcon />
           Go to the campaigns portal
@@ -220,14 +284,16 @@ function AdminSidebar({
 
 function AdminNavGroup({ group, items }: { group: string; items: ResourceSchema[] }) {
   const { pathname } = useLocation();
+  const Icon = GROUP_ICONS[group] ?? ChartIcon;
   // Open the group by default if it contains the currently active page.
   const isActive = items.some((r) => pathname.startsWith(`/admin/${r.resource}`));
 
   return (
     <details open={isActive} className="group">
-      <summary className="press mt-3 flex min-h-11 w-full cursor-pointer select-none list-none items-center justify-between rounded-full px-4 text-[11px] font-bold uppercase tracking-widest text-white/60 hover:text-white [&::-webkit-details-marker]:hidden">
-        {group}
-        <ChevronIcon className="size-4 transition-transform group-open:rotate-180" />
+      <summary className="press mt-1 flex min-h-11 w-full cursor-pointer select-none list-none items-center gap-3 rounded-lg px-3 text-sm font-semibold text-chalk hover:bg-raised [&::-webkit-details-marker]:hidden">
+        <Icon className="size-[18px] text-ash-dim" />
+        <span className="flex-1">{group}</span>
+        <ChevronIcon className="size-4 text-ash-dim transition-transform group-open:rotate-180" />
       </summary>
       <div className="space-y-1">
         {items.map((r) => {
@@ -237,7 +303,7 @@ function AdminNavGroup({ group, items }: { group: string; items: ResourceSchema[
               key={r.resource}
               to={`/admin/${r.resource}`}
               aria-current={isCurrent ? "page" : undefined}
-              className={cx(navClass({ isActive: isCurrent }), "pl-6")}
+              className={cx(navClass({ isActive: isCurrent }), "pl-11")}
             >
               {r.label}
             </Link>
@@ -254,6 +320,18 @@ export function AdminOverviewPage() {
   const schema = usePlatformSchema();
   const overview = usePlatformOverview();
   const resources = schema.data?.resources ?? [];
+  const groups = groupResources(resources);
+  const countOf = (key: string) => overview.data?.counts?.[key] ?? 0;
+  const totals = groups.map(([group, items]) => ({
+    group,
+    total: items.reduce((sum, r) => sum + countOf(r.resource), 0),
+  }));
+  const headlines = HEADLINES.flatMap((key) => resources.filter((r) => r.resource === key));
+  const top = resources
+    .map((r) => ({ label: r.label, total: countOf(r.resource) }))
+    .filter((r) => r.total > 0)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, totals.length);
 
   return (
     <div className="space-y-6">
@@ -272,31 +350,54 @@ export function AdminOverviewPage() {
         </Panel>
       )}
 
-      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {groupResources(resources).map(([group, items]) => (
-          <Panel key={group} className="overflow-hidden">
+      {headlines.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {headlines.map((r) => (
+            <Stat
+              key={r.resource}
+              label={r.label}
+              icon={RESOURCE_ICONS[r.resource]}
+              value={overview.data ? countOf(r.resource).toLocaleString() : "—"}
+            />
+          ))}
+        </div>
+      )}
+
+      {overview.data && totals.length > 0 && (
+        <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-2">
+          <BarChart
+            title="Records by section"
+            rows={totals.map((t) => ({ label: t.group, total: t.total }))}
+          />
+          {top.length > 0 && <BarChart title="Most records" rows={top} />}
+        </div>
+      )}
+
+      <div className="gap-4 md:columns-2 xl:columns-3">
+        {groups.map(([group, items]) => (
+          <Panel key={group} className="mb-4 break-inside-avoid overflow-hidden">
             <PanelHeader title={group} />
-            <ul className="space-y-1 p-3">
-              {items.map((r) => (
-                <li key={r.resource}>
-                  <Link
-                    to={`/admin/${r.resource}`}
-                    className="flex min-h-14 items-center gap-3 rounded-2xl px-3 py-2 hover:bg-void"
-                  >
-                    <span
-                      aria-hidden
-                      className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-live text-sm font-extrabold text-live-bright"
+            <ul className="divide-y divide-edge px-3">
+              {items.map((r) => {
+                const Icon = RESOURCE_ICONS[r.resource] ?? ChartIcon;
+                return (
+                  <li key={r.resource}>
+                    <Link
+                      to={`/admin/${r.resource}`}
+                      className="flex min-h-14 items-center gap-3 px-2 py-2.5 hover:bg-void"
                     >
-                      {r.label.slice(0, 1)}
-                    </span>
-                    <span className="min-w-0 flex-1 text-sm font-semibold text-chalk">{r.label}</span>
-                    {r.readonly && <Badge>View only</Badge>}
-                    <span className="num display min-w-10 text-right text-xl text-chalk">
-                      {overview.data?.counts?.[r.resource] ?? "—"}
-                    </span>
-                  </Link>
-                </li>
-              ))}
+                      <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-live text-live-bright">
+                        <Icon className="size-[18px]" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-chalk">{r.label}</span>
+                      {r.readonly && <Badge>View only</Badge>}
+                      <span className="num display min-w-8 text-right text-base text-chalk">
+                        {overview.data?.counts?.[r.resource] ?? "—"}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </Panel>
         ))}

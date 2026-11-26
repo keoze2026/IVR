@@ -100,7 +100,7 @@ export const FlowNodeCard: FC<FlowNodeCardProps> = ({
       }}
       className={`group absolute left-0 top-0 select-none rounded-xl border bg-panel shadow-[var(--shadow-card)] transition-shadow duration-150 ${
         isSelected
-          ? "border-signal shadow-[0_0_0_3px_rgba(46,230,197,0.3)]"
+          ? "border-signal shadow-[0_0_0_3px_rgba(6,122,80,0.2)]"
           : isConnectingTarget
             ? "border-signal ring-2 ring-signal"
             : isUnreachable

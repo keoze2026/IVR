@@ -123,7 +123,7 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="press flex size-9 shrink-0 items-center justify-center rounded-full text-ash hover:bg-raised hover:text-chalk"
+          className="press flex size-9 shrink-0 items-center justify-center rounded-lg text-ash hover:bg-raised hover:text-chalk"
         >
           ✕
         </button>

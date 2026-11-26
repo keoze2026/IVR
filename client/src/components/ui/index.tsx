@@ -81,7 +81,7 @@ export function BackLink({ to, children }: { to: string; children: ReactNode }) 
   return (
     <Link
       to={to}
-      className="press -ml-2 -mt-2 inline-flex min-h-11 items-center gap-1 rounded-full px-2 text-sm text-ash hover:text-chalk"
+      className="press -ml-2 -mt-2 inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-sm text-ash hover:text-chalk"
     >
       <span aria-hidden>←</span>
       {children}
@@ -137,7 +137,7 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-scrim/75 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-scrim/50 p-4"
       onMouseDown={(e) => closeOnBackdrop && e.target === e.currentTarget && onClose()}
     >
       <div
@@ -155,7 +155,7 @@ export function Modal({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="press -mr-2 -mt-2 flex size-9 items-center justify-center rounded-full text-ash hover:bg-raised hover:text-chalk"
+            className="press -mr-2 -mt-2 flex size-9 items-center justify-center rounded-lg text-ash hover:bg-raised hover:text-chalk"
           >
             ✕
           </button>
@@ -178,7 +178,7 @@ export function Panel({
   return (
     <div
       className={cx(
-        "card rounded-[var(--radius-card)] border bg-panel shadow-[var(--shadow-card)]",
+        "rounded-[var(--radius-card)] border bg-panel shadow-[var(--shadow-card)]",
         accent ? "border-signal/50" : "border-edge",
         className,
       )}
@@ -223,7 +223,7 @@ export function FilterTabs<T extends string>({
 }) {
   return (
     <div
-      className="inline-flex max-w-full flex-wrap gap-1 rounded-3xl border border-edge/70 bg-panel p-1.5 shadow-[var(--shadow-card)]"
+      className="inline-flex max-w-full flex-wrap gap-1 rounded-xl border border-edge/70 bg-panel p-1.5 shadow-[var(--shadow-card)]"
       role="tablist"
       aria-label={label}
     >
@@ -235,9 +235,9 @@ export function FilterTabs<T extends string>({
           aria-selected={value === option.id}
           onClick={() => onChange(option.id)}
           className={cx(
-            "press flex min-h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold",
+            "press flex min-h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold",
             value === option.id
-              ? "neon"
+              ? "btn-solid"
               : "text-ash hover:bg-raised hover:text-chalk",
           )}
         >
@@ -313,8 +313,11 @@ export function Stat({
   accent = false,
   tone,
   to,
+  icon,
 }: {
   label: string;
+  /** Overrides the icon picked from the label. */
+  icon?: typeof ChartIcon;
   value: string;
   denominator?: string;
   accent?: boolean;
@@ -322,20 +325,20 @@ export function Stat({
   /** Makes the whole card a link. */
   to?: string;
 }) {
-  const Icon = iconFor(label);
+  const Icon = icon ?? iconFor(label);
   const badge = accent
-    ? "neon"
+    ? "btn-solid"
     : tone === "amber"
       ? "bg-warn-soft text-amber"
       : tone === "rust"
         ? "bg-bad-soft text-rust"
         : tone === "live"
           ? "bg-live text-live-bright"
-          : "bg-forest text-mint ring-1 ring-inset ring-mint/25";
+          : "bg-live text-live-bright";
 
   const body = (
     <>
-      <span className={cx("flex size-12 shrink-0 items-center justify-center rounded-2xl", badge)}>
+      <span className={cx("flex size-12 shrink-0 items-center justify-center rounded-lg", badge)}>
         <Icon className="size-[22px]" />
       </span>
       <span className="min-w-0">
@@ -349,7 +352,7 @@ export function Stat({
   );
 
   const shell = cx(
-    "flex items-center gap-4 card rounded-[var(--radius-card)] border border-edge bg-panel px-5 py-5 shadow-[var(--shadow-card)]",
+    "flex items-center gap-4 rounded-[var(--radius-card)] border border-edge bg-panel px-5 py-5 shadow-[var(--shadow-card)]",
     to && "transition-transform hover:-translate-y-0.5 hover:border-signal/40",
   );
 
@@ -443,10 +446,10 @@ type Variant = "primary" | "secondary" | "danger" | "ghost";
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    "neon",
+    "btn-solid",
   secondary:
     "bg-panel text-chalk ring-1 ring-inset ring-edge-bright hover:bg-raised",
-  danger: "bg-rust text-ink hover:brightness-110",
+  danger: "bg-rust text-white hover:brightness-95",
   ghost: "text-ash hover:text-chalk hover:bg-raised",
 };
 
@@ -474,7 +477,7 @@ export function Button({
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cx(
-        "press inline-flex items-center justify-center gap-2 rounded-full",
+        "press inline-flex items-center justify-center gap-2 rounded-lg",
         dense ? "min-h-9 px-4 text-sm" : "min-h-11 px-5 text-sm",
         "font-bold disabled:cursor-not-allowed disabled:opacity-40",
         VARIANTS[variant],
@@ -523,8 +526,8 @@ export function Field({
 }
 
 const CONTROL =
-  "w-full min-h-12 rounded-2xl border bg-void px-4 py-2.5 text-sm font-medium text-chalk " +
-  "placeholder:text-ash-dim/70 transition-colors focus:border-signal focus:shadow-[0_0_0_3px_rgb(46_230_197/0.16)]";
+  "w-full min-h-11 rounded-lg border bg-panel px-3.5 py-2.5 text-sm font-medium text-chalk " +
+  "placeholder:text-ash-dim/70 transition-colors focus:border-signal focus:shadow-[0_0_0_3px_rgb(6_122_80/0.14)]";
 
 export function Input({
   invalid,
@@ -623,7 +626,7 @@ export function EmptyState({
 }) {
   return (
     <div className="rounded-[var(--radius-card)] bg-void px-6 py-14 text-center">
-      <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-forest text-mint ring-1 ring-inset ring-mint/25">
+      <span className="mx-auto flex size-14 items-center justify-center rounded-lg bg-live text-live-bright">
         <SoundIcon className="size-6" />
       </span>
       <p className="display mt-4 text-base text-chalk">{title}</p>

@@ -116,21 +116,21 @@ function CallerCard({ caller }: { caller: CallerID }) {
 
   return (
     <Panel className="overflow-hidden">
-      <div className="surface-forest p-5">
+      <div className="border-b border-edge bg-void p-5">
         <div className="flex items-center justify-between gap-3">
-          <span className="rounded-full bg-white/12 px-3 py-1 text-xs font-bold capitalize text-white">
+          <span className="rounded-full bg-live px-3 py-1 text-xs font-bold capitalize text-live-bright">
             {caller.provider}
           </span>
           {!caller.is_active && (
-            <span className="flex items-center gap-2 text-xs font-bold text-white/80">
-              <span aria-hidden className="size-2 rounded-full bg-white/35" />
+            <span className="flex items-center gap-2 text-xs font-bold text-ash">
+              <span aria-hidden className="size-2 rounded-full bg-edge-bright" />
               inactive
             </span>
           )}
         </div>
         <div className="num display mt-5 break-all text-2xl">{caller.phone_e164}</div>
         {caller.friendly_name && (
-          <div className="mt-1 text-sm font-semibold text-white/65">{caller.friendly_name}</div>
+          <div className="mt-1 text-sm font-semibold text-ash">{caller.friendly_name}</div>
         )}
       </div>
 

@@ -9,7 +9,6 @@
 import { useState } from "react";
 
 import { SettingsIcon } from "@/components/icons";
-import { Waveform } from "@/components/Waveform";
 import { Button, Field, Input } from "@/components/ui";
 
 export function AdminLoginPage() {
@@ -47,23 +46,14 @@ export function AdminLoginPage() {
   }
 
   return (
-    <main className="grid min-h-dvh gap-4 lg:grid-cols-[1.15fr_1fr] lg:p-4">
-      <section className="surface-forest relative hidden flex-col justify-between overflow-hidden rounded-[var(--radius-shell)] p-12 lg:flex">
-        <div aria-hidden className="absolute -right-40 -top-40 size-[520px] rounded-full border-[60px] border-white/[0.04]" />
-        <div aria-hidden className="absolute -bottom-52 -left-32 size-[460px] rounded-full border-[46px] border-mint/[0.07]" />
-        <div className="relative flex items-center gap-3">
-          <span className="flex size-12 items-center justify-center rounded-2xl neon">
-            <SettingsIcon className="size-6" />
-          </span>
-          <span className="display text-2xl">Outbound</span>
-        </div>
-        <div className="relative max-w-xl">
-          <Waveform className="mb-10" />
-        </div>
-        <div aria-hidden />
-      </section>
-
-      <section className="flex items-center justify-center bg-void p-5 lg:rounded-[var(--radius-shell)]">
+    <main className="flex min-h-dvh flex-col items-center justify-center p-5">
+      <div className="mb-6 flex items-center gap-3">
+        <span className="flex size-11 items-center justify-center rounded-lg btn-solid">
+          <SettingsIcon className="size-6" />
+        </span>
+        <span className="display text-xl text-chalk">Outbound</span>
+      </div>
+      <section className="flex w-full justify-center">
         <form
           onSubmit={submit}
           className="w-full max-w-md rounded-[var(--radius-shell)] border border-edge/70 bg-panel p-8 shadow-[var(--shadow-card)] sm:p-10"

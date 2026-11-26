@@ -808,7 +808,7 @@ export function CallingWindowsPage() {
                       className={cx(
                         "press min-h-10 rounded-xl border text-sm",
                         on
-                          ? "neon border-transparent"
+                          ? "btn-solid border-transparent"
                           : "border-edge bg-panel text-ash hover:border-edge-bright",
                       )}
                     >

@@ -12,7 +12,6 @@
 import { useState, type FormEvent } from "react";
 
 import { ClockIcon, PhoneOutIcon, ShieldIcon, SoundIcon } from "@/components/icons";
-import { Waveform } from "@/components/Waveform";
 import { Button, Field, Input } from "@/components/ui";
 import { ApiError } from "@/lib/errors";
 import { useSession } from "@/lib/session";
@@ -57,20 +56,17 @@ export function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-dvh gap-4 p-0 lg:grid-cols-[1.15fr_1fr] lg:p-4">
-      <section className="surface-forest relative hidden flex-col justify-between overflow-hidden rounded-[var(--radius-shell)] p-12 lg:flex">
-        <div aria-hidden className="absolute -right-40 -top-40 size-[520px] rounded-full border-[60px] border-white/[0.04]" />
-        <div aria-hidden className="absolute -bottom-52 -left-32 size-[460px] rounded-full border-[46px] border-mint/[0.07]" />
+    <main className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
+      <section className="surface-forest relative hidden flex-col justify-between overflow-hidden p-12 lg:flex">
 
         <div className="relative flex items-center gap-3">
-          <span className="flex size-12 items-center justify-center rounded-2xl neon">
+          <span className="flex size-12 items-center justify-center rounded-lg btn-solid">
             <SoundIcon className="size-6" />
           </span>
           <span className="display text-2xl">Outbound</span>
         </div>
 
         <div className="relative max-w-xl">
-          <Waveform className="mb-10" />
           <h1 className="display text-4xl leading-[1.1]">
             Every call on this system
             <br />
@@ -100,7 +96,7 @@ export function LoginPage() {
             ].map(([Icon, term, detail]) => {
               const Glyph = Icon as typeof PhoneOutIcon;
               return (
-                <div key={term as string} className="rounded-3xl bg-white/[0.08] p-4">
+                <div key={term as string} className="rounded-xl bg-white/[0.08] p-4">
                   <span className="flex size-10 items-center justify-center rounded-full bg-white/10 text-mint">
                     <Glyph />
                   </span>
@@ -124,7 +120,7 @@ export function LoginPage() {
           className="w-full max-w-md rounded-[var(--radius-shell)] border border-edge/70 bg-panel p-8 shadow-[var(--shadow-card)] sm:p-10"
           noValidate
         >
-          <span className="mb-6 flex size-14 items-center justify-center rounded-2xl bg-forest text-mint lg:hidden">
+          <span className="mb-6 flex size-14 items-center justify-center rounded-lg bg-live text-live-bright lg:hidden">
             <SoundIcon className="size-7" />
           </span>
           <h2 className="display text-3xl text-chalk">Sign in</h2>

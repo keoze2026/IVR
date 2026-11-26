@@ -298,7 +298,7 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
                     <button
                       type="button"
                       onClick={() => setSteps(steps.filter((_, j) => j !== i))}
-                      className="press flex size-9 items-center justify-center rounded-full text-rust hover:bg-bad-soft"
+                      className="press flex size-9 items-center justify-center rounded-lg text-rust hover:bg-bad-soft"
                       aria-label="Remove step"
                     >
                       <TrashIcon className="size-4" />
