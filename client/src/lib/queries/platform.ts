@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { request } from "../api";
 import type { ApiError } from "../errors";
+import { LIVE_REFRESH_MS } from "../live";
 
 export type Widget =
   | "text"
@@ -63,6 +64,7 @@ export function usePlatformSchema() {
 export function usePlatformOverview() {
   return useQuery<{ counts: Record<string, number> }, ApiError>({
     queryKey: ["platform", "overview"],
+    refetchInterval: LIVE_REFRESH_MS,
     queryFn: () => request<{ counts: Record<string, number> }>("platform/overview/"),
   });
 }
@@ -77,6 +79,7 @@ export interface PagedRows {
 export function usePlatformList(resource: string, search: string) {
   return useQuery<PagedRows, ApiError>({
     queryKey: ["platform", resource, search],
+    refetchInterval: LIVE_REFRESH_MS,
     queryFn: () =>
       request<PagedRows>(
         `platform/${resource}/${search ? `?q=${encodeURIComponent(search)}` : ""}`,

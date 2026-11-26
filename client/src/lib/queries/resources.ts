@@ -40,6 +40,7 @@ import type {
   TransferEndpoint,
   ValidationReport,
 } from "@/types/domain";
+import { LIVE_REFRESH_MS } from "../live";
 
 export const keys = {
   contactLists: (f: object = {}) => ["contact-lists", f] as const,
@@ -64,6 +65,7 @@ export const keys = {
 export function useContactLists(filters: { ingest_status?: string } = {}) {
   return useQuery<PagedResponse<ContactList>, ApiError>({
     queryKey: keys.contactLists(filters),
+    refetchInterval: LIVE_REFRESH_MS,
     queryFn: () =>
       request<PagedResponse<ContactList>>(`contact-lists/${query(filters)}`),
   });
@@ -177,6 +179,7 @@ export function useEraseContact() {
 export function useFlows(filters: { is_archived?: string } = {}) {
   return useQuery<PagedResponse<FlowSummary>, ApiError>({
     queryKey: keys.flows(filters),
+    refetchInterval: LIVE_REFRESH_MS,
     queryFn: () => request<PagedResponse<FlowSummary>>(`flows/${query(filters)}`),
   });
 }
@@ -308,6 +311,7 @@ export function useCalls(
 ) {
   return useQuery<CursorResponse<CallSummary>, ApiError>({
     queryKey: keys.calls(filters),
+    refetchInterval: LIVE_REFRESH_MS,
     queryFn: () =>
       request<CursorResponse<CallSummary>>(`calls/${query(filters)}`),
     ...options,
@@ -317,6 +321,7 @@ export function useCalls(
 export function useCall(id: string | undefined) {
   return useQuery<CallDetail, ApiError>({
     queryKey: keys.call(id ?? ""),
+    refetchInterval: LIVE_REFRESH_MS,
     queryFn: () => request<CallDetail>(`calls/${id}/`),
     enabled: Boolean(id),
   });
@@ -325,6 +330,7 @@ export function useCall(id: string | undefined) {
 export function useCallEvents(id: string | undefined) {
   return useQuery<CallEvent[], ApiError>({
     queryKey: keys.callEvents(id ?? ""),
+    refetchInterval: LIVE_REFRESH_MS,
     queryFn: () => request<CallEvent[]>(`calls/${id}/events/`),
     enabled: Boolean(id),
   });
@@ -478,6 +484,7 @@ export function useCallerIds(
 ) {
   return useQuery<PagedResponse<CallerID>, ApiError>({
     queryKey: keys.callerIds(filters),
+    refetchInterval: LIVE_REFRESH_MS,
     queryFn: () => request<PagedResponse<CallerID>>(`caller-ids/${query(filters)}`),
   });
 }
@@ -801,6 +808,7 @@ export interface WalletData {
 export function useWallet() {
   return useQuery<PagedResponse<WalletData>, ApiError>({
     queryKey: ["wallet"],
+    refetchInterval: LIVE_REFRESH_MS,
     queryFn: () => request<PagedResponse<WalletData>>("wallet/"),
   });
 }

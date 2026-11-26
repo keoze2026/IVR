@@ -1,8 +1,9 @@
 """
 Websocket authentication.
 
-Browsers cannot set headers on a WebSocket handshake, so the API key arrives as
-a query parameter (`?token=`) or via the session cookie. A token in a URL is
+Browsers cannot set headers on a WebSocket handshake, so the API key, or a
+signed-in person's token, arrives as a query parameter (`?token=`), or the
+session cookie is used. A token in a URL is
 visible in proxy logs, which is why keys used this way should be short-lived
 and scoped — see the API-key model's `expires_at`.
 
@@ -19,10 +20,32 @@ from channels.db import database_sync_to_async
 from django.contrib.auth.models import AnonymousUser
 
 
+def resolve_user_token(raw_token: str):
+    """A person's sign-in token, checked exactly as the HTTP API checks it."""
+    from types import SimpleNamespace
+
+    from rest_framework.exceptions import AuthenticationFailed
+
+    from apps.accounts.authentication import UserTokenAuthentication
+
+    request = SimpleNamespace(META={"HTTP_AUTHORIZATION": f"Bearer {raw_token}"})
+    try:
+        user, _ = UserTokenAuthentication().authenticate(request)
+    except AuthenticationFailed:
+        return None, None
+    organization = user.organization
+    if organization is None or not organization.is_active:
+        return None, None
+    return user, organization
+
+
 @database_sync_to_async
-def _resolve_api_key(raw_token: str):
-    from apps.accounts.authentication import APIKeyUser
+def _resolve_token(raw_token: str):
+    from apps.accounts.authentication import USER_TOKEN_PREFIX, APIKeyUser
     from apps.accounts.models import APIKey
+
+    if raw_token.startswith(USER_TOKEN_PREFIX):
+        return resolve_user_token(raw_token)
 
     key = (
         APIKey.objects.select_related("organization")
@@ -49,7 +72,7 @@ class TokenAuthMiddleware:
         token = (query.get("token") or [""])[0]
 
         if token:
-            user, organization = await _resolve_api_key(token)
+            user, organization = await _resolve_token(token)
             scope["user"] = user or AnonymousUser()
             scope["organization"] = organization
         else:

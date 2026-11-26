@@ -16,6 +16,7 @@ import {
 import { query, request, type PagedResponse } from "../api";
 import type { ApiError } from "../errors";
 import type { Campaign, CampaignStatus, KpiFrame, Preflight } from "@/types/domain";
+import { LIVE_REFRESH_MS } from "../live";
 
 export const campaignKeys = {
   all: ["campaigns"] as const,
@@ -40,6 +41,7 @@ export function useCampaigns(
 ) {
   return useQuery<PagedResponse<Campaign>, ApiError>({
     queryKey: campaignKeys.list(filters),
+    refetchInterval: LIVE_REFRESH_MS,
     queryFn: () =>
       request<PagedResponse<Campaign>>(`campaigns/${query({ ...filters })}`),
     ...options,
@@ -49,6 +51,7 @@ export function useCampaigns(
 export function useCampaign(id: string | undefined) {
   return useQuery<Campaign, ApiError>({
     queryKey: campaignKeys.detail(id ?? ""),
+    refetchInterval: LIVE_REFRESH_MS,
     queryFn: () => request<Campaign>(`campaigns/${id}/`),
     enabled: Boolean(id),
   });

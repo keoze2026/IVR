@@ -62,6 +62,12 @@ Settings below. Compliance, People and Access keys are not on the staff sidebar.
 The Jobs and Active Jobs screens ask for up to 200 jobs, because the server's
 default is 25 in no set order; Jobs lists the newest first.
 
+**Live updates.** While a tab is visible, call, campaign, contact list, flow,
+number, wallet and admin list screens fetch fresh data every 5 seconds
+(`client/src/lib/live.ts`); Jobs uses 4 seconds and Active Jobs 2. Screens with
+an editable form do not. The campaign live screen also uses a websocket, which
+accepts both API keys and name-and-code sign-ins.
+
 **Calling hours for new jobs.** A job made with Create Job reads each number's
 country and timezone from the number itself, so its calling window, and the
 holidays that block it, are the called person's. US numbers are also held to
