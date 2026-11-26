@@ -15,13 +15,21 @@ import { CreateJobModal } from "./CreateJobModal";
 
 export function JobsPage() {
   // Refetched on an interval so a running job's status moves on its own.
-  const { data, isLoading, error, refetch } = useCampaigns({}, { refetchInterval: 4000 });
+  // The server returns 25 jobs in no set order unless asked for more, which
+  // hides new jobs. Ask for its maximum and list the newest first.
+  const { data, isLoading, error, refetch } = useCampaigns(
+    { page_size: 200 },
+    { refetchInterval: 4000 },
+  );
   const action = useJobAction();
   const del = useDeleteJob();
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState("");
 
-  const all = data?.results ?? [];
+  const all = useMemo(
+    () => [...(data?.results ?? [])].sort((a, b) => b.created_at.localeCompare(a.created_at)),
+    [data],
+  );
   const jobs = useMemo(() => {
     const f = search.trim().toLowerCase();
     return f ? all.filter((j) => j.name.toLowerCase().includes(f)) : all;

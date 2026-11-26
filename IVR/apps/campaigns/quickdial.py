@@ -28,6 +28,7 @@ from apps.common.enums import ConsentScope
 from apps.common.utils import phone_hash
 from apps.contacts.ingest import RowError, normalise_phone
 from apps.contacts.models import Contact, ContactList
+from apps.dialer.routing import is_toll_free
 from apps.ivr.models import AudioAsset, IVRFlow, IVRFlowVersion
 
 #: What a pressed key can do in a quick-dial job. Kept small on purpose: a
@@ -35,6 +36,11 @@ from apps.ivr.models import AudioAsset, IVRFlow, IVRFlowVersion
 #: me / count me in" and "stop calling me". Transfer needs a configured
 #: endpoint, so it is offered only when one is named on the step.
 _DTMF_ACTIONS = {"confirm", "opt_out", "repeat", "hangup"}
+
+#: US toll-free numbers belong to no place, so the number alone gives no clock.
+#: The metadata lists every North American zone, the first being in the Aleutian
+#: Islands. Central time is used instead.
+_TOLL_FREE_TIMEZONE = "America/Chicago"
 
 
 def _with_disclosure(defn: dict, record: bool) -> dict:
@@ -212,16 +218,19 @@ class QuickDialView(APIView):
 
         seen: set[str] = set()
         numbers: list[str] = []
+        # Each number's calling code and timezone decide its calling hours.
+        places: dict[str, tuple[str, str]] = {}
         for token in re.split(r"[\s,;]+", data["target_number"].strip()):
             if not token:
                 continue
             try:
-                e164, _cc, _tz = normalise_phone(token, "US")
+                e164, cc, tz = normalise_phone(token, "US")
             except RowError:
                 return _bad(f"That number is not valid: {token}")
             if e164 not in seen:
                 seen.add(e164)
                 numbers.append(e164)
+                places[e164] = (cc, _TOLL_FREE_TIMEZONE if is_toll_free(e164) else tz)
         if not numbers:
             return _bad("Enter at least one number to dial.")
         e164 = numbers[0]  # first number: used for naming and the list label
@@ -279,7 +288,8 @@ class QuickDialView(APIView):
             )
             Contact.objects.bulk_create([
                 Contact(organization=org, contact_list=contact_list, phone_e164=n,
-                        phone_hash=phone_hash(n), country_code="1", timezone="UTC")
+                        phone_hash=phone_hash(n), country_code=places[n][0],
+                        timezone=places[n][1])
                 for n in numbers
             ])
 
@@ -316,7 +326,8 @@ class QuickDialView(APIView):
                 scheduled_start=data.get("schedule_start"),
                 window_start_local=win_start,
                 window_end_local=win_end,
-                respect_contact_timezone=False,
+                # The window is read on the called person's clock.
+                respect_contact_timezone=True,
                 fallback_timezone="UTC",
                 max_attempts=1,
                 created_by=request.user if hasattr(request.user, "_meta") else None,

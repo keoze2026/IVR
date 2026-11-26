@@ -23,7 +23,7 @@ function liveCalls(job: Campaign): number {
 
 export function ActiveJobsPage() {
   const { data, isLoading } = useCampaigns(
-    {},
+    { page_size: 200 },
     // Live view: poll fast so live-call counts move on their own, even in the
     // background, and never serve a stale cached page here.
     { refetchInterval: 2000, refetchIntervalInBackground: true, staleTime: 0 },

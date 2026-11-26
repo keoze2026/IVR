@@ -59,6 +59,15 @@ components are in
 Contact Lists), Analytics (Dashboard, Calls, Jobs, CDR) and Infrastructure (My
 Numbers, Audio Pools, CLI Pools, Wallets, Tariffs), with account capacity and
 Settings below. Compliance, People and Access keys are not on the staff sidebar.
+The Jobs and Active Jobs screens ask for up to 200 jobs, because the server's
+default is 25 in no set order; Jobs lists the newest first.
+
+**Calling hours for new jobs.** A job made with Create Job reads each number's
+country and timezone from the number itself, so its calling window, and the
+holidays that block it, are the called person's. US numbers are also held to
+08:00-21:00 local time. US toll-free numbers have no location and use Central
+time. Jobs created before this keep their old values.
+
 The administration portal at `/admin` uses the same design; its home page shows
 headline figures and bar charts built from the record counts.
 
