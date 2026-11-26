@@ -76,6 +76,15 @@ class TeXMLRenderer(BaseRenderer):
         "Record": {"transcribe"},
     }
 
+    def _attrs(self, verb: Verb) -> dict:
+        attrs = super()._attrs(verb)
+        # English speech names its voice and accent outright. Telnyx documents
+        # the basic voices "man" and "woman" as always en-US; a bare
+        # language="en" with no voice was heard in Chinese on a live call.
+        if verb.name == "Say" and attrs.get("language", "en") in {"en", "en-US"}:
+            attrs = {"voice": "woman", **attrs, "language": "en-US"}
+        return attrs
+
 
 _RENDERERS = {
     "twilio": TwiMLRenderer(),

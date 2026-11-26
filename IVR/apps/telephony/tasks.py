@@ -276,9 +276,9 @@ def persist_recording(provider_name: str, sid: str, payload: dict):
         return
     rec_url = payload.get("RecordingUrl") or ""
     key = ""
-    if rec_url and provider_name == "twilio":
+    if rec_url and provider_name in _RECORDING_COPIERS:
         try:
-            key = _copy_twilio_recording(call, rec_url)
+            key = _RECORDING_COPIERS[provider_name](call, rec_url)
         except Exception:
             logger.exception("could not copy recording into storage",
                              extra={"call": str(call.pk)})
@@ -321,6 +321,78 @@ def _copy_twilio_recording(call, rec_url: str) -> str:
         ContentType="audio/mpeg",
     )
     return key
+
+
+def copy_telnyx_recording(call, rec_url: str = "") -> str:
+    """
+    Fetch a Telnyx recording into our own bucket, and return its storage key.
+
+    Telnyx documents the link in the callback as valid for ten minutes. When it
+    is missing or no longer works, the call's recordings are listed through the
+    API to get a current one. Returns "" when Telnyx has no recording.
+    """
+    import requests
+    from django.conf import settings
+
+    from apps.common.storage import s3_client
+
+    audio = None
+    if rec_url:
+        try:
+            audio = _download_telnyx(rec_url)
+        except requests.RequestException:
+            logger.warning("telnyx recording link did not work",
+                           extra={"call": str(call.pk)})
+    if audio is None:
+        listing = requests.get(
+            f"https://api.telnyx.com/v2/texml/Accounts/{settings.TELNYX_ACCOUNT_SID}"
+            f"/Calls/{call.provider_call_sid}/Recordings.json",
+            headers={"Authorization": f"Bearer {settings.TELNYX_API_KEY}"},
+            timeout=(3.05, 30),
+        )
+        listing.raise_for_status()
+        links = [r.get("media_url") for r in listing.json().get("recordings", [])]
+        link = next((url for url in links if url), None)
+        if link is None:
+            return ""
+        audio = _download_telnyx(link)
+
+    data, kind = audio
+    key = f"{call.organization_id}/{call.pk}/recording.{kind}"
+    s3_client().put_object(
+        Bucket=settings.S3_BUCKET_RECORDINGS, Key=key, Body=data,
+        ContentType="audio/wav" if kind == "wav" else "audio/mpeg",
+    )
+    return key
+
+
+def _download_telnyx(url: str) -> tuple[bytes, str]:
+    """The audio at `url` and its format, "mp3" or "wav"."""
+    from urllib.parse import urlsplit
+
+    import requests
+    from django.conf import settings
+
+    response = requests.get(url, timeout=(3.05, 30))
+    # The API key goes only to Telnyx's own API. A pre-signed storage link
+    # needs no key, and rejects a request that carries one.
+    if (response.status_code in (401, 403)
+            and urlsplit(url).hostname == "api.telnyx.com"):
+        response = requests.get(
+            url, headers={"Authorization": f"Bearer {settings.TELNYX_API_KEY}"},
+            timeout=(3.05, 30),
+        )
+    response.raise_for_status()
+    content_type = response.headers.get("Content-Type", "").lower()
+    is_wav = "wav" in content_type or urlsplit(url).path.lower().endswith(".wav")
+    return response.content, "wav" if is_wav else "mp3"
+
+
+#: How each carrier's recording is brought into our own storage.
+_RECORDING_COPIERS = {
+    "twilio": _copy_twilio_recording,
+    "telnyx": copy_telnyx_recording,
+}
 
 
 @shared_task(name="telephony.record_opt_out", queue="events", acks_late=True,

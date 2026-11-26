@@ -68,6 +68,13 @@ holidays that block it, are the called person's. US numbers are also held to
 08:00-21:00 local time. US toll-free numbers have no location and use Central
 time. Jobs created before this keep their old values.
 
+**Spoken text on Telnyx.** English messages are sent with the voice `woman` and
+accent `en-US`, set in `IVR/apps/ivr/renderers.py`.
+
+**Recordings.** Twilio and Telnyx recordings are copied into the platform's own
+storage, which is what the CDR's play button streams. For Telnyx calls whose
+recording was not copied, run `python manage.py copy_telnyx_recordings`.
+
 The administration portal at `/admin` uses the same design; its home page shows
 headline figures and bar charts built from the record counts.
 
