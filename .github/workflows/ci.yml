@@ -89,8 +89,11 @@ jobs:
       # exits 0 when Postgres or Redis is simply absent. In CI they are
       # services, so a SKIP means the wiring broke and the build must fail.
       - name: Verify tiers 1-4
-        # GitHub runs `run:` under `bash -eo pipefail`, so a non-zero exit from
-        # verify.sh fails the step here before the SKIP check is reached.
+        # `shell: bash` is what turns on pipefail; the default shell is plain
+        # `bash -e`, where the pipe into tee reports tee's exit status and a
+        # failing verify.sh passes. With it, a non-zero exit from verify.sh
+        # fails the step here before the SKIP check is reached.
+        shell: bash
         run: |
           ./scripts/verify.sh 4 2>&1 | tee /tmp/verify.out
           if grep -q "SKIP" /tmp/verify.out; then
