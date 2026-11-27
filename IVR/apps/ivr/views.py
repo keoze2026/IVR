@@ -9,13 +9,30 @@ from apps.accounts.permissions import HasCapability, IsOrganizationMember
 from apps.common.mixins import AuditedActionMixin, TenantViewSetMixin
 from apps.common.pagination import SmallPageNumberPagination
 from apps.common.utils import acting_user
-from apps.ivr.models import IVRFlow, IVRFlowVersion
+from apps.ivr.models import IVRFlow, IVRFlowVersion, TransferEndpoint
 from apps.ivr.serializers import (
     FlowValidationSerializer,
     IVRFlowSerializer,
     IVRFlowVersionSerializer,
+    TransferEndpointSerializer,
 )
 from apps.ivr.services import known_variables_for, publish_version, validate_version
+
+
+class TransferEndpointViewSet(TenantViewSetMixin, viewsets.ReadOnlyModelViewSet):
+    """
+    /api/v1/transfer-endpoints/
+
+    The registered numbers a call may be connected to, for choosing one in a job
+    or a flow. Read-only: registering a number is an administrator's job, which
+    is what stops this platform being pointed at premium-rate numbers.
+    """
+
+    queryset = TransferEndpoint.objects.filter(is_active=True).order_by("name")
+    serializer_class = TransferEndpointSerializer
+    permission_classes = [IsOrganizationMember, HasCapability]
+    pagination_class = SmallPageNumberPagination
+    required_capabilities = {"default": "flow.view"}
 
 
 class IVRFlowViewSet(TenantViewSetMixin, AuditedActionMixin, viewsets.ModelViewSet):

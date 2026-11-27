@@ -86,7 +86,7 @@ export function CallDetailPage() {
         </Panel>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="stat-grid grid gap-4 sm:grid-cols-3">
         <Stat label="Talk time" value={formatDuration(call.duration_seconds)} />
         <Stat label="Ring time" value={formatDuration(call.ring_seconds)} />
         <Stat

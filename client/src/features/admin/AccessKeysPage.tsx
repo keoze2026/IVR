@@ -181,7 +181,7 @@ export function AccessKeysPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="stat-grid grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat label="Active" value={show(live.length)} tone="live" />
         {/* A key issued days ago and never used usually means it never arrived. */}
         <Stat label="Never used" value={show(live.filter((k) => !k.last_used_at).length)} />

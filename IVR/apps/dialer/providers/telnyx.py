@@ -96,7 +96,8 @@ class TelnyxAdapter(ProviderAdapter):
                  url: str | None = None) -> None:
         if not twiml and not url:
             raise ValueError("redirect requires twiml or url")
-        data = {"Twiml": twiml} if twiml else {"Url": url, "Method": "POST"}
+        # Telnyx names inline instructions "Texml"; it has no "Twiml" field.
+        data = {"Texml": twiml} if twiml else {"Url": url, "Method": "POST"}
         self._post(f"{self._texml_base}/Calls/{sid}", data, tolerate_404=True)
 
     def fetch_call(self, sid: str) -> dict:

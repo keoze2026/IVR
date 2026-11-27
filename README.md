@@ -48,12 +48,23 @@ A Vite SPA plus a thin Hono BFF. The BFF holds the credential server-side and
 gives the browser a session cookie, so no credential ever reaches the client
 and CORS never enters the picture.
 
-**Design.** Light and flat: an off-white canvas, white cards with thin borders and
-one green for actions and the current screen, with no gradients. Red and amber
-are kept for failures and warnings. Set in Plus Jakarta Sans. Colours, radius,
-surfaces and table style are defined once in `client/src/index.css`; shared
-components are in
-`client/src/components/ui/` and icons in `client/src/components/icons.tsx`.
+**Design.** Light and flat: a pale blue canvas, white rounded cards with thin
+borders and one blue for actions and the current screen, with no gradients.
+Green, amber and red say how a call or job went. Set in Roboto. Colours, radius,
+surfaces, menu rows and table style are defined once in `client/src/index.css`;
+shared components are in `client/src/components/ui/`, the page frame (sidebar,
+phone drawer and bottom bar) in `client/src/components/shell/`, and icons in
+`client/src/components/icons.tsx`. On a phone, table rows show as cards.
+
+**Installable apps.** The portal installs on a phone or computer as two apps:
+"Outbound" (the operator portal) and "Admin" (`/admin`). Use **Install app** on a
+sign-in screen or in the menu; on iPhone, Safari's Share then "Add to Home
+Screen". Manifests, icons and the offline page are in `client/public/assets/pwa/`;
+the service worker is served by `client/server/pwa.ts` at `/bff/sw.js`. It only
+shows an offline page: no screens or call data are stored on the device, so an
+internet connection is needed. Installing needs HTTPS (or localhost). A browser
+may stop offering the Admin install once the Outbound app is installed on the same
+device, so install Admin first where both are wanted. Sign-ins last 12 idle hours.
 
 **Screens.** The sidebar has three groups: Operations (Campaigns, Flows,
 Contact Lists), Analytics (Dashboard, Calls, Jobs, CDR) and Infrastructure (My
@@ -65,7 +76,19 @@ default is 25 in no set order; Jobs lists the newest first.
 **Create Job options.** "Tries per number" (1-5) redials busy and unanswered
 numbers after the chosen gap. A job that includes a US number says who is
 calling and offers "press 9" to stop; set `QUICK_DIAL_US_OPT_OUT=false` to turn
-that off. One job holds up to about 14,000 numbers.
+that off. One job holds up to about 14,000 numbers. "Spoken voice" picks a female
+(default) or male voice for typed messages. "If a machine answers" hangs up
+(default) or leaves the message; this has not been verified on a real call.
+
+**Connecting to a person.** An administrator registers the numbers under System
+administration, Scripts, Transfer numbers. They can then be chosen for a key in
+Create Job, or as "Transfer To" on a transfer step in the flow builder. The agent
+sees the job's caller ID unless the number sets its own. Calls can only be
+connected to registered numbers. Not yet verified on a real call.
+
+**Calls Trend.** The dashboard charts calls per day for the last 7, 30 or 90 days
+on the viewer's clock, from `GET /api/v1/calls/trend/?days=7&tz=...`, counted over
+every call. The other dashboard figures still use the latest page of calls.
 
 **Starting a job** from the Jobs screen shows any launch warnings first.
 
@@ -104,7 +127,8 @@ storage, which is what the CDR's play button streams. For Telnyx calls whose
 recording was not copied, run `python manage.py copy_telnyx_recordings`.
 
 The administration portal at `/admin` uses the same design; its home page shows
-headline figures and bar charts built from the record counts.
+headline figures and bar charts built from the record counts. On a phone it has a
+bottom bar with Home, People, Campaigns and More.
 
 To look at the UI without a backend, run `npm run demo` in `client/`.
 `client/mock/upstream.mjs` is a fixture server with fake data.

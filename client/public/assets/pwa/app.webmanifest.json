@@ -1,0 +1,30 @@
+{
+  "id": "/",
+  "name": "Outbound IVR — Operator Portal",
+  "short_name": "Outbound",
+  "start_url": "/campaigns",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#eef4fc",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/assets/pwa/app-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/pwa/app-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/pwa/app-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

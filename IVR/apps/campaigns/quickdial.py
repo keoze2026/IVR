@@ -30,13 +30,13 @@ from apps.common.utils import phone_hash
 from apps.contacts.ingest import RowError, normalise_phone
 from apps.contacts.models import Contact, ContactList
 from apps.dialer.routing import is_toll_free
-from apps.ivr.models import AudioAsset, IVRFlow, IVRFlowVersion
+from apps.ivr.models import AudioAsset, IVRFlow, IVRFlowVersion, TransferEndpoint
 
 #: What a pressed key can do in a quick-dial job. Kept small on purpose: a
-#: single-number job is a broadcast, and the useful presses are "yes, connect
-#: me / count me in" and "stop calling me". Transfer needs a configured
-#: endpoint, so it is offered only when one is named on the step.
-_DTMF_ACTIONS = {"confirm", "opt_out", "repeat", "hangup"}
+#: single-number job is a broadcast, and the useful presses are "yes, count me
+#: in", "connect me" and "stop calling me". A transfer only goes to a number an
+#: administrator has registered, named on the step.
+_DTMF_ACTIONS = {"confirm", "opt_out", "repeat", "hangup", "transfer"}
 
 #: US toll-free numbers belong to no place, so the number alone gives no clock.
 #: The metadata lists every North American zone, the first being in the Aleutian
@@ -102,6 +102,35 @@ def _with_us_opt_out(defn: dict, caller_name: str) -> dict:
     return defn
 
 
+def _with_machine_message(defn: dict, prompt: dict, caller_name: str) -> dict:
+    """
+    The message left when an answering machine picks up.
+
+    These nodes are not reached from the entry: the call is moved to them when
+    the carrier reports a machine (see apps/telephony/amd.py).
+    """
+    nodes = defn["nodes"]
+    nodes["voicemail"] = {"type": "voicemail", "prompt": dict(prompt)}
+    if caller_name:
+        nodes["voicemail_intro"] = {
+            "type": "play",
+            "prompt": {"kind": "say", "text": f"This is a call from {caller_name}."},
+            "next": "voicemail",
+        }
+    return defn
+
+
+def _with_voice(defn: dict, voice: str) -> dict:
+    """Read every spoken line in the chosen voice. The default is left unnamed."""
+    if voice != "man":
+        return defn
+    for node in defn["nodes"].values():
+        for slot in ("prompt", "ring_prompt"):
+            if (node.get(slot) or {}).get("kind") == "say":
+                node[slot] = {**node[slot], "voice": voice}
+    return defn
+
+
 def _build_definition(prompt: dict, dtmf_steps: list, record: bool = False,
                       opt_out_name: str = "") -> dict:
     """
@@ -158,6 +187,24 @@ def _build_definition(prompt: dict, dtmf_steps: list, record: bool = False,
         action = str(step.get("action", "confirm")).strip()
         if action not in _DTMF_ACTIONS:
             action = "confirm"
+        if action == "transfer":
+            # Node ids cannot hold "*" or "#".
+            node_id = "transfer_" + {"*": "star", "#": "hash"}.get(digit, digit)
+            nodes[node_id] = {
+                "type": "transfer",
+                "endpoint": str(step["endpoint"]),
+                "ring_prompt": {"kind": "say",
+                                "text": "Please hold while we connect you."},
+                "on_fail": "unavailable",
+            }
+            nodes["unavailable"] = {
+                "type": "play",
+                "prompt": {"kind": "say",
+                           "text": "Sorry, nobody is available. Goodbye."},
+                "next": "done",
+            }
+            options[digit] = node_id
+            continue
         options[digit] = {
             "confirm": "confirm",
             "opt_out": "optout",
@@ -234,6 +281,13 @@ class QuickDialSerializer(serializers.Serializer):
         min_value=1, max_value=1440, default=15
     )
 
+    # The voice that reads typed messages.
+    voice = serializers.ChoiceField(choices=["woman", "man"], default="woman")
+    # What happens when an answering machine picks up.
+    machine_action = serializers.ChoiceField(
+        choices=["hangup", "message"], default="hangup"
+    )
+
     start_now = serializers.BooleanField(default=False)
 
 
@@ -287,6 +341,20 @@ class QuickDialView(APIView):
             return _bad("Enter at least one number to dial.")
         e164 = numbers[0]  # first number: used for naming and the list label
 
+        # A transfer goes only to an active number registered for this
+        # organisation, never to one typed into the request.
+        for step in data.get("dtmf_steps") or []:
+            if str(step.get("action", "")).strip() != "transfer":
+                continue
+            try:
+                endpoint = uuid.UUID(str(step.get("endpoint", "")))
+            except ValueError:
+                return _bad("Choose a transfer number for the key that connects.")
+            if not TransferEndpoint.objects.filter(
+                pk=endpoint, organization=org, is_active=True
+            ).exists():
+                return _bad("That transfer number is not available.")
+
         # Caller ID: a single number, or one drawn from a pool.
         caller = self._resolve_caller(org, data)
         if caller is None:
@@ -325,11 +393,17 @@ class QuickDialView(APIView):
             # Record by default, with the spoken disclosure the flow now carries.
             record = True
             american = any(cc == "1" for cc, _tz in places.values())
+            spoken_name = (org.name if american and settings.QUICK_DIAL_US_OPT_OUT
+                           else "")
             definition = _build_definition(
                 prompt, data.get("dtmf_steps") or [], record=record,
-                opt_out_name=(org.name if american and settings.QUICK_DIAL_US_OPT_OUT
-                              else ""),
+                opt_out_name=spoken_name,
             )
+            voicemail_node = ""
+            if data["machine_action"] == "message":
+                definition = _with_machine_message(definition, prompt, spoken_name)
+                voicemail_node = "voicemail_intro" if spoken_name else "voicemail"
+            definition = _with_voice(definition, data["voice"])
             version = IVRFlowVersion.objects.create(
                 organization=org, flow=flow, version=1, definition=definition,
                 entry_node=definition["entry"], is_published=True,
@@ -373,6 +447,8 @@ class QuickDialView(APIView):
                 # CDR's recording control has audio to play.
                 record_calls=record,
                 recording_disclosure_node="disclosure" if record else "",
+                # Blank means hang up on a machine.
+                voicemail_node=voicemail_node,
                 dial_mode=data["dial_mode"],
                 max_concurrent_channels=data["max_concurrent_channels"],
                 dial_batch_size=data["dial_batch_size"],

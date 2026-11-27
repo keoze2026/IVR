@@ -318,6 +318,25 @@ export function useCalls(
   });
 }
 
+export interface DayCount {
+  /** YYYY-MM-DD on the viewer's clock. */
+  date: string;
+  total: number;
+  answered: number;
+  failed: number;
+}
+
+/** Calls per day over the last `days` days. */
+export function useCallTrend(days: number) {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return useQuery<{ timezone: string; days: DayCount[] }, ApiError>({
+    queryKey: ["calls", "trend", days, tz],
+    queryFn: () => request(`calls/trend/${query({ days, tz })}`),
+    // A whole-history count; it need not be as fresh as the lists.
+    refetchInterval: 30_000,
+  });
+}
+
 export function useCall(id: string | undefined) {
   return useQuery<CallDetail, ApiError>({
     queryKey: keys.call(id ?? ""),
@@ -508,12 +527,7 @@ export function useUpdateCallerId() {
 
 // --- unrouted upstream ------------------------------------------------
 
-/**
- * Transfer endpoints and audio assets have serializers but no viewset
- * (G-03), so these 404 today. They are written against the shape the
- * serializers already define, so wiring the routes is all that is needed.
- * The builder degrades to a plain id field until then.
- */
+/** The registered numbers a call can be connected to. */
 export function useTransferEndpoints() {
   return useQuery<PagedResponse<TransferEndpoint>, ApiError>({
     queryKey: ["transfer-endpoints"],
@@ -717,7 +731,10 @@ export interface QuickDialBody {
   retry_delay_minutes?: number;
   cps_limit: number;
   // Keys the caller can press, and what each does.
-  dtmf_steps?: { order: number; digit: string; action: string }[];
+  dtmf_steps?: { order: number; digit: string; action?: string; endpoint?: string }[];
+  // The voice reading typed messages, and what an answering machine gets.
+  voice?: "woman" | "man";
+  machine_action?: "hangup" | "message";
   // When the job may run.
   schedule_start?: string;
   window_start?: string;

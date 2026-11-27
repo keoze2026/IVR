@@ -12,6 +12,7 @@
 import { useState, type FormEvent } from "react";
 
 import { ClockIcon, PhoneOutIcon, ShieldIcon, SoundIcon } from "@/components/icons";
+import { InstallLink } from "@/components/shell/InstallLink";
 import { Button, Field, Input } from "@/components/ui";
 import { ApiError } from "@/lib/errors";
 import { useSession } from "@/lib/session";
@@ -57,10 +58,10 @@ export function LoginPage() {
 
   return (
     <main className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
-      <section className="surface-forest relative hidden flex-col justify-between overflow-hidden p-12 lg:flex">
+      <section className="surface-brand relative hidden flex-col justify-between overflow-hidden p-12 lg:flex">
 
         <div className="relative flex items-center gap-3">
-          <span className="flex size-12 items-center justify-center rounded-lg btn-solid">
+          <span className="flex size-12 items-center justify-center rounded-xl bg-panel text-signal">
             <SoundIcon className="size-6" />
           </span>
           <span className="display text-2xl">Outbound</span>
@@ -70,9 +71,9 @@ export function LoginPage() {
           <h1 className="display text-4xl leading-[1.1]">
             Every call on this system
             <br />
-            can be <span className="text-mint">reconstructed</span>.
+            can be reconstructed.
           </h1>
-          <p className="mt-5 text-lg font-medium text-white/75">
+          <p className="mt-5 text-lg font-medium text-white/90">
             Which consent record authorised it, which flow version ran, which
             node the caller reached, what they pressed, and what it cost.
           </p>
@@ -96,19 +97,19 @@ export function LoginPage() {
             ].map(([Icon, term, detail]) => {
               const Glyph = Icon as typeof PhoneOutIcon;
               return (
-                <div key={term as string} className="rounded-xl bg-white/[0.08] p-4">
-                  <span className="flex size-10 items-center justify-center rounded-full bg-white/10 text-mint">
+                <div key={term as string} className="rounded-xl border border-white/25 p-4">
+                  <span className="flex size-10 items-center justify-center rounded-full bg-panel text-signal">
                     <Glyph />
                   </span>
                   <dt className="mt-3 text-sm font-bold">{term as string}</dt>
-                  <dd className="mt-1 text-xs leading-snug text-white/70">{detail as string}</dd>
+                  <dd className="mt-1 text-xs leading-snug text-white/90">{detail as string}</dd>
                 </div>
               );
             })}
           </dl>
         </div>
 
-        <p className="relative max-w-xl text-sm font-semibold text-white/60">
+        <p className="relative max-w-xl text-sm font-semibold text-white/85">
           Automated outbound calling is regulated. Controls enforced here do not
           substitute for legal review of your consent model.
         </p>
@@ -120,7 +121,7 @@ export function LoginPage() {
           className="w-full max-w-md rounded-[var(--radius-shell)] border border-edge/70 bg-panel p-8 shadow-[var(--shadow-card)] sm:p-10"
           noValidate
         >
-          <span className="mb-6 flex size-14 items-center justify-center rounded-lg bg-live text-live-bright lg:hidden">
+          <span className="btn-solid mb-6 flex size-14 items-center justify-center rounded-xl lg:hidden">
             <SoundIcon className="size-7" />
           </span>
           <h2 className="display text-3xl text-chalk">Sign in</h2>
@@ -174,6 +175,7 @@ export function LoginPage() {
                 System administrator sign-in
               </a>
             </p>
+            <InstallLink />
           </div>
         </form>
       </section>

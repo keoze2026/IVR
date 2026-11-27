@@ -63,7 +63,7 @@ export function CallerIdsPage() {
       <AddNumberForm />
 
       {rows.length > 0 && (
-        <div className="stagger grid gap-4 sm:grid-cols-3">
+        <div className="stat-grid stagger grid gap-4 sm:grid-cols-3">
           <Stat label="Numbers" value={String(rows.length)} denominator="on the account" />
           <Stat
             label="Signing below A"

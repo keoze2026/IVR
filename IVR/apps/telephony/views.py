@@ -1,9 +1,14 @@
 """Call log endpoints (spec 11.2)."""
 
 import csv
+import datetime as dt
 import io
+import zoneinfo
 
+from django.db.models import Count, Q
+from django.db.models.functions import TruncDate
 from django.http import StreamingHttpResponse
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -19,6 +24,36 @@ from apps.telephony.serializers import CallLogListSerializer, CallLogSerializer
 
 #: Most rows one download holds.
 EXPORT_LIMIT = 50_000
+#: Longest stretch the daily figures cover.
+TREND_MAX_DAYS = 90
+
+
+def _daily_counts(calls, days: int, zone: zoneinfo.ZoneInfo) -> list[dict]:
+    """Calls per day for the last `days` days on that clock, quiet days included."""
+    today = timezone.now().astimezone(zone).date()
+    first = today - dt.timedelta(days=days - 1)
+    rows = (
+        calls.filter(created_at__gte=dt.datetime.combine(first, dt.time.min, zone))
+        .order_by()
+        .annotate(day=TruncDate("created_at", tzinfo=zone))
+        .values("day")
+        .annotate(
+            total=Count("id"),
+            # The same rule the portal's screens use for "answered".
+            answered=Count("id", filter=Q(status__in=["in_progress", "completed"])
+                           | Q(answered_by__gt="")),
+            failed=Count("id", filter=Q(status="failed")),
+        )
+    )
+    found = {row["day"]: row for row in rows}
+    quiet = {"total": 0, "answered": 0, "failed": 0}
+    out = []
+    for offset in range(days):
+        day = first + dt.timedelta(days=offset)
+        row = found.get(day, quiet)
+        out.append({"date": day.isoformat(),
+                    **{key: row[key] for key in quiet}})
+    return out
 
 
 def _safe_cell(value) -> str:
@@ -84,6 +119,7 @@ class CallLogViewSet(TenantViewSetMixin, AuditedActionMixin,
         "recording": "recordings.listen",
         "recording_stream": "recordings.listen",
         "export": "contacts.export",
+        "trend": "campaign.view",
         "default": "campaign.view",
     }
 
@@ -97,6 +133,27 @@ class CallLogViewSet(TenantViewSetMixin, AuditedActionMixin,
         if self.action == "retrieve":
             return qs.prefetch_related("dtmf")
         return qs
+
+    @action(detail=False, methods=["get"])
+    def trend(self, request):
+        """
+        Calls per day: `?days=7&tz=Africa/Nairobi`.
+
+        Takes the same filters as the list. Days are counted on the clock named,
+        so "today" means the viewer's today.
+        """
+        try:
+            days = int(request.query_params.get("days", 7))
+        except ValueError:
+            days = 7
+        days = min(max(days, 1), TREND_MAX_DAYS)
+        try:
+            zone = zoneinfo.ZoneInfo(request.query_params.get("tz") or "UTC")
+        except (zoneinfo.ZoneInfoNotFoundError, ValueError, OSError):
+            zone = zoneinfo.ZoneInfo("UTC")
+        calls = self.filter_queryset(self.get_queryset())
+        return Response({"timezone": zone.key,
+                         "days": _daily_counts(calls, days, zone)})
 
     @action(detail=False, methods=["get"])
     def export(self, request):

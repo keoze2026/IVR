@@ -269,7 +269,7 @@ export function Badge({
   title?: string;
 }) {
   const tones = {
-    good: "bg-live text-live-bright",
+    good: "bg-good-soft text-good",
     warn: "bg-warn-soft text-amber",
     bad: "bg-bad-soft text-rust",
     info: "bg-info-soft text-info",
@@ -310,7 +310,6 @@ export function Stat({
   label,
   value,
   denominator,
-  accent = false,
   tone,
   to,
   icon,
@@ -326,24 +325,24 @@ export function Stat({
   to?: string;
 }) {
   const Icon = icon ?? iconFor(label);
-  const badge = accent
-    ? "btn-solid"
-    : tone === "amber"
-      ? "bg-warn-soft text-amber"
+  // A solid circle: blue unless the figure says how something went.
+  const badge =
+    tone === "amber"
+      ? "bg-chart-missed text-white"
       : tone === "rust"
-        ? "bg-bad-soft text-rust"
+        ? "bg-rust text-white"
         : tone === "live"
-          ? "bg-live text-live-bright"
-          : "bg-live text-live-bright";
+          ? "bg-good text-white"
+          : "btn-solid";
 
   const body = (
     <>
-      <span className={cx("flex size-12 shrink-0 items-center justify-center rounded-lg", badge)}>
-        <Icon className="size-[22px]" />
+      <span className={cx("flex size-10 shrink-0 items-center justify-center rounded-full sm:size-12", badge)}>
+        <Icon className="size-5 sm:size-[22px]" />
       </span>
       <span className="min-w-0">
-        <span className="block text-[13px] font-semibold text-ash-dim">{label}</span>
-        <span className="num display mt-0.5 block text-[28px] leading-none text-chalk">{value}</span>
+        <span className="block text-[13px] font-medium leading-tight text-ash-dim">{label}</span>
+        <span className="num display mt-1 block break-words text-2xl leading-none text-chalk sm:text-[28px]">{value}</span>
         {denominator && (
           <span className="mt-1.5 block text-xs font-medium text-ash-dim">{denominator}</span>
         )}
@@ -352,7 +351,7 @@ export function Stat({
   );
 
   const shell = cx(
-    "flex items-center gap-4 rounded-[var(--radius-card)] border border-edge bg-panel px-5 py-5 shadow-[var(--shadow-card)]",
+    "flex min-w-0 items-center gap-3 rounded-[var(--radius-card)] border border-edge bg-panel px-3.5 py-4 shadow-[var(--shadow-card)] sm:gap-4 sm:px-5 sm:py-5",
     to && "transition-transform hover:-translate-y-0.5 hover:border-signal/40",
   );
 
@@ -421,7 +420,7 @@ export function Gauge({
         <path
           d="M 18 70 A 52 52 0 0 1 122 70"
           fill="none"
-          stroke="var(--color-live-bright)"
+          stroke="var(--color-signal)"
           strokeWidth="15"
           strokeLinecap="round"
           strokeDasharray={`${clamped * LENGTH} ${LENGTH}`}
@@ -527,7 +526,7 @@ export function Field({
 
 const CONTROL =
   "w-full min-h-11 rounded-lg border bg-panel px-3.5 py-2.5 text-sm font-medium text-chalk " +
-  "placeholder:text-ash-dim/70 transition-colors focus:border-signal focus:shadow-[0_0_0_3px_rgb(6_122_80/0.14)]";
+  "placeholder:text-ash-dim/70 transition-colors focus:border-signal focus:shadow-[0_0_0_3px_rgb(21_93_252/0.16)]";
 
 export function Input({
   invalid,
@@ -580,7 +579,7 @@ export function Select({
  * Status of a job or a call, as a soft coloured label with its name spelled out.
  * `throttled` looks like a warning because no calls go out while it lasts.
  */
-const GOOD = "bg-live text-live-bright";
+const GOOD = "bg-good-soft text-good";
 const WARN = "bg-warn-soft text-amber";
 const BAD = "bg-bad-soft text-rust";
 const QUIET = "bg-raised text-ash";

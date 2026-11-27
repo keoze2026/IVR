@@ -91,7 +91,7 @@ export const FlowValidationDrawer: FC<FlowValidationDrawerProps> = ({
           )}
 
           {totalCount === 0 && report?.ok && (
-            <p className="p-4 text-center text-sm text-live-bright">
+            <p className="p-4 text-center text-sm text-good">
               All transitions and node configurations are valid. No publish blockers found.
             </p>
           )}

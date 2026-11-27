@@ -94,7 +94,7 @@ export function ActiveJobsPage() {
                     <td>{j.user || "—"}</td>
                     <td className="num">{j.target_number || "—"}</td>
                     <td>
-                      <span className="num inline-flex items-center gap-1.5 font-bold text-live-bright">
+                      <span className="num inline-flex items-center gap-1.5 font-bold text-good">
                         <span className="size-1.5 rounded-full bg-current" aria-hidden />
                         {liveCalls(j)} / {j.max_concurrent_channels}
                       </span>

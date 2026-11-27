@@ -22,6 +22,7 @@ import { AppShell } from "@/components/AppShell";
 import { PulseLoader } from "@/components/styled/PulseLoader";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { ApiError } from "@/lib/errors";
+import { useAppIdentity } from "@/lib/pwa";
 import { SessionProvider, useSession } from "@/lib/session";
 
 import { AccessKeysPage } from "@/features/admin/AccessKeysPage";
@@ -116,10 +117,17 @@ function GlobalCalls() {
   );
 }
 
+/** Keeps the app name, icon and install details right for the area shown. */
+function AppIdentity() {
+  useAppIdentity(useLocation().pathname);
+  return null;
+}
+
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <AppIdentity />
         <SessionProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />

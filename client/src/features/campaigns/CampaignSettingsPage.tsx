@@ -305,7 +305,7 @@ export function CampaignSettingsPage() {
           </Button>
           <span role="status" className="text-sm">
             {update.isSuccess && !update.isPending && (
-              <span className="text-live-bright">Saved</span>
+              <span className="text-good">Saved</span>
             )}
             {update.error && !showSummary && (
               <span className="text-rust">Check the highlighted fields.</span>

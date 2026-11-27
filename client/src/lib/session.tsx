@@ -101,9 +101,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       },
 
       signOut: async () => {
+        // An administrator goes back to their own sign-in, which also keeps the
+        // installed administration app inside its own screens.
+        const to = me?.session_kind === "admin" ? "/admin/login" : "/login";
         await postLogout();
         queryClient.clear();
-        window.location.assign("/login");
+        window.location.assign(to);
       },
     };
   }, [data, isLoading, queryClient]);

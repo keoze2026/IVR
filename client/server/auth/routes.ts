@@ -9,6 +9,7 @@
 
 import { Hono } from "hono";
 
+import { pwaRoutes } from "../pwa.js";
 import { getWebSocketToken } from "./provider.js";
 
 import { createSession, destroySession, readSession } from "./session.js";
@@ -31,6 +32,9 @@ function callerAddress(env: unknown): string {
 }
 
 export const authRoutes = new Hono();
+
+// The service worker lives under /bff with the other server routes.
+authRoutes.route("/", pwaRoutes);
 
 authRoutes.post("/login", async (c) => {
   const body = await c.req.json<{ apiKey?: string }>().catch(() => ({}) as never);

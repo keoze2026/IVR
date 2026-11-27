@@ -1,48 +1,48 @@
 @import "tailwindcss";
 
-/* Plus Jakarta Sans for the interface, Roboto Mono for codes. Self-hosted, so
-   the portal never depends on a font CDN. */
-@import "@fontsource-variable/plus-jakarta-sans";
+/* Roboto for the interface, Roboto Mono for codes. Self-hosted, so the portal
+   never depends on a font CDN. */
+@import "@fontsource-variable/roboto";
 @import "@fontsource/roboto-mono/400.css";
 @import "@fontsource/roboto-mono/500.css";
 
 /*
  * Outbound IVR — operator portal.
  *
- * Light and flat: an off-white canvas, white cards with thin borders, and one
- * green for actions and the current screen. Red and amber are reserved for
- * failures and warnings. Token names are shared by every screen, so the look is
- * changed here and in components/ui.
+ * Light and flat: a pale blue canvas, white rounded cards with thin borders,
+ * and one blue for actions and the current screen. Green, amber and red say
+ * only how a call or job went. Token names are shared by every screen, so the
+ * look is changed here and in components/ui.
  */
 
 @theme {
-  --color-void: #f7f9f8;
+  --color-void: #f5f8fd;
   --color-panel: #ffffff;
-  --color-raised: #eef2f0;
-  --color-edge: #e3e9e6;
-  --color-edge-bright: #ccd6d1;
+  --color-raised: #ecf2fb;
+  --color-edge: #dce6f5;
+  --color-edge-bright: #c2d2ea;
 
-  --color-signal: #067a50;
-  --color-signal-dim: #056341;
-  --color-live: #e5f3ed;
-  --color-live-bright: #067a50;
+  --color-signal: #155dfc;
+  --color-signal-dim: #0f4cd3;
+  /* The soft blue behind icons, chips and the selected row. */
+  --color-live: #e9f0ff;
+  --color-live-bright: #1249c9;
 
-  /* The one dark surface: the brand panel on the sign-in screen. */
-  --color-forest: #0b3b2c;
-  --color-mint: #8fe0bd;
   --color-ink: #ffffff;
-  --color-scrim: #0f1a16;
+  --color-scrim: #0f172a;
 
-  --color-chalk: #14211c;
-  --color-ash: #4a5953;
-  --color-ash-dim: #63726c;
+  --color-chalk: #0f172a;
+  --color-ash: #44546c;
+  --color-ash-dim: #5b6b83;
 
+  --color-good: #047857;
   --color-amber: #8a5605;
-  --color-rust: #b83a33;
-  --color-info: #1d5fa8;
+  --color-rust: #c4222f;
+  --color-info: #1249c9;
+  --color-good-soft: #e2f5ec;
   --color-warn-soft: #fcf2de;
-  --color-bad-soft: #fcecea;
-  --color-info-soft: #e8f1fb;
+  --color-bad-soft: #fdecee;
+  --color-info-soft: #e9f0ff;
 
   /* Chart fills. Validated together on white for colour-blind separation;
      always paired with a text label. */
@@ -50,17 +50,19 @@
   --color-chart-missed: #c8860d;
   --color-chart-failed: #c64b43;
 
-  --font-display: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-sans: "Plus Jakarta Sans Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Roboto Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Roboto Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Roboto Mono", ui-monospace, "SF Mono", monospace;
 
-  --color-backdrop: #f4f6f5;
+  --color-backdrop: #eef4fc;
 
-  --radius-shell: 14px;
-  --radius-card: 12px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+  --radius-shell: 20px;
+  --radius-card: 18px;
 
-  --shadow-card: 0 1px 2px rgb(16 40 30 / 0.05);
-  --shadow-raised: 0 8px 20px -10px rgb(16 40 30 / 0.22);
+  --shadow-card: 0 1px 2px rgb(15 40 90 / 0.04);
+  --shadow-raised: 0 16px 40px -16px rgb(15 40 90 / 0.35);
 }
 
 @layer base {
@@ -173,9 +175,9 @@
   }
 
   /* The sign-in screen's brand panel. */
-  .surface-forest {
+  .surface-brand {
     color: #fff;
-    background: var(--color-forest);
+    background: var(--color-signal);
   }
 
   /* Primary actions, selected tabs and brand marks. */
@@ -187,10 +189,151 @@
     background: var(--color-signal-dim);
   }
 
-  /* The current screen in a sidebar. */
-  .nav-active {
-    color: #fff;
+  /* The current screen in the bottom bar. */
+  .tab-active {
+    color: var(--color-signal);
+  }
+  .tab-active::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 env(safe-area-inset-bottom) 0;
+    height: 3px;
     background: var(--color-signal);
+  }
+
+  /* A row in a menu: an icon tile, a rule, the name and a chevron. */
+  .menu-item {
+    display: flex;
+    min-height: 3rem;
+    align-items: center;
+    gap: 0.75rem;
+    border: 1px solid var(--color-edge);
+    border-radius: var(--radius-xl);
+    background: var(--color-panel);
+    padding: 0 0.75rem 0 0.375rem;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-chalk);
+  }
+  .menu-item:hover {
+    border-color: var(--color-edge-bright);
+    background: var(--color-void);
+  }
+  .menu-tile {
+    display: flex;
+    width: 2.25rem;
+    height: 2.25rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-edge);
+    border-radius: 10px;
+    background: var(--color-void);
+    color: var(--color-ash);
+  }
+  .menu-label {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border-left: 1px solid var(--color-edge);
+    padding-left: 0.75rem;
+  }
+  /* A sidebar holds the whole menu on one screen, so its rows are tighter and
+     only the current one is boxed. */
+  @media (min-width: 64rem) {
+    .menu-item {
+      min-height: 2.5rem;
+      border-color: transparent;
+    }
+    .menu-tile {
+      width: 2rem;
+      height: 2rem;
+    }
+  }
+  /* The current screen in a menu. */
+  .menu-item.nav-active {
+    border-color: var(--color-edge-bright);
+    background: var(--color-live);
+    color: var(--color-live-bright);
+  }
+  .menu-item.nav-active .menu-tile {
+    border-color: transparent;
+    background: var(--color-signal);
+    color: #fff;
+  }
+}
+
+/*
+ * Tables on a phone: each row becomes a card, each cell a named figure. The
+ * labels are added by components/shell/useCardTables.
+ */
+@layer components {
+  @media (max-width: 39.99rem) {
+    .table[data-cards],
+    .table[data-cards] tbody {
+      display: block;
+      white-space: normal;
+    }
+    .table[data-cards] thead {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+    }
+    .table[data-cards] tbody tr {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 12px;
+      padding: 16px;
+      border-bottom: 1px solid var(--color-edge);
+    }
+    .table[data-cards] tbody tr:last-child {
+      border-bottom: 0;
+    }
+    .table[data-cards] td {
+      display: block;
+      min-width: 0;
+      padding: 0;
+      border: 0;
+      overflow-wrap: anywhere;
+      text-align: left;
+    }
+    /* The first cell names the row and the unlabelled ones hold its buttons. */
+    .table[data-cards] td:first-child,
+    .table[data-cards] td[data-label=""],
+    .table[data-cards] td[colspan] {
+      grid-column: 1 / -1;
+    }
+    .table[data-cards] td:empty,
+    .table[data-cards] td[data-empty] {
+      display: none;
+    }
+    .table[data-cards] td:not(:first-child)[data-label]:not([data-label=""])::before {
+      content: attr(data-label);
+      display: block;
+      margin-bottom: 2px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-ash-dim);
+    }
+  }
+}
+
+/* Headline figures sit two to a row on a phone; an odd last one takes the row. */
+@layer utilities {
+  @media (max-width: 39.99rem) {
+    .stat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
+    }
+    .stat-grid > :last-child:nth-child(odd) {
+      grid-column: 1 / -1;
+    }
   }
 }
 
@@ -271,6 +414,19 @@
     100% {
       color: inherit;
     }
+  }
+
+  @keyframes slide-in {
+    from {
+      transform: translate3d(100%, 0, 0);
+    }
+    to {
+      transform: translate3d(0, 0, 0);
+    }
+  }
+
+  .slide-in {
+    animation: slide-in 220ms cubic-bezier(0.22, 0.8, 0.3, 1) both;
   }
 
   .rise {

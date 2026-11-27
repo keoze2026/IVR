@@ -172,8 +172,10 @@ def prompt_verbs(prompt: dict, flow: dict, node_id: str, context: dict,
 
 
 def _say(prompt: dict, context: dict, locale: str) -> Verb:
-    return Verb("Say", {"language": locale},
-                render_text(prompt.get("text", ""), context))
+    attrs = {"language": locale}
+    if prompt.get("voice") in ("man", "woman"):
+        attrs["voice"] = prompt["voice"]
+    return Verb("Say", attrs, render_text(prompt.get("text", ""), context))
 
 
 def _asset_url(asset_id) -> str:
@@ -322,8 +324,11 @@ def _plan_transfer(plan, flow, node_id, node, state, context, action_url_for,
     )
     dial.attrs = {k: v for k, v in dial.attrs.items() if v is not None}
 
-    if endpoint.caller_id_override:
-        dial.attrs["callerId"] = endpoint.caller_id_override
+    # The agent sees the number the job calls from unless the endpoint names
+    # another.
+    caller_id = endpoint.caller_id_override or context.get("caller_id")
+    if caller_id:
+        dial.attrs["callerId"] = caller_id
 
     child_attrs = {}
     if node.get("whisper"):

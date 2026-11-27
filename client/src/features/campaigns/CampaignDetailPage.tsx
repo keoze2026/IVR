@@ -111,7 +111,7 @@ export function CampaignOverview({ campaign }: { campaign: Campaign }) {
   return (
     <div className="space-y-4">
       {stats && (
-        <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2 lg:grid-cols-4">
+        <div className="stat-grid grid grid-cols-1 gap-4 min-[400px]:grid-cols-2 lg:grid-cols-4">
           <Stat label="Contacts" value={formatCount(stats.total_contacts)} />
           <Stat label="Dialed" value={formatCount(stats.dialed)} />
           <Stat label="Answered" value={formatCount(stats.answered)} />

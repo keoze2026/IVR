@@ -9,6 +9,7 @@
 import { useState } from "react";
 
 import { SettingsIcon } from "@/components/icons";
+import { InstallLink } from "@/components/shell/InstallLink";
 import { Button, Field, Input } from "@/components/ui";
 
 export function AdminLoginPage() {
@@ -102,6 +103,7 @@ export function AdminLoginPage() {
             >
               {busy ? "Signing in…" : "Sign in"}
             </Button>
+            <InstallLink />
           </div>
         </form>
       </section>

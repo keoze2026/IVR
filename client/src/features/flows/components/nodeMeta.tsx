@@ -40,14 +40,14 @@ export function NodeIcon({ type, className = "size-4" }: { type: string; classNa
 
 /** Wire and port colours, dark enough to read on the light canvas. */
 export const KIND_COLORS: Record<EdgeKind, string> = {
-  next: "#067a50",
+  next: "#155dfc",
   dtmf: "#1d5fa8",
   optout: "#96590a",
   timeout: "#b4530a",
   invalid: "#b83a33",
   fail: "#b83a33",
   condition: "#7c4dbb",
-  default: "#067a50",
+  default: "#155dfc",
 };
 
 export const DANGLING_COLOR = "#b83a33";

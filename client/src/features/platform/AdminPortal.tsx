@@ -15,7 +15,7 @@
  *     using it daily and should not have to remember what an icon means.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link, Navigate, useNavigate, useParams, useLocation } from "react-router-dom";
 
 import {
@@ -26,6 +26,7 @@ import {
   ClockIcon,
   FlowIcon,
   HashIcon,
+  HomeIcon,
   KeyIcon,
   ListIcon,
   LogOutIcon,
@@ -34,11 +35,11 @@ import {
   SoundIcon,
   UsersIcon,
   WalletIcon,
-  MenuIcon,
   PhoneOutIcon,
   PlusIcon,
   SettingsIcon,
 } from "@/components/icons";
+import { Shell, type MenuEntry } from "@/components/shell/Shell";
 import { PulseLoader } from "@/components/styled/PulseLoader";
 import {
   BackLink,
@@ -154,131 +155,60 @@ function BarChart({ title, rows }: { title: string; rows: { label: string; total
 
 // ---------------------------------------------------------------- shell
 
-/** The same frame as the calling portal: sidebar, top bar, drawer below `lg`. */
+/** The same frame as the calling portal, with the records as its menu. */
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const { data } = usePlatformSchema();
   const { me, signOut } = useSession();
-  const { pathname } = useLocation();
-  const [drawerOpen, setDrawerOpen] = useState(false);
-
-  useEffect(() => setDrawerOpen(false), [pathname]);
-
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setDrawerOpen(false);
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [drawerOpen]);
-
+  const resources = data?.resources ?? [];
   const name = me?.session_username ?? "administrator";
-  const sidebar = (
-    <AdminSidebar resources={data?.resources ?? []} onSignOut={() => void signOut()} />
-  );
+  // The two sections reached most, plus home, along the bottom of a phone.
+  const tabs: MenuEntry[] = [
+    { to: "/admin", label: "Home", icon: HomeIcon, end: true },
+    ...["users", "campaigns"].flatMap((key) =>
+      resources
+        .filter((r) => r.resource === key)
+        .map((r) => ({ to: `/admin/${key}`, label: r.label, icon: RESOURCE_ICONS[key] ?? ChartIcon })),
+    ),
+  ];
 
   return (
-    <div className="min-h-dvh text-chalk lg:flex">
-      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col overflow-hidden border-r border-edge bg-panel lg:flex">
-        {sidebar}
-      </aside>
-
-      {drawerOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
+    <Shell
+      brand={{ icon: SettingsIcon, name: "System administration", to: "/admin" }}
+      title={name}
+      subtitle="System administration"
+      wideLabel={<div className="text-sm font-medium text-chalk">Signed in as {name}</div>}
+      tabs={tabs}
+      menu={() => (
+        <nav className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3 lg:space-y-0.5" aria-label="Administration sections">
+          {groupResources(resources).map(([group, items]) => (
+            <AdminNavGroup key={group} group={group} items={items} />
+          ))}
+        </nav>
+      )}
+      footer={(_close, install) => (
+        <div className="shrink-0 space-y-2 border-t border-edge p-4 lg:p-3">
+          {/* The top bar carries this on a wide screen. */}
+          <div className="lg:hidden">{install}</div>
+          <Link
+            to="/campaigns"
+            className="press flex min-h-11 items-center justify-center gap-2 rounded-full border border-edge px-4 text-center text-sm font-bold text-chalk hover:bg-raised"
+          >
+            <PhoneOutIcon className="size-4" />
+            Go to the campaigns portal
+          </Link>
           <button
             type="button"
-            aria-label="Close menu"
-            onClick={() => setDrawerOpen(false)}
-            className="absolute inset-0 bg-scrim/50"
-          />
-          <div className="settle absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-panel shadow-[var(--shadow-raised)]">
-            {sidebar}
-          </div>
+            onClick={() => void signOut()}
+            className="press flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-rust/20 bg-bad-soft text-sm font-bold text-rust hover:border-rust/50"
+          >
+            <LogOutIcon className="size-4" />
+            Sign out
+          </button>
         </div>
       )}
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-edge bg-panel px-4 lg:px-6">
-          <button
-            type="button"
-            onClick={() => setDrawerOpen(true)}
-            aria-label="Open menu"
-            aria-expanded={drawerOpen}
-            className="press -ml-2 flex size-11 items-center justify-center rounded-xl text-ash hover:bg-raised lg:hidden"
-          >
-            <MenuIcon />
-          </button>
-
-          <div className="ml-auto flex min-w-0 items-center gap-3">
-            <div className="min-w-0 text-right leading-tight">
-              <div className="truncate text-sm font-medium text-chalk">Signed in as {name}</div>
-            </div>
-            <span
-              aria-hidden
-              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-live text-sm font-bold text-live-bright"
-            >
-              {name.slice(0, 1).toUpperCase()}
-            </span>
-          </div>
-        </header>
-
-        <main className="mx-auto w-full min-w-0 max-w-[1440px] flex-1 overflow-x-hidden px-4 py-6 lg:px-6 lg:py-7">
-          {children}
-        </main>
-      </div>
-    </div>
-  );
-}
-
-const NAV_ITEM = "press flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-semibold";
-const NAV_IDLE = "text-ash hover:bg-raised hover:text-chalk";
-
-function navClass({ isActive }: { isActive: boolean }) {
-  return cx(
-    NAV_ITEM,
-    isActive ? "nav-active" : NAV_IDLE,
-  );
-}
-
-function AdminSidebar({
-  resources,
-  onSignOut,
-}: {
-  resources: ResourceSchema[];
-  onSignOut: () => void;
-}) {
-  return (
-    <>
-      <Link to="/admin" className="flex h-20 shrink-0 items-center gap-3 px-6">
-        <span className="flex size-10 items-center justify-center rounded-lg btn-solid">
-          <SettingsIcon className="size-6" />
-        </span>
-        <span className="display text-base leading-tight text-chalk">System administration</span>
-      </Link>
-
-      <nav className="flex-1 space-y-1.5 overflow-y-auto px-4 py-2" aria-label="Administration sections">
-        {groupResources(resources).map(([group, items]) => (
-          <AdminNavGroup key={group} group={group} items={items} />
-        ))}
-      </nav>
-
-      <div className="m-3 mt-2 space-y-1 rounded-xl border border-edge bg-void p-2">
-        <Link to="/campaigns" className={cx(NAV_ITEM, NAV_IDLE)}>
-          <PhoneOutIcon />
-          Go to the campaigns portal
-        </Link>
-        <button
-          type="button"
-          onClick={onSignOut}
-          className={cx(NAV_ITEM, "w-full", NAV_IDLE)}
-        >
-          <LogOutIcon />
-          Sign out
-        </button>
-      </div>
-    </>
+    >
+      {children}
+    </Shell>
   );
 }
 
@@ -290,12 +220,14 @@ function AdminNavGroup({ group, items }: { group: string; items: ResourceSchema[
 
   return (
     <details open={isActive} className="group">
-      <summary className="press mt-1 flex min-h-11 w-full cursor-pointer select-none list-none items-center gap-3 rounded-lg px-3 text-sm font-semibold text-chalk hover:bg-raised [&::-webkit-details-marker]:hidden">
-        <Icon className="size-[18px] text-ash-dim" />
-        <span className="flex-1">{group}</span>
+      <summary className="press menu-item w-full cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+        <span className="menu-tile">
+          <Icon className="size-[18px]" />
+        </span>
+        <span className="menu-label">{group}</span>
         <ChevronIcon className="size-4 text-ash-dim transition-transform group-open:rotate-180" />
       </summary>
-      <div className="space-y-1">
+      <div className="ml-6 mt-1 space-y-0.5 border-l border-edge pl-3">
         {items.map((r) => {
           const isCurrent = pathname.startsWith(`/admin/${r.resource}`);
           return (
@@ -303,7 +235,10 @@ function AdminNavGroup({ group, items }: { group: string; items: ResourceSchema[
               key={r.resource}
               to={`/admin/${r.resource}`}
               aria-current={isCurrent ? "page" : undefined}
-              className={cx(navClass({ isActive: isCurrent }), "pl-11")}
+              className={cx(
+                "press flex min-h-10 items-center rounded-lg px-3 text-sm font-semibold",
+                isCurrent ? "btn-solid" : "text-ash hover:bg-raised hover:text-chalk",
+              )}
             >
               {r.label}
             </Link>
@@ -351,7 +286,7 @@ export function AdminOverviewPage() {
       )}
 
       {headlines.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="stat-grid grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           {headlines.map((r) => (
             <Stat
               key={r.resource}

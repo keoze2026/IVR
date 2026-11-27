@@ -128,7 +128,7 @@ export function FlowsPage() {
 
       {error && <ErrorState error={error} onRetry={() => void refetch()} />}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="stat-grid grid gap-4 sm:grid-cols-3">
         <Stat label="Flows" value={data ? String(data.count ?? rows.length) : "—"} />
         <Stat label="Published" value={count((f) => Boolean(f.published_version))} denominator={scope} accent />
         <Stat

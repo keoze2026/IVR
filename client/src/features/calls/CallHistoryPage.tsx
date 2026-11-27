@@ -40,7 +40,7 @@ export function CdrPage() {
 
       {error && <ErrorState error={error} onRetry={() => void refetch()} />}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stat-grid grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Stat label="Total Calls" value={show(t.total)} denominator="All CDR entries" accent />
         <Stat label="Answered" value={show(t.answered)} denominator={`${pct(t.answered)}% of all calls`} tone="live" />
         <Stat label="Failed" value={show(t.failed)} denominator={`${pct(t.failed)}% of all calls`} tone="rust" />

@@ -26,7 +26,7 @@ export function WalletPage() {
     <div className="space-y-6">
       <PageHeader title="Wallets" />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stat-grid grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Stat label="Total Wallets" value={wallet ? "1" : "0"} denominator={`$${balance.toFixed(2)} total balance`} />
         <Stat label="Total Balance" value={`$${balance.toFixed(2)}`} denominator={`${wallet?.recent.length ?? 0} transactions`} accent />
         <Stat label="Credits" value={`$${creditSum.toFixed(2)}`} denominator={`${credits.length} transactions`} tone="live" />

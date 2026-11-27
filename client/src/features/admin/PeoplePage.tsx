@@ -167,7 +167,7 @@ export function PeoplePage() {
 
       {issued && <CodeReveal issued={issued} onDone={() => setIssued(null)} />}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="stat-grid grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat label="People" value={show(data?.count ?? rows.length)} />
         <Stat label="Active" value={show(active)} tone="live" />
         <Stat label="Blocked" value={show(rows.length - active)} />

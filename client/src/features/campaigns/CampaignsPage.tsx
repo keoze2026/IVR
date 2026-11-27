@@ -66,7 +66,7 @@ export function CampaignsPage() {
       />
 
       {data && rows.length > 0 && (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="stat-grid grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
           <Stat
             label="Dialing now"
             value={String(dialing)}

@@ -90,7 +90,7 @@ export function ContactListsPage() {
 
       {error && <ErrorState error={error} onRetry={() => void refetch()} />}
 
-      <div className="grid gap-4 min-[420px]:grid-cols-2 lg:grid-cols-4">
+      <div className="stat-grid grid gap-4 min-[420px]:grid-cols-2 lg:grid-cols-4">
         <Stat label="Lists" value={data ? formatCount(data.count ?? rows.length) : "—"} />
         <Stat label="Rows" value={sum((l) => l.total_rows)} denominator={scope} />
         <Stat label="Reachable" value={sum((l) => l.reachable_rows)} denominator={scope} accent />
@@ -237,7 +237,7 @@ export function ContactListDetailPage() {
         />
       </div>
 
-      <div className="grid gap-4 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
+      <div className="stat-grid grid gap-4 min-[420px]:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
         <Stat label="Rows" value={formatCount(list.total_rows)} denominator="in the file" />
         <Stat label="Valid" value={formatCount(list.valid_rows)} denominator="parsed to E.164" />
         <Stat

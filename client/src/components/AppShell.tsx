@@ -1,13 +1,11 @@
 /**
- * The portal frame: a sidebar grouped into Operations, Analytics and
- * Infrastructure, and a top bar naming the signed-in organisation. Below `lg`
- * the sidebar becomes a drawer and a bottom bar carries the screens used on a
- * phone.
+ * The operator portal: its menu, grouped into Operations, Analytics and
+ * Infrastructure, and the frame around it (components/shell).
  */
 
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { useEffect, useState, type ComponentType, type ReactNode } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import type { ReactNode } from "react";
+import { NavLink, Outlet } from "react-router-dom";
 
 import {
   FlowIcon,
@@ -15,7 +13,6 @@ import {
   HomeIcon,
   ListIcon,
   LogOutIcon,
-  MenuIcon,
   PhoneIcon,
   PhoneOutIcon,
   SettingsIcon,
@@ -25,6 +22,7 @@ import {
   WalletIcon,
   ChartIcon,
 } from "@/components/icons";
+import { MenuHeading, MenuLink, Shell, type MenuEntry } from "@/components/shell/Shell";
 import { PulseLoader } from "@/components/styled/PulseLoader";
 import { cx } from "@/components/ui";
 import { request, type PagedResponse } from "@/lib/api";
@@ -32,13 +30,7 @@ import { formatCount } from "@/lib/format";
 import { useSession } from "@/lib/session";
 import type { Campaign, KpiFrame } from "@/types/domain";
 
-interface NavEntry {
-  to: string;
-  label: string;
-  icon: ComponentType<{ className?: string }>;
-}
-
-const NAV: { label: string; items: NavEntry[] }[] = [
+const NAV: { label: string; items: MenuEntry[] }[] = [
   {
     label: "Operations",
     items: [
@@ -69,7 +61,7 @@ const NAV: { label: string; items: NavEntry[] }[] = [
 ];
 
 /** The screens someone uses on a phone. */
-const TABS: NavEntry[] = [
+const TABS: MenuEntry[] = [
   { to: "/campaigns", label: "Campaigns", icon: ChartIcon },
   { to: "/calls", label: "Calls", icon: PhoneIcon },
   { to: "/compliance/dnc", label: "Suppression", icon: ShieldIcon },
@@ -81,6 +73,8 @@ interface Rollup {
   dialing: number;
   dialed: number;
 }
+
+const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 function useLiveRollup(): Rollup {
   const { data } = useQuery({
@@ -125,21 +119,6 @@ export function AppShell() {
   const { me, isLoading, signOut } = useSession();
   const rollup = useLiveRollup();
   const counts = useNavCounts();
-  const location = useLocation();
-  const [drawerOpen, setDrawerOpen] = useState(false);
-
-  useEffect(() => setDrawerOpen(false), [location.pathname]);
-
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setDrawerOpen(false);
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [drawerOpen]);
 
   if (isLoading) {
     return (
@@ -150,220 +129,116 @@ export function AppShell() {
   }
 
   const org = me?.organization;
-  const sidebar = (
-    <Sidebar
-      counts={counts}
-      rollup={rollup}
-      onSignOut={signOut}
-      onNavigate={() => setDrawerOpen(false)}
-    />
-  );
 
   return (
-    <div className="min-h-dvh lg:flex">
-      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col overflow-hidden border-r border-edge bg-panel lg:flex">
-        {sidebar}
-      </aside>
-
-      {drawerOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button
-            aria-label="Close menu"
-            onClick={() => setDrawerOpen(false)}
-            className="absolute inset-0 bg-scrim/50"
-          />
-          <div className="settle absolute inset-y-0 left-0 flex w-72 max-w-[85vw] flex-col bg-panel shadow-[var(--shadow-raised)]">
-            {sidebar}
-          </div>
-        </div>
+    <Shell
+      brand={{ icon: SoundIcon, name: "Outbound" }}
+      title={org?.name}
+      subtitle={org ? capitalise(me?.role || "signed in") : undefined}
+      tabs={TABS}
+      menu={(close) => <Menu counts={counts} onNavigate={close} />}
+      footer={(close, install) => (
+        <Footer rollup={rollup} install={install} onSignOut={signOut} onNavigate={close} />
       )}
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex min-h-16 shrink-0 items-center gap-3 border-b border-edge bg-panel px-4 lg:px-6">
-          <button
-            onClick={() => setDrawerOpen(true)}
-            aria-label="Open menu"
-            aria-expanded={drawerOpen}
-            className="press -ml-2 flex size-11 items-center justify-center rounded-lg text-ash hover:bg-raised lg:hidden"
-          >
-            <MenuIcon />
-          </button>
-
-          {org && (
-            <div className="ml-auto flex items-center gap-3">
-              <div className="hidden text-right leading-tight sm:block">
-                <div className="text-sm font-bold text-chalk">{org.name}</div>
-                <div className="text-xs font-semibold capitalize text-ash-dim">
-                  {me?.role || "signed in"}
-                </div>
-              </div>
-              <span
-                aria-hidden
-                className="flex size-10 shrink-0 items-center justify-center rounded-full bg-live text-sm font-bold text-live-bright"
-              >
-                {org.name.slice(0, 1).toUpperCase()}
-              </span>
-            </div>
+      banners={
+        <>
+          {org?.is_suspended && (
+            <Banner tone="rust">
+              <strong className="font-medium">This organisation is suspended.</strong>{" "}
+              No campaign will place calls
+              {org.suspension_reason ? ` — ${org.suspension_reason}` : "."}
+            </Banner>
           )}
-        </header>
 
-        {org?.is_suspended && (
-          <Banner tone="rust">
-            <strong className="font-medium">This organisation is suspended.</strong>{" "}
-            No campaign will place calls
-            {org.suspension_reason ? ` — ${org.suspension_reason}` : "."}
-          </Banner>
-        )}
-
-        {me?.degraded && (
-          <Banner tone="amber">
-            Some of your permissions could not be confirmed. You may see options
-            that are unavailable to your role.
-          </Banner>
-        )}
-
-        <main className="mx-auto w-full min-w-0 max-w-[1440px] flex-1 overflow-x-hidden px-4 py-6 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:px-6 lg:py-7">
-          <Outlet />
-        </main>
-      </div>
-
-      <nav
-        aria-label="Primary"
-        className="fixed inset-x-0 bottom-0 z-40 flex border-t border-edge bg-panel pb-[env(safe-area-inset-bottom)] lg:hidden"
-      >
-        {TABS.map((tab) => (
-          <NavLink
-            key={tab.to}
-            to={tab.to}
-            className={({ isActive }) =>
-              cx(
-                "flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-bold",
-                isActive ? "text-signal" : "text-ash",
-              )
-            }
-          >
-            <tab.icon />
-            {tab.label}
-          </NavLink>
-        ))}
-        <button
-          onClick={() => setDrawerOpen(true)}
-          className="flex min-h-14 flex-1 flex-col items-center justify-center gap-1 text-[11px] text-ash"
-        >
-          <MenuIcon />
-          More
-        </button>
-      </nav>
-    </div>
+          {me?.degraded && (
+            <Banner tone="amber">
+              Some of your permissions could not be confirmed. You may see options
+              that are unavailable to your role.
+            </Banner>
+          )}
+        </>
+      }
+    >
+      <Outlet />
+    </Shell>
   );
 }
 
-function Sidebar({
+function Menu({
   counts,
-  rollup,
-  onSignOut,
   onNavigate,
 }: {
   counts: Record<string, number>;
+  onNavigate: () => void;
+}) {
+  return (
+    <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-3 lg:space-y-3" aria-label="All sections">
+      {NAV.map((group) => (
+        <div key={group.label} className="space-y-2 lg:space-y-0.5">
+          <MenuHeading>{group.label}</MenuHeading>
+          {group.items.map((item) => (
+            <MenuLink key={item.to} item={item} count={counts[item.to]} onNavigate={onNavigate} />
+          ))}
+        </div>
+      ))}
+    </nav>
+  );
+}
+
+function Footer({
+  rollup,
+  install,
+  onSignOut,
+  onNavigate,
+}: {
   rollup: Rollup;
+  /** The "Install app" row, when there is something to install. */
+  install: ReactNode;
   onSignOut: () => void;
   onNavigate: () => void;
 }) {
   return (
-    <>
-      <div className="flex h-20 shrink-0 items-center gap-3 px-6">
-        <span className="flex size-11 items-center justify-center rounded-lg btn-solid">
-          <SoundIcon className="size-6" />
-        </span>
-        <span className="display text-xl text-chalk">Outbound</span>
-      </div>
-
-      <nav className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-2" aria-label="All sections">
-        {NAV.map((group) => (
-          <div key={group.label} className="space-y-1">
-            <div className="px-3 pb-1 text-xs font-semibold text-ash-dim">
-              {group.label}
-            </div>
-            {group.items.map((item) => (
-              <NavItem key={item.to} item={item} count={counts[item.to]} onNavigate={onNavigate} />
-            ))}
-          </div>
-        ))}
-      </nav>
-
-      <div className="m-3 mt-2 shrink-0 space-y-1 rounded-xl border border-edge bg-void p-2">
-        <div className="px-3 pb-2 pt-1.5">
-          <div className="text-xs font-semibold text-ash-dim">
-            Account capacity
-          </div>
-          <div className="mt-1 flex items-baseline gap-1.5">
-            <span className={cx("num text-2xl font-extrabold leading-none", rollup.dialing > 0 ? "text-signal" : "text-chalk")}>
-              {rollup.live}
-            </span>
-            <span className="num text-xs text-ash-dim">/ {rollup.ceiling || "—"} channels</span>
-          </div>
-          <p className="mt-1 text-xs text-ash">
-            {rollup.dialing === 0
-              ? "Nothing is dialing right now."
-              : `${rollup.dialing} campaign${rollup.dialing > 1 ? "s" : ""} dialing · ${formatCount(rollup.dialed)} placed`}
-          </p>
-        </div>
-        <NavItem item={{ to: "/settings", label: "Settings", icon: SettingsIcon }} onNavigate={onNavigate} />
-        <button
-          onClick={onSignOut}
-          className="press flex min-h-10 w-full items-center gap-3 rounded-lg px-1.5 text-sm font-semibold text-ash hover:bg-raised hover:text-chalk"
-        >
-          <span className="flex size-8 items-center justify-center rounded-lg">
-            <LogOutIcon className="size-4" />
+    <div className="shrink-0 space-y-2 border-t border-edge p-4 lg:p-3">
+      <div className="rounded-xl bg-void px-3.5 py-2.5">
+        <div className="text-xs font-semibold text-ash-dim">Account capacity</div>
+        <div className="mt-1 flex items-baseline gap-1.5">
+          <span className={cx("num text-2xl font-bold leading-none", rollup.dialing > 0 ? "text-signal" : "text-chalk")}>
+            {rollup.live}
           </span>
+          <span className="num text-xs text-ash-dim">/ {rollup.ceiling || "—"} channels</span>
+        </div>
+        <p className="mt-1 text-xs text-ash">
+          {rollup.dialing === 0
+            ? "Nothing is dialing right now."
+            : `${rollup.dialing} campaign${rollup.dialing > 1 ? "s" : ""} dialing · ${formatCount(rollup.dialed)} placed`}
+        </p>
+      </div>
+      {/* The top bar carries this on a wide screen. */}
+      <div className="lg:hidden">{install}</div>
+      <div className="flex gap-2">
+        <NavLink
+          to="/settings"
+          onClick={onNavigate}
+          className={({ isActive }) =>
+            cx(
+              "press flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border text-sm font-bold",
+              isActive ? "btn-solid border-transparent" : "border-edge text-chalk hover:bg-raised",
+            )
+          }
+        >
+          <SettingsIcon className="size-4" />
+          Settings
+        </NavLink>
+        <button
+          type="button"
+          onClick={onSignOut}
+          className="press flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-rust/20 bg-bad-soft text-sm font-bold text-rust hover:border-rust/50"
+        >
+          <LogOutIcon className="size-4" />
           Sign out
         </button>
       </div>
-    </>
-  );
-}
-
-function NavItem({
-  item,
-  count = 0,
-  onNavigate,
-}: {
-  item: NavEntry;
-  count?: number;
-  onNavigate: () => void;
-}) {
-  return (
-    <NavLink
-      to={item.to}
-      onClick={onNavigate}
-      className={({ isActive }) =>
-        cx(
-          "press group flex min-h-10 items-center gap-3 rounded-lg px-1.5 pr-3 text-sm font-semibold",
-          isActive
-            ? "nav-active"
-            : "text-ash hover:bg-raised hover:text-chalk",
-        )
-      }
-    >
-      {({ isActive }) => (
-        <>
-          <span
-            className={cx(
-              "flex size-8 shrink-0 items-center justify-center",
-              isActive ? "text-white" : "text-ash-dim",
-            )}
-          >
-            <item.icon className="size-4" />
-          </span>
-          <span className="flex-1">{item.label}</span>
-          {count > 0 && (
-            <span className="num rounded-full bg-live px-2 py-0.5 text-[11px] font-bold leading-none text-live-bright">
-              {count}
-            </span>
-          )}
-        </>
-      )}
-    </NavLink>
+    </div>
   );
 }
 

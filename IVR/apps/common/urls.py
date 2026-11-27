@@ -43,7 +43,11 @@ from apps.compliance.views import (
 )
 from apps.contacts.views import ContactListViewSet, ContactViewSet
 from apps.ivr.audio_views import AudioAssetViewSet
-from apps.ivr.views import IVRFlowVersionViewSet, IVRFlowViewSet
+from apps.ivr.views import (
+    IVRFlowVersionViewSet,
+    IVRFlowViewSet,
+    TransferEndpointViewSet,
+)
 from apps.telephony.views import CallLogViewSet, CarrierHealthView
 
 router = DefaultRouter()
@@ -64,6 +68,8 @@ router.register("audio-pools", AudioPoolViewSet, basename="audio-pool")
 router.register("cli-pools", CLIPoolViewSet, basename="cli-pool")
 router.register("wallet", WalletViewSet, basename="wallet")
 router.register("tariffs", TariffViewSet, basename="tariff")
+router.register("transfer-endpoints", TransferEndpointViewSet,
+                basename="transfer-endpoint")
 
 urlpatterns = [
     # Not a viewset: there is no collection here, only the caller. Registered

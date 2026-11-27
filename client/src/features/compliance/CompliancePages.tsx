@@ -167,14 +167,14 @@ export function DncPage() {
                 role="status"
                 className={cx(
                   "rounded-xl px-4 py-3",
-                  check.data.suppressed ? "bg-bad-soft" : "bg-live",
+                  check.data.suppressed ? "bg-bad-soft" : "bg-good-soft",
                 )}
               >
                 <p className="num text-sm font-medium text-chalk">{check.data.phone_e164}</p>
                 <p
                   className={cx(
                     "mt-1 text-sm",
-                    check.data.suppressed ? "text-rust" : "text-live-bright",
+                    check.data.suppressed ? "text-rust" : "text-good",
                   )}
                 >
                   {check.data.suppressed

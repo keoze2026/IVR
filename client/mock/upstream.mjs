@@ -411,6 +411,15 @@ const ROUTES = [
   [/^\/api\/v1\/audio-pools\/$/, (res) => page(res, [POOL("a1", "Welcome message", 2)])],
   [/^\/api\/v1\/cli-pools\/$/, (res) => page(res, [POOL("p1", "US numbers", 3)])],
   [/^\/api\/v1\/audio-assets\/$/, (res) => page(res, [])],
+  [/^\/api\/v1\/transfer-endpoints\/$/, (res) => page(res, [{ id: "t1", name: "Sales desk", kind: "pstn", destination: "+12135550199", caller_id_override: "", timeout_seconds: 30, max_concurrent: 0, is_active: true, created_at: "2026-08-01T09:00:00Z" }])],
+  [/^\/api\/v1\/calls\/trend\/$/, (res, _m, url) => {
+    const days = Number(url.searchParams.get("days") ?? 7);
+    json(res, 200, { timezone: "UTC", days: Array.from({ length: days }, (_, i) => {
+      const date = new Date(Date.now() - (days - 1 - i) * 86_400_000).toISOString().slice(0, 10);
+      const total = [12, 40, 33, 58, 21, 9, 47][i % 7];
+      return { date, total, answered: Math.round(total * 0.6), failed: i % 3 };
+    }) });
+  }],
   [/^\/api\/v1\/tariffs\/$/, (res) => page(res, [{ id: "r1", name: "USA", prefix: "+1", per_minute: "0.010000", currency: "USD", is_active: true }])],
   [/^\/api\/v1\/me\/$/, (res) => json(res, 200, ME)],
 

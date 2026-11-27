@@ -11,6 +11,7 @@ import type {
   ValidationIssue,
 } from "@/types/domain";
 import { Input, Panel, Select, Textarea, cx } from "@/components/ui";
+import { useTransferEndpoints } from "@/lib/queries/resources";
 
 import { NodeIcon } from "./nodeMeta";
 
@@ -226,6 +227,14 @@ export const FlowInspector: FC<FlowInspectorProps> = ({
               Barge-in
             </label>
           </Section>
+        )}
+
+        {node.type === "transfer" && (
+          <TransferTarget
+            value={(node.endpoint as string) ?? ""}
+            disabled={readOnly}
+            onChange={(endpoint) => onChange(selectedId, { endpoint })}
+          />
         )}
 
         {/* Menu Keypresses & Options */}
@@ -462,6 +471,40 @@ function Section({
 }
 
 /** A caption wrapped around its control, so no ids are needed. */
+/** Which registered number a transfer step connects to. */
+function TransferTarget({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: string;
+  disabled: boolean;
+  onChange: (endpoint: string) => void;
+}) {
+  const { data } = useTransferEndpoints();
+  const numbers = data?.results ?? [];
+  return (
+    <Labelled label="Transfer To">
+      <Select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
+        <option value="">— choose a number —</option>
+        {value && !numbers.some((n) => n.id === value) && (
+          <option value={value}>A number no longer available</option>
+        )}
+        {numbers.map((n) => (
+          <option key={n.id} value={n.id}>
+            {n.name} ({n.destination})
+          </option>
+        ))}
+      </Select>
+      {numbers.length === 0 && (
+        <span className="block text-xs text-ash">
+          An administrator adds numbers under Scripts → Transfer numbers.
+        </span>
+      )}
+    </Labelled>
+  );
+}
+
 function Labelled({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block space-y-1.5">

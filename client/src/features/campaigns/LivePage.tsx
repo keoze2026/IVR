@@ -68,7 +68,7 @@ export function LivePage() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 min-[400px]:grid-cols-2 lg:grid-cols-4">
+      <div className="stat-grid grid grid-cols-1 gap-4 min-[400px]:grid-cols-2 lg:grid-cols-4">
         <Stat
           label="Answer rate"
           value={formatRate(kpi.rates.answer)}
@@ -116,7 +116,7 @@ export function LivePage() {
                 value={String(kpi.live_channels)}
                 className={cx(
                   "num text-5xl font-light leading-none",
-                  dialing ? "text-live-bright" : "text-chalk",
+                  dialing ? "text-good" : "text-chalk",
                 )}
               />
               <span className="num text-sm text-ash">

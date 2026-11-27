@@ -11,13 +11,20 @@ import { useState } from "react";
 
 import { TrashIcon } from "@/components/icons";
 import { Button, Field, Input, Modal, Select, Textarea, cx } from "@/components/ui";
-import { audioPools, cliPools, useCallerIds, useQuickDial } from "@/lib/queries/resources";
+import {
+  audioPools,
+  cliPools,
+  useCallerIds,
+  useQuickDial,
+  useTransferEndpoints,
+} from "@/lib/queries/resources";
 import type { DialMode } from "@/lib/queries/resources";
 
 export function CreateJobModal({ onClose }: { onClose: () => void }) {
   const callers = useCallerIds();
   const aPools = audioPools.useList();
   const cPools = cliPools.useList();
+  const transfers = useTransferEndpoints().data?.results ?? [];
   const quickDial = useQuickDial();
 
   const [f, setF] = useState({
@@ -32,14 +39,17 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
     dial_interval_seconds: 30,
     max_attempts: 1,
     retry_delay_minutes: 15,
+    voice: "woman" as "woman" | "man",
+    machine_action: "hangup" as "hangup" | "message",
   });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) =>
     setF((p) => ({ ...p, [k]: v }));
 
   // DTMF steps: Order / Digit / Delay(s).
   const [dtmfOn, setDtmfOn] = useState(false);
-  const [steps, setSteps] = useState<{ digit: string; delay: string }[]>([
-    { digit: "1", delay: "2.5" },
+  // `to` names a transfer number; blank means the key confirms.
+  const [steps, setSteps] = useState<{ digit: string; delay: string; to: string }[]>([
+    { digit: "1", delay: "2.5", to: "" },
   ]);
 
   // Schedule. Off by default: a job runs as soon as it is started.
@@ -67,6 +77,7 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
               order: i + 1,
               digit: s.digit.trim(),
               delay: Number(s.delay) || 0,
+              ...(s.to ? { action: "transfer", endpoint: s.to } : {}),
             })),
         }
       : {};
@@ -97,6 +108,8 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
         cps_limit: 5,
         max_attempts: f.max_attempts,
         retry_delay_minutes: f.retry_delay_minutes,
+        voice: f.voice,
+        machine_action: f.machine_action,
         start_now: startNow,
       } as Parameters<typeof quickDial.mutateAsync>[0]);
       onClose();
@@ -187,6 +200,32 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
             />
           )}
         </Field>
+
+        {/* voice and answering machines */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="eyebrow">
+            Spoken voice
+            <Select
+              value={f.voice}
+              onChange={(e) => set("voice", e.target.value as "woman" | "man")}
+              className="mt-1"
+            >
+              <option value="woman">Female</option>
+              <option value="man">Male</option>
+            </Select>
+          </label>
+          <label className="eyebrow">
+            If a machine answers
+            <Select
+              value={f.machine_action}
+              onChange={(e) => set("machine_action", e.target.value as "hangup" | "message")}
+              className="mt-1"
+            >
+              <option value="hangup">Hang up</option>
+              <option value="message">Leave the message</option>
+            </Select>
+          </label>
+        </div>
 
         {/* retries */}
         <div className="border-t border-edge pt-4">
@@ -300,7 +339,7 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
             <div className="mt-4">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-sm font-medium text-chalk">DTMF Steps</span>
-                <Button type="button" dense onClick={() => setSteps([...steps, { digit: "", delay: "2.5" }])}>
+                <Button type="button" dense onClick={() => setSteps([...steps, { digit: "", delay: "2.5", to: "" }])}>
                   + Add Step
                 </Button>
               </div>
@@ -314,7 +353,7 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
 
               <div className="space-y-2">
                 {steps.map((s, i) => (
-                  <div key={i} className="grid grid-cols-[64px_1fr_96px_36px] items-center gap-2">
+                  <div key={i} className="grid grid-cols-[minmax(0,64px)_minmax(0,1fr)_minmax(0,96px)_36px] items-center gap-2">
                     <Input aria-label="Order" value={i + 1} readOnly className="text-center" />
                     <Input
                       aria-label="Digit"
@@ -340,9 +379,32 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
                     >
                       <TrashIcon className="size-4" />
                     </button>
+                    {transfers.length > 0 && (
+                      <Select
+                        aria-label={`What key ${s.digit || i + 1} does`}
+                        value={s.to}
+                        onChange={(e) =>
+                          setSteps(steps.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)))
+                        }
+                        className="col-span-4"
+                      >
+                        <option value="">When pressed: confirm</option>
+                        {transfers.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            When pressed: connect to {t.name} ({t.destination})
+                          </option>
+                        ))}
+                      </Select>
+                    )}
                   </div>
                 ))}
               </div>
+              {transfers.length === 0 && (
+                <p className="mt-2 text-xs text-ash">
+                  To let a key connect the person to your team, an administrator first adds the
+                  number under System administration → Scripts → Transfer numbers.
+                </p>
+              )}
             </div>
           )}
         </div>

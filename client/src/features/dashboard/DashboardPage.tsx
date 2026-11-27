@@ -10,6 +10,7 @@ import { Link } from "react-router-dom";
 
 import {
   AlertIcon,
+  CalendarIcon,
   CheckIcon,
   MissedIcon,
   PhoneIcon,
@@ -19,7 +20,8 @@ import {
 import { EmptyState, ErrorState, PageHeader, Panel, PanelHeader, StatusPill, TableSkeleton, cx } from "@/components/ui";
 import { isAnswered, minutes, tallies } from "@/features/calls/shared";
 import { formatDateTime } from "@/lib/format";
-import { useCalls } from "@/lib/queries/resources";
+import { useCalls, useCallTrend } from "@/lib/queries/resources";
+import { useSession } from "@/lib/session";
 import type { CallSummary } from "@/types/domain";
 
 /** Calls counted into the 24 hours of the day. */
@@ -34,7 +36,11 @@ function byHour(calls: CallSummary[]): number[] {
 
 const hourLabel = (h: number) => `${String(h).padStart(2, "0")}:00`;
 
+const greeting = (hour: number) =>
+  hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+
 export function DashboardPage() {
+  const name = useSession().me?.session_username;
   const { data, isLoading, error, refetch } = useCalls({});
   const calls = data?.results ?? [];
   const t = tallies(calls);
@@ -45,13 +51,21 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Dashboard" />
+      <PageHeader
+        title="Dashboard"
+        subtitle={`${greeting(new Date().getHours())}${name ? `, ${name}` : ""}. Here is how your calls are going.`}
+        actions={
+          <span className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-edge bg-panel px-4 text-sm font-medium text-chalk shadow-[var(--shadow-card)]">
+            <CalendarIcon className="size-[18px] text-signal" />
+            {new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+          </span>
+        }
+      />
 
       {error && <ErrorState error={error} onRetry={() => void refetch()} />}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stat-grid grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Metric
-          featured
           icon={PhoneIcon}
           label="Total Calls"
           value={show(t.total)}
@@ -65,7 +79,7 @@ export function DashboardPage() {
           note="Since last day"
           series={byHour(calls.filter(isAnswered))}
           color="var(--color-chart-answered)"
-          badge="bg-live text-live-bright"
+          badge="bg-good text-white"
         />
         <Metric
           icon={MissedIcon}
@@ -74,7 +88,7 @@ export function DashboardPage() {
           note="Since last day"
           series={byHour(calls.filter((c) => !isAnswered(c)))}
           color="var(--color-chart-missed)"
-          badge="bg-warn-soft text-amber"
+          badge="bg-chart-missed text-white"
         />
         <Metric
           icon={AlertIcon}
@@ -83,14 +97,21 @@ export function DashboardPage() {
           note={`${share(t.failed)}% of all`}
           series={byHour(calls.filter((c) => c.status === "failed"))}
           color="var(--color-chart-failed)"
-          badge="bg-bad-soft text-rust"
+          badge="bg-rust text-white"
         />
       </div>
 
+      <CallsTrend />
+
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <Panel className="overflow-hidden">
+        <Panel className="min-w-0 overflow-hidden">
           <PanelHeader title="Calls Activity – Daily" hint="Total calls by hour." />
-          <ActivityChart hours={byHour(calls)} />
+          <AreaChart
+            values={byHour(calls)}
+            labels={Array.from({ length: 24 }, (_, h) => hourLabel(h))}
+            ticks={[0, 4, 8, 12, 16, 20, 23]}
+            peakNote="busiest hour"
+          />
         </Panel>
 
         <Panel className="overflow-hidden">
@@ -170,7 +191,7 @@ export function CallsBreakdownPage() {
 
       {error && <ErrorState error={error} onRetry={() => void refetch()} />}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stat-grid grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Metric
           icon={CheckIcon}
           label="Answered Calls"
@@ -178,7 +199,7 @@ export function CallsBreakdownPage() {
           note={`${pct(t.answered)}% of all`}
           series={byHour(calls.filter(isAnswered))}
           color="var(--color-chart-answered)"
-          badge="bg-live text-live-bright"
+          badge="bg-good text-white"
         />
         <Metric
           icon={MissedIcon}
@@ -187,7 +208,7 @@ export function CallsBreakdownPage() {
           note={`${pct(nonAnswered)}% of all`}
           series={byHour(calls.filter((c) => !isAnswered(c) && c.status !== "failed"))}
           color="var(--color-chart-missed)"
-          badge="bg-warn-soft text-amber"
+          badge="bg-chart-missed text-white"
         />
         <Metric
           icon={AlertIcon}
@@ -196,10 +217,9 @@ export function CallsBreakdownPage() {
           note={`${pct(t.failed)}% of all`}
           series={byHour(calls.filter((c) => c.status === "failed"))}
           color="var(--color-chart-failed)"
-          badge="bg-bad-soft text-rust"
+          badge="bg-rust text-white"
         />
         <Metric
-          featured
           icon={PhoneIcon}
           label="Total Calls"
           value={show(t.total)}
@@ -291,9 +311,8 @@ function Metric({
   value,
   note,
   series,
-  color,
-  badge,
-  featured = false,
+  color = "var(--color-signal)",
+  badge = "btn-solid",
 }: {
   icon: ComponentType<{ className?: string }>;
   label: string;
@@ -302,114 +321,184 @@ function Metric({
   series: number[];
   color?: string;
   badge?: string;
-  featured?: boolean;
 }) {
   const max = Math.max(...series, 1);
   return (
-    <div
-      className={cx(
-        "rounded-[var(--radius-card)] p-5",
-        "border bg-panel shadow-[var(--shadow-card)]",
-        featured ? "border-signal" : "border-edge",
-      )}
-    >
-      <div className="flex items-center gap-3">
-        <span className={cx("flex size-11 items-center justify-center rounded-lg", featured ? "btn-solid" : badge)}>
-          <Icon className="size-[22px]" />
-        </span>
-        <span className="text-sm font-bold text-ash">{label}</span>
+    <div className="flex min-w-0 items-center gap-3 rounded-[var(--radius-card)] border border-edge bg-panel px-3.5 py-4 shadow-[var(--shadow-card)] sm:gap-4 sm:p-5">
+      <span className={cx("flex size-11 shrink-0 items-center justify-center rounded-full sm:size-14", badge)}>
+        <Icon className="size-[22px] sm:size-7" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="text-[13px] font-medium leading-tight text-ash-dim sm:text-sm">{label}</div>
+        <div className="num display mt-1 text-2xl leading-none text-chalk sm:text-3xl">{value}</div>
+        <div className="mt-1.5 text-xs font-medium text-ash-dim">{note}</div>
       </div>
-      <div className="mt-4 flex items-end justify-between gap-3">
-        <div>
-          <div className="num display text-4xl leading-none text-chalk">{value}</div>
-          <div className="mt-2 text-xs font-semibold text-ash-dim">{note}</div>
-        </div>
-        {/* Shape of the day for this figure; the large chart gives the values. */}
-        <div aria-hidden className="flex h-12 w-28 items-end gap-[2px]">
-          {series.map((n, i) => (
-            <span
-              key={i}
-              className="flex-1 rounded-sm"
-              style={{
-                height: n ? `${Math.max(12, (n / max) * 100)}%` : 3,
-                background: featured ? "var(--color-mint)" : color,
-                opacity: n ? 1 : 0.22,
-              }}
-            />
-          ))}
-        </div>
+      {/* Shape of the day for this figure; the large chart gives the values. */}
+      <div aria-hidden className="hidden h-12 w-24 items-end gap-px self-end 2xl:flex">
+        {series.map((n, i) => (
+          <span
+            key={i}
+            className="flex-1 rounded-sm"
+            style={{
+              height: n ? `${Math.max(12, (n / max) * 100)}%` : 3,
+              background: color,
+              opacity: n ? 1 : 0.22,
+            }}
+          />
+        ))}
       </div>
     </div>
   );
 }
 
-/** Area chart of calls through the day, with the value of the hour under the pointer. */
-function ActivityChart({ hours }: { hours: number[] }) {
+const dayLabel = (iso: string) =>
+  // Noon, so no time zone can move the date.
+  new Date(`${iso}T12:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+
+/** Calls per day, from the server's count of every call rather than the latest page. */
+function CallsTrend() {
+  const [span, setSpan] = useState(7);
+  const { data, error, isLoading, refetch } = useCallTrend(span);
+  const days = data?.days ?? [];
+  const sum = (key: "total" | "answered") => days.reduce((n, d) => n + d[key], 0);
+  const step = Math.max(1, Math.ceil((days.length - 1) / 6));
+
+  return (
+    <Panel className="overflow-hidden">
+      <PanelHeader
+        title="Calls Trend"
+        hint={data ? `${sum("total")} calls, ${sum("answered")} answered` : undefined}
+        action={
+          <select
+            aria-label="Period"
+            value={span}
+            onChange={(e) => setSpan(Number(e.target.value))}
+            className="min-h-10 rounded-xl border border-edge bg-panel px-3 text-sm font-medium text-chalk"
+          >
+            <option value={7}>Last 7 Days</option>
+            <option value={30}>Last 30 Days</option>
+            <option value={90}>Last 90 Days</option>
+          </select>
+        }
+      />
+      {error ? (
+        <div className="p-5">
+          <ErrorState error={error} onRetry={() => void refetch()} />
+        </div>
+      ) : isLoading || days.length === 0 ? (
+        <TableSkeleton rows={4} />
+      ) : (
+        <AreaChart
+          key={span}
+          values={days.map((d) => d.total)}
+          labels={days.map((d) => dayLabel(d.date))}
+          notes={days.map((d) => `${d.answered} answered, ${d.failed} failed`)}
+          ticks={days.map((_, i) => i).filter((i) => (days.length - 1 - i) % step === 0)}
+          peakNote="busiest day"
+        />
+      )}
+    </Panel>
+  );
+}
+
+/** Calls along a time line, with the value under the pointer spelled out. */
+function AreaChart({
+  values,
+  labels,
+  ticks,
+  peakNote,
+  notes,
+}: {
+  values: number[];
+  labels: string[];
+  /** Which points are named along the bottom. */
+  ticks: number[];
+  peakNote: string;
+  /** Extra words about each point. */
+  notes?: string[];
+}) {
   const [hover, setHover] = useState<number | null>(null);
-  const total = hours.reduce((a, b) => a + b, 0);
-  const peak = Math.max(...hours);
+  const total = values.reduce((a, b) => a + b, 0);
+  const peak = Math.max(...values, 0);
   // A round ceiling divisible into four whole-number gridlines.
   const top = Math.max(4, Math.ceil(peak / 4) * 4);
-  const x = (h: number) => (h / 23) * 1000;
+  const last = Math.max(values.length - 1, 1);
+  const x = (i: number) => (i / last) * 1000;
   const y = (n: number) => 240 - (n / top) * 230;
-  const line = hours.map((n, h) => `${h ? "L" : "M"}${x(h)} ${y(n)}`).join(" ");
-  const at = hover ?? (total ? hours.indexOf(peak) : null);
+  const line = values.map((n, i) => `${i ? "L" : "M"}${x(i)} ${y(n)}`).join(" ");
+  const at = hover ?? (total ? values.indexOf(peak) : null);
 
   return (
     <div className="p-5">
-      <p className="num h-6 text-sm font-bold text-chalk" aria-live="polite">
+      <p className="num min-h-6 text-sm font-bold text-chalk" aria-live="polite">
         {at === null ? (
           <span className="text-ash-dim">No calls yet</span>
         ) : (
           <>
-            {hours[at]} {hours[at] === 1 ? "call" : "calls"}
-            <span className="ml-2 font-semibold text-ash-dim">
-              {hover === null ? "busiest hour, " : ""}{hourLabel(at)}
+            {values[at]} {values[at] === 1 ? "call" : "calls"}
+            <span className="ml-2 font-medium text-ash-dim">
+              {hover === null ? `${peakNote}, ` : ""}{labels[at]}
+              {notes ? ` · ${notes[at]}` : ""}
             </span>
           </>
         )}
       </p>
 
       <div className="mt-4 flex gap-3">
-        <div className="num flex h-64 flex-col justify-between text-right text-[11px] font-semibold text-ash-dim">
+        <div className="num flex h-56 flex-col justify-between text-right text-[11px] font-medium text-ash-dim sm:h-64">
           {[4, 3, 2, 1, 0].map((i) => <span key={i} className="-my-2 w-6">{(top / 4) * i}</span>)}
         </div>
-        <div className="relative h-64 min-w-0 flex-1" onMouseLeave={() => setHover(null)}>
+        <div className="relative h-56 min-w-0 flex-1 sm:h-64" onMouseLeave={() => setHover(null)}>
           <svg viewBox="0 0 1000 240" preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible" aria-hidden>
             {[0, 1, 2, 3, 4].map((i) => (
               <line key={i} x1="0" x2="1000" y1={y((top / 4) * i)} y2={y((top / 4) * i)} stroke="var(--color-edge)" vectorEffect="non-scaling-stroke" />
             ))}
-            <path d={`${line} L1000 240 L0 240 Z`} fill="var(--color-chart-answered)" fillOpacity="0.1" />
+            <path d={`${line} L1000 240 L0 240 Z`} fill="var(--color-signal)" fillOpacity="0.1" />
             <path d={line} fill="none" stroke="var(--color-signal)" strokeWidth="2.5" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
           </svg>
 
           {at !== null && (
             <>
-              <span aria-hidden className="absolute bottom-0 top-0 w-px bg-signal/30" style={{ left: `${(at / 23) * 100}%` }} />
+              <span aria-hidden className="absolute bottom-0 top-0 w-px bg-signal/30" style={{ left: `${(at / last) * 100}%` }} />
               <span
                 aria-hidden
                 className="absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-panel bg-signal shadow"
-                style={{ left: `${(at / 23) * 100}%`, top: `${(y(hours[at] ?? 0) / 240) * 100}%` }}
+                style={{ left: `${(at / last) * 100}%`, top: `${(y(values[at] ?? 0) / 240) * 100}%` }}
               />
             </>
           )}
 
           <div className="absolute inset-0 flex">
-            {hours.map((n, h) => (
+            {values.map((n, i) => (
               <button
-                key={h}
+                key={i}
                 type="button"
-                aria-label={`${hourLabel(h)}: ${n} calls`}
-                onMouseEnter={() => setHover(h)}
-                onFocus={() => setHover(h)}
-                className="h-full flex-1"
+                aria-label={`${labels[i]}: ${n} calls`}
+                onMouseEnter={() => setHover(i)}
+                onFocus={() => setHover(i)}
+                onClick={() => setHover(i)}
+                className="h-full min-w-0 flex-1"
               />
             ))}
           </div>
         </div>
       </div>
-      <div className="num ml-9 mt-3 flex justify-between text-[11px] font-semibold text-ash-dim">
-        {[0, 4, 8, 12, 16, 20, 23].map((h) => <span key={h}>{hourLabel(h)}</span>)}
+      {/* Each name sits under its own point. */}
+      <div className="num relative ml-9 mt-3 h-4 text-[11px] font-medium text-ash-dim">
+        {ticks.map((i, n) => (
+          <span
+            key={i}
+            className={cx(
+              "absolute whitespace-nowrap",
+              i === 0 ? "" : i === last ? "-translate-x-full" : "-translate-x-1/2",
+              // Half the names on a narrow screen, counted from the newest.
+              (ticks.length - 1 - n) % 2 === 1 && "hidden sm:inline",
+            )}
+            style={{ left: `${(i / last) * 100}%` }}
+          >
+            {labels[i]}
+          </span>
+        ))}
       </div>
     </div>
   );

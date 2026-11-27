@@ -55,7 +55,7 @@ export function JobsPage() {
         </p>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stat-grid grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Stat label="Total Jobs" value={String(all.length)} denominator="All jobs" accent />
         <Stat label="Running" value={String(count("running"))} denominator="% of all jobs" tone="live" />
         <Stat label="Completed" value={String(count("completed"))} denominator="% of all jobs" tone="live" />
@@ -123,9 +123,10 @@ export function JobsPage() {
 const MODE_TONE = { fixed: "quiet", pulse: "good", ramp: "warn" } as const;
 
 const STATUS_TONE: Record<string, string> = {
-  running: "bg-live text-live-bright",
+  running: "bg-good-soft text-good",
   completed: "bg-raised text-ash",
   paused: "bg-warn-soft text-amber",
+  throttled: "bg-warn-soft text-amber",
   draft: "bg-raised text-ash",
   failed: "bg-bad-soft text-rust",
 };

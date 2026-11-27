@@ -99,3 +99,18 @@ export const ShieldIcon = (p: Props) => (
 export const KeyIcon = (p: Props) => (
   <Icon {...p}><circle cx="8" cy="14" r="4" /><path d="m11 11 8-8M16 6l3 3" /></Icon>
 );
+export const RefreshIcon = (p: Props) => (
+  <Icon {...p}><path d="M20 11a8 8 0 0 0-14.5-3.5M4 4v4h4" /><path d="M4 13a8 8 0 0 0 14.500 3.500M20 20v-4h-4" /></Icon>
+);
+export const InstallIcon = (p: Props) => (
+  <Icon {...p}><path d="M12 4v11M8 11.500 12 15.500l4-4" /><path d="M5 19.500h14" /></Icon>
+);
+export const CloseIcon = (p: Props) => (
+  <Icon {...p}><path d="M6 6l12 12M18 6 6 18" /></Icon>
+);
+export const ChevronRightIcon = (p: Props) => (
+  <Icon {...p}><path d="m10 7 5 5-5 5" /></Icon>
+);
+export const CalendarIcon = (p: Props) => (
+  <Icon {...p}><rect x="4" y="5.500" width="16" height="14.500" rx="2.500" /><path d="M4 10h16M8.500 3.500v4M15.500 3.500v4" /></Icon>
+);

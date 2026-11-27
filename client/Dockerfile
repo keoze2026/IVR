@@ -8,6 +8,8 @@ COPY package.json package-lock.json* ./
 RUN npm ci
 
 COPY tsconfig.json vite.config.ts index.html ./
+# App icons, manifests and the offline page.
+COPY public ./public
 COPY src ./src
 COPY server ./server
 RUN npm run build

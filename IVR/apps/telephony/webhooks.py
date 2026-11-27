@@ -183,7 +183,7 @@ class IVRGatherView(BaseWebhookView):
             return self.hangup()
 
         # A Dial that has returned reports its outcome instead of digits.
-        if "DialCallStatus" in data:
+        if "DialCallStatus" in data or node.get("type") == "transfer":
             return self._handle_dial_result(request, data, sid, node_id, node,
                                             flow, state)
         if "RecordingUrl" in data and node.get("type") == "record":
@@ -238,7 +238,9 @@ class IVRGatherView(BaseWebhookView):
         duration = int(data.get("DialCallDuration") or 0)
         state.set(transfer_status=status, transfer_duration=duration)
 
-        if status == "completed":
+        # With no outcome reported, end the call: telling someone who has just
+        # spoken to an agent that nobody was available would be worse.
+        if status in ("", "completed", "answered"):
             state.set_disposition(Disposition.TRANSFERRED)
             state.save()
             _enqueue_event(sid, "transfer_completed", data, state)
