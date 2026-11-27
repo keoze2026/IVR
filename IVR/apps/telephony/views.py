@@ -9,13 +9,13 @@ from django.db.models import Count, Q
 from django.db.models.functions import TruncDate
 from django.http import StreamingHttpResponse
 from django.utils import timezone
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.permissions import HasCapability, IsOrganizationMember
+from apps.common.filters import TenantFilterBackend
 from apps.common.mixins import AuditedActionMixin, TenantViewSetMixin
 from apps.common.pagination import CursorPagination
 from apps.common.utils import mask_phone
@@ -108,7 +108,7 @@ class CallLogViewSet(TenantViewSetMixin, AuditedActionMixin,
     queryset = CallLog.objects.all().select_related("campaign", "contact")
     permission_classes = [IsOrganizationMember, HasCapability]
     pagination_class = CursorPagination
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [TenantFilterBackend]
     filterset_fields = ["campaign", "status", "disposition", "answered_by",
                         "contact", "attempt_number"]
 

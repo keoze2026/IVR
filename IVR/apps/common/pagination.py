@@ -24,3 +24,13 @@ class SmallPageNumberPagination(PageNumberPagination):
     page_size = 25
     max_page_size = 200
     page_size_query_param = "page_size"
+
+    def paginate_queryset(self, queryset, request, view=None):
+        # Pages of an unordered query can repeat some rows and skip others.
+        # Anything without an order of its own is listed newest first.
+        if getattr(queryset, "ordered", True) is False:
+            names = {f.name for f in queryset.model._meta.fields}
+            queryset = queryset.order_by(
+                *(["-created_at", "-pk"] if "created_at" in names else ["-pk"])
+            )
+        return super().paginate_queryset(queryset, request, view=view)

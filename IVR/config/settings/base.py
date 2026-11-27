@@ -253,7 +253,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "apps.common.pagination.CursorPagination",
     "PAGE_SIZE": 50,
     "DEFAULT_FILTER_BACKENDS": [
-        "django_filters.rest_framework.DjangoFilterBackend",
+        "apps.common.filters.TenantFilterBackend",
         "rest_framework.filters.OrderingFilter",
     ],
     "DEFAULT_THROTTLE_CLASSES": [

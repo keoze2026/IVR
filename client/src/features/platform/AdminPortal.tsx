@@ -15,7 +15,7 @@
  *     using it daily and should not have to remember what an icon means.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams, useLocation } from "react-router-dom";
 
 import {
@@ -58,6 +58,7 @@ import {
 import {
   useCreateRow,
   useDeleteRow,
+  PAGE_SIZE,
   usePlatformList,
   usePlatformOverview,
   usePlatformRow,
@@ -366,16 +367,28 @@ function ResourceGate({
 // ---------------------------------------------------------------- list
 
 export function AdminListPage() {
-  return <ResourceGate>{(schema) => <ResourceList schema={schema} />}</ResourceGate>;
+  // Keyed so that each section starts at its own first page with no search.
+  return (
+    <ResourceGate>
+      {(schema) => <ResourceList key={schema.resource} schema={schema} />}
+    </ResourceGate>
+  );
 }
 
 function ResourceList({ schema }: { schema: ResourceSchema }) {
   const { resource } = schema;
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
-  const { data, isLoading, error, refetch } = usePlatformList(resource, search);
+  const [page, setPage] = useState(1);
+  const { data, isLoading, error, refetch } = usePlatformList(resource, search, page);
   const rows = data?.results ?? [];
   const total = data?.count;
+  const pages = Math.max(1, Math.ceil((total ?? 0) / PAGE_SIZE));
+
+  // Deleting the only record on the last page leaves that page gone.
+  useEffect(() => {
+    if (page > 1 && error?.status === 404) setPage(1);
+  }, [page, error]);
 
   const subtitle =
     (total != null
@@ -400,7 +413,10 @@ function ResourceList({ schema }: { schema: ResourceSchema }) {
       {schema.search.length > 0 && (
         <Input
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
           placeholder={`Search by ${schema.search.map(humanise).join(", ")}`}
           className="max-w-md"
         />
@@ -465,6 +481,20 @@ function ResourceList({ schema }: { schema: ResourceSchema }) {
             </table>
           </div>
         </Panel>
+      )}
+
+      {(pages > 1 || page > 1) && (
+        <nav aria-label="Pages" className="flex flex-wrap items-center justify-between gap-3">
+          <Button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+            Previous
+          </Button>
+          <span className="num text-sm text-ash">
+            Page {page} of {pages}
+          </span>
+          <Button type="button" disabled={!data?.next} onClick={() => setPage(page + 1)}>
+            Next
+          </Button>
+        </nav>
       )}
     </div>
   );

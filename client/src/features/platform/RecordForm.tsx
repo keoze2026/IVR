@@ -10,7 +10,7 @@
 import { useEffect, useState } from "react";
 
 import { Button, Field, Input, Panel, Select, Textarea, cx } from "@/components/ui";
-import { usePlatformList, type FieldSchema, type ResourceSchema, type Row } from "@/lib/queries/platform";
+import { usePlatformOptions, type FieldSchema, type ResourceSchema, type Row } from "@/lib/queries/platform";
 
 /** Fields a person should never be asked to fill in by hand. */
 const MACHINE_FIELDS = new Set([
@@ -36,8 +36,9 @@ function ReferencePicker({
   value: unknown;
   onChange: (v: unknown) => void;
 }) {
-  const { data, isLoading } = usePlatformList(field.references ?? "", "");
+  const { data, isLoading } = usePlatformOptions(field.references ?? "");
   const rows = data?.results ?? [];
+  const chosen = (value as string) ?? "";
 
   if (!field.references) {
     // A model the admin does not expose. Falling back to a raw id beats
@@ -53,19 +54,30 @@ function ReferencePicker({
   }
 
   return (
-    <Select
-      id={id}
-      value={(value as string) ?? ""}
-      onChange={(e) => onChange(e.target.value || null)}
-      disabled={isLoading}
-    >
-      <option value="">{isLoading ? "Loading…" : "— none —"}</option>
-      {rows.map((row) => (
-        <option key={row.id} value={row.id}>
-          {row.display ?? row.id}
-        </option>
-      ))}
-    </Select>
+    <>
+      <Select
+        id={id}
+        value={chosen}
+        onChange={(e) => onChange(e.target.value || null)}
+        disabled={isLoading}
+      >
+        <option value="">{isLoading ? "Loading…" : "— none —"}</option>
+        {/* A saved choice stays visible even when it is not in the list. */}
+        {chosen && !rows.some((row) => row.id === chosen) && (
+          <option value={chosen}>{chosen}</option>
+        )}
+        {rows.map((row) => (
+          <option key={row.id} value={row.id}>
+            {row.display ?? row.id}
+          </option>
+        ))}
+      </Select>
+      {data?.next && (
+        <p className="mt-1 text-xs text-ash">
+          Only the first {rows.length.toLocaleString()} are listed.
+        </p>
+      )}
+    </>
   );
 }
 

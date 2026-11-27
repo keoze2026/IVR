@@ -1,11 +1,11 @@
 """IVR flow endpoints (spec 11.2)."""
 
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.accounts.permissions import HasCapability, IsOrganizationMember
+from apps.common.filters import TenantFilterBackend
 from apps.common.mixins import AuditedActionMixin, TenantViewSetMixin
 from apps.common.pagination import SmallPageNumberPagination
 from apps.common.utils import acting_user
@@ -42,7 +42,7 @@ class IVRFlowViewSet(TenantViewSetMixin, AuditedActionMixin, viewsets.ModelViewS
     serializer_class = IVRFlowSerializer
     permission_classes = [IsOrganizationMember, HasCapability]
     pagination_class = SmallPageNumberPagination
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [TenantFilterBackend]
     filterset_fields = ["is_archived"]
 
     required_capabilities = {
@@ -116,7 +116,7 @@ class IVRFlowVersionViewSet(TenantViewSetMixin, AuditedActionMixin,
     serializer_class = IVRFlowVersionSerializer
     permission_classes = [IsOrganizationMember, HasCapability]
     pagination_class = SmallPageNumberPagination
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [TenantFilterBackend]
     filterset_fields = ["flow", "is_published"]
 
     required_capabilities = {

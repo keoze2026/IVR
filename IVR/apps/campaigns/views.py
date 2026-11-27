@@ -1,6 +1,5 @@
 """Campaign lifecycle endpoints (spec 11.1)."""
 
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -13,6 +12,7 @@ from apps.campaigns.serializers import (
     CampaignSerializer,
 )
 from apps.campaigns.services import pause, preflight, resume, start, stop
+from apps.common.filters import TenantFilterBackend
 from apps.common.mixins import AuditedActionMixin, TenantViewSetMixin
 from apps.common.pagination import SmallPageNumberPagination
 from apps.common.throttling import CampaignControlThrottle
@@ -36,7 +36,7 @@ class CampaignViewSet(TenantViewSetMixin, AuditedActionMixin, viewsets.ModelView
     serializer_class = CampaignSerializer
     permission_classes = [IsOrganizationMember, HasCapability]
     pagination_class = SmallPageNumberPagination
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [TenantFilterBackend]
     filterset_fields = ["status", "caller_id", "flow_version"]
     ordering_fields = ["created_at", "name", "status"]
 
@@ -170,7 +170,7 @@ class CallerIDViewSet(TenantViewSetMixin, AuditedActionMixin, viewsets.ModelView
     serializer_class = CallerIDSerializer
     permission_classes = [IsOrganizationMember, HasCapability]
     pagination_class = SmallPageNumberPagination
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [TenantFilterBackend]
     filterset_fields = ["provider", "is_active", "attestation"]
 
     required_capabilities = {

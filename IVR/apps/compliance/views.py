@@ -1,11 +1,11 @@
 """Compliance endpoints (spec 11.2)."""
 
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.accounts.permissions import HasCapability, IsOrganizationMember
+from apps.common.filters import TenantFilterBackend
 from apps.common.mixins import AuditedActionMixin, TenantViewSetMixin
 from apps.common.pagination import CursorPagination, SmallPageNumberPagination
 from apps.compliance.models import CallingWindow, DNCEntry
@@ -32,7 +32,7 @@ class DNCEntryViewSet(TenantViewSetMixin, AuditedActionMixin, viewsets.ModelView
     serializer_class = DNCEntrySerializer
     permission_classes = [IsOrganizationMember, HasCapability]
     pagination_class = CursorPagination
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [TenantFilterBackend]
     filterset_fields = ["reason", "scope_campaign", "is_global"]
 
     required_capabilities = {
@@ -174,7 +174,7 @@ class ConsentRecordViewSet(TenantViewSetMixin, AuditedActionMixin,
     serializer_class = ConsentRecordSerializer
     permission_classes = [IsOrganizationMember, HasCapability]
     pagination_class = CursorPagination
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [TenantFilterBackend]
     filterset_fields = ["consent_type", "scope", "source"]
 
     required_capabilities = {

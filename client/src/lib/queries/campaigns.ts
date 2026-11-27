@@ -13,7 +13,7 @@ import {
   type UseQueryOptions,
 } from "@tanstack/react-query";
 
-import { query, request, type PagedResponse } from "../api";
+import { query, request, requestAll, type PagedResponse } from "../api";
 import { ApiError } from "../errors";
 import type { Campaign, CampaignStatus, KpiFrame, Preflight } from "@/types/domain";
 import { LIVE_REFRESH_MS } from "../live";
@@ -42,8 +42,14 @@ export function useCampaigns(
   return useQuery<PagedResponse<Campaign>, ApiError>({
     queryKey: campaignKeys.list(filters),
     refetchInterval: LIVE_REFRESH_MS,
-    queryFn: () =>
-      request<PagedResponse<Campaign>>(`campaigns/${query({ ...filters })}`),
+    // A screen that pages through campaigns names a page. The rest, such as
+    // the Jobs list and its totals, need all of them.
+    queryFn: () => {
+      const path = `campaigns/${query({ ...filters })}`;
+      return filters.page
+        ? request<PagedResponse<Campaign>>(path)
+        : requestAll<Campaign>(path);
+    },
     ...options,
   });
 }

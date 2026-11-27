@@ -41,6 +41,12 @@ class RowError(Exception):
     pass
 
 
+#: US toll-free numbers belong to no place, so the number alone gives no clock.
+#: The metadata lists every North American zone, the first being in the Aleutian
+#: Islands. Central time is used instead.
+TOLL_FREE_TIMEZONE = "America/Chicago"
+
+
 def normalise_phone(raw: str, default_region: str) -> tuple[str, str, str]:
     """Return (e164, country_code, timezone). Raises RowError on invalid input."""
     try:
@@ -57,6 +63,8 @@ def normalise_phone(raw: str, default_region: str) -> tuple[str, str, str]:
 
     tzs = pn_timezone.time_zones_for_number(num)
     tz = tzs[0] if tzs else "UTC"
+    if num.country_code == 1 and number_type(num) == PhoneNumberType.TOLL_FREE:
+        tz = TOLL_FREE_TIMEZONE
     return e164, str(num.country_code), tz
 
 

@@ -29,7 +29,6 @@ from apps.common.enums import ConsentScope
 from apps.common.utils import phone_hash
 from apps.contacts.ingest import RowError, normalise_phone
 from apps.contacts.models import Contact, ContactList
-from apps.dialer.routing import is_toll_free
 from apps.ivr.models import AudioAsset, IVRFlow, IVRFlowVersion, TransferEndpoint
 
 #: What a pressed key can do in a quick-dial job. Kept small on purpose: a
@@ -38,10 +37,6 @@ from apps.ivr.models import AudioAsset, IVRFlow, IVRFlowVersion, TransferEndpoin
 #: administrator has registered, named on the step.
 _DTMF_ACTIONS = {"confirm", "opt_out", "repeat", "hangup", "transfer"}
 
-#: US toll-free numbers belong to no place, so the number alone gives no clock.
-#: The metadata lists every North American zone, the first being in the Aleutian
-#: Islands. Central time is used instead.
-_TOLL_FREE_TIMEZONE = "America/Chicago"
 
 
 def _with_disclosure(defn: dict, record: bool) -> dict:
@@ -336,7 +331,7 @@ class QuickDialView(APIView):
             if e164 not in seen:
                 seen.add(e164)
                 numbers.append(e164)
-                places[e164] = (cc, _TOLL_FREE_TIMEZONE if is_toll_free(e164) else tz)
+                places[e164] = (cc, tz)
         if not numbers:
             return _bad("Enter at least one number to dial.")
         e164 = numbers[0]  # first number: used for naming and the list label

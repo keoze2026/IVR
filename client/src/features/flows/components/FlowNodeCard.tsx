@@ -2,7 +2,7 @@
  * Interactive canvas node card component for IVR flow builder.
  */
 
-import { useRef, useEffect, type FC, type MouseEvent } from "react";
+import { useRef, useEffect, type FC, type PointerEvent } from "react";
 import type { FlowNode, NodeSpec, ValidationIssue } from "@/types/domain";
 import { getOutputPorts, type OutputPort } from "../utils/graph";
 import { NODE_WIDTH, type Point } from "../utils/geometry";
@@ -20,7 +20,7 @@ interface FlowNodeCardProps {
   issues: ValidationIssue[];
   readOnly: boolean;
   onSelect: (id: string) => void;
-  onDragStart: (id: string, e: MouseEvent) => void;
+  onDragStart: (id: string, e: PointerEvent) => void;
   onStartConnect: (id: string, portId: string, socketPoint: Point) => void;
   onEndConnect: (targetNodeId: string) => void;
   onSetEntry: (id: string) => void;
@@ -72,7 +72,7 @@ export const FlowNodeCard: FC<FlowNodeCardProps> = ({
     });
   }, [id, ports, onRegisterPortOffset]);
 
-  const handleSocketMouseDown = (e: MouseEvent, port: OutputPort) => {
+  const handleSocketPointerDown = (e: PointerEvent, port: OutputPort) => {
     e.stopPropagation();
     if (readOnly) return;
     onStartConnect(id, port.id, {
@@ -93,7 +93,7 @@ export const FlowNodeCard: FC<FlowNodeCardProps> = ({
         e.stopPropagation();
         onSelect(id);
       }}
-      onMouseUp={() => {
+      onPointerUp={() => {
         if (isConnectingTarget) {
           onEndConnect(id);
         }
@@ -112,7 +112,7 @@ export const FlowNodeCard: FC<FlowNodeCardProps> = ({
       <div
         data-input-socket={id}
         title={`Connect to ${id}`}
-        onMouseUp={(e) => {
+        onPointerUp={(e) => {
           e.stopPropagation();
           onEndConnect(id);
         }}
@@ -125,7 +125,7 @@ export const FlowNodeCard: FC<FlowNodeCardProps> = ({
 
       {/* Header & Drag Handle */}
       <div
-        onMouseDown={(e) => {
+        onPointerDown={(e) => {
           if (!readOnly && e.button === 0) {
             onDragStart(id, e);
           }
@@ -222,13 +222,13 @@ export const FlowNodeCard: FC<FlowNodeCardProps> = ({
                     ? `Transition: ${port.target || "none"}`
                     : `Drag to connect ${port.label} → another node`
                 }
-                onMouseDown={(e) => handleSocketMouseDown(e, port)}
+                onPointerDown={(e) => handleSocketPointerDown(e, port)}
                 style={
                   port.target
                     ? { backgroundColor: KIND_COLORS[port.kind], borderColor: "var(--color-panel)" }
                     : undefined
                 }
-                className={`relative z-10 -mr-[17px] size-[18px] shrink-0 rounded-full border-2 border-ash-dim bg-panel shadow-sm transition-transform duration-150 after:absolute after:-inset-1 ${
+                className={`relative z-10 -mr-[17px] size-[18px] shrink-0 rounded-full border-2 border-ash-dim bg-panel shadow-sm transition-transform duration-150 after:absolute after:-inset-1 [@media(pointer:coarse)]:after:-inset-3 ${
                   readOnly ? "" : "cursor-crosshair hover:scale-125"
                 }`}
               />

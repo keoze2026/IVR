@@ -15,10 +15,8 @@ import { CreateJobModal } from "./CreateJobModal";
 
 export function JobsPage() {
   // Refetched on an interval so a running job's status moves on its own.
-  // The server returns 25 jobs in no set order unless asked for more, which
-  // hides new jobs. Ask for its maximum and list the newest first.
   const { data, isLoading, error, refetch } = useCampaigns(
-    { page_size: 200 },
+    {},
     { refetchInterval: 4000 },
   );
   const action = useJobAction();

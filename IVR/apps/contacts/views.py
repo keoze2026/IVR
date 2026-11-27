@@ -2,12 +2,12 @@
 
 import uuid
 
-from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.accounts.permissions import HasCapability, IsOrganizationMember
+from apps.common.filters import TenantFilterBackend
 from apps.common.mixins import AuditedActionMixin, TenantViewSetMixin
 from apps.common.pagination import CursorPagination, SmallPageNumberPagination
 from apps.common.throttling import UploadRateThrottle
@@ -28,7 +28,7 @@ class ContactListViewSet(TenantViewSetMixin, AuditedActionMixin,
     serializer_class = ContactListSerializer
     permission_classes = [IsOrganizationMember, HasCapability]
     pagination_class = SmallPageNumberPagination
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [TenantFilterBackend]
     filterset_fields = ["ingest_status"]
 
     required_capabilities = {
@@ -146,7 +146,7 @@ class ContactViewSet(TenantViewSetMixin, AuditedActionMixin, viewsets.ModelViewS
     serializer_class = ContactSerializer
     permission_classes = [IsOrganizationMember, HasCapability]
     pagination_class = CursorPagination
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = [TenantFilterBackend]
     filterset_fields = ["contact_list", "is_suppressed", "line_type",
                         "suppression_reason"]
 

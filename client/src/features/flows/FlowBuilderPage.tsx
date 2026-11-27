@@ -17,6 +17,7 @@ import {
   Badge,
   Button,
   ErrorState,
+  Modal,
   PageHeader,
   Panel,
   cx,
@@ -72,6 +73,10 @@ export function FlowBuilderPage() {
   const publish = usePublishVersion(versionId ?? "");
 
   const [doc, setDoc] = useState<FlowDefinition | null>(null);
+  // The document as the server last had it, to tell whether there are edits
+  // that publishing would leave out.
+  const [savedDoc, setSavedDoc] = useState<FlowDefinition | null>(null);
+  const [askToSave, setAskToSave] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [report, setReport] = useState<ValidationReport | null>(null);
 
@@ -107,6 +112,7 @@ export function FlowBuilderPage() {
       };
 
       setDoc(initialDoc);
+      setSavedDoc(initialDoc);
       setReport(version.data.validation_report);
       const initialEntry = initialDoc.entry || Object.keys(initialDoc.nodes)[0];
       setSelectedIds(initialEntry ? [initialEntry] : []);
@@ -446,6 +452,25 @@ export function FlowBuilderPage() {
     .concat(report?.warnings ?? [])
     .filter((i) => i.node && selectedIds.includes(i.node));
 
+  const saveDraft = (then?: () => void) => {
+    const sent = doc;
+    save.mutate(
+      { definition: sent },
+      {
+        onSuccess: () => {
+          setSavedDoc(sent);
+          then?.();
+        },
+        onSettled: () => setAskToSave(false),
+      },
+    );
+  };
+
+  const publishFlow = () => {
+    if (JSON.stringify(doc) !== JSON.stringify(savedDoc)) setAskToSave(true);
+    else publish.mutate();
+  };
+
   const publishRefused =
     publish.error instanceof ApiError && publish.error.isInvalidFlow
       ? publish.error
@@ -477,7 +502,7 @@ export function FlowBuilderPage() {
                     variant={canPublish ? "secondary" : "primary"}
                     loading={save.isPending}
                     disabled={blocksSave.length > 0}
-                    onClick={() => save.mutate({ definition: doc })}
+                    onClick={() => saveDraft()}
                   >
                     Save Draft
                   </Button>
@@ -486,7 +511,7 @@ export function FlowBuilderPage() {
                       variant="primary"
                       loading={publish.isPending}
                       disabled={(report?.errors?.length ?? 0) > 0}
-                      onClick={() => publish.mutate()}
+                      onClick={publishFlow}
                     >
                       Publish Flow
                     </Button>
@@ -497,6 +522,25 @@ export function FlowBuilderPage() {
           }
         />
       </div>
+
+      {askToSave && (
+        <Modal title="Save your changes first?" onClose={() => setAskToSave(false)}>
+          <p className="text-sm text-ash">
+            This flow has changes that are not saved. Publishing without saving
+            would leave them out.
+          </p>
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <Button onClick={() => setAskToSave(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              loading={save.isPending}
+              onClick={() => saveDraft(() => publish.mutate())}
+            >
+              Save and publish
+            </Button>
+          </div>
+        </Modal>
+      )}
 
       {/* --- Save and publish failures ------------------------------- */}
       {save.error && <ErrorState error={save.error} />}

@@ -110,6 +110,30 @@ export interface CursorResponse<T> {
   results: T[];
 }
 
+/** Rows asked for at a time when a whole list is wanted: the server's maximum. */
+const FULL_PAGE = 200;
+
+/**
+ * Every row of a numbered list, following `next` to the end.
+ *
+ * The server hands these out 25 at a time, so one request would leave the rest
+ * out of tables and dropdowns. After `maxPages` it stops, and `next` stays set
+ * to say that there is more.
+ */
+export async function requestAll<T>(
+  path: string,
+  maxPages = 50,
+): Promise<PagedResponse<T>> {
+  const join = path.includes("?") ? "&" : "?";
+  let page = await request<PagedResponse<T>>(`${path}${join}page_size=${FULL_PAGE}`);
+  const results = [...page.results];
+  for (let read = 1; page.next && read < maxPages; read += 1) {
+    page = await request<PagedResponse<T>>("", { absoluteUrl: page.next });
+    results.push(...page.results);
+  }
+  return { ...page, previous: null, results };
+}
+
 export function query(params: Record<string, unknown>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {

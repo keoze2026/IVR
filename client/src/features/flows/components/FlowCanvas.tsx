@@ -8,7 +8,7 @@ import {
   useCallback,
   useEffect,
   type FC,
-  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type DragEvent as ReactDragEvent,
 } from "react";
 import type {
@@ -82,6 +82,11 @@ export const FlowCanvas: FC<FlowCanvasProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
 
+  // Fingers on the canvas, and the pinch two of them are making. `anchor` is
+  // the point of the graph that stays under the middle of the pinch.
+  const touches = useRef(new Map<number, Point>());
+  const pinch = useRef<{ distance: number; zoom: number; anchor: Point } | null>(null);
+
   // Interaction states
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState<Point>({ x: 0, y: 0 });
@@ -126,11 +131,59 @@ export const FlowCanvas: FC<FlowCanvasProps> = ({
     [pan, zoom],
   );
 
+  // Pointer position within the visible canvas
+  const pointInView = (e: ReactPointerEvent): Point => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    return { x: e.clientX - (rect?.left ?? 0), y: e.clientY - (rect?.top ?? 0) };
+  };
+
+  /** Drop whatever is in progress without applying it. */
+  const cancelGestures = () => {
+    setIsPanning(false);
+    setDraggingNode(null);
+    setMarqueeStart(null);
+    setMarqueeCurrent(null);
+    setConnectingWire(null);
+    setConnectingHoverTarget(null);
+  };
+
+  const spread = (a: Point, b: Point) => Math.max(Math.hypot(a.x - b.x, a.y - b.y), 1);
+  const middle = (a: Point, b: Point) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+
+  // Counted before a card or port sees the event, so a second finger zooms
+  // instead of starting another drag.
+  const handlePointerDownCapture = (e: ReactPointerEvent) => {
+    if (e.pointerType !== "touch") return;
+    if (e.isPrimary) {
+      touches.current.clear();
+      pinch.current = null;
+    }
+    touches.current.set(e.pointerId, pointInView(e));
+    if (touches.current.size < 2) return;
+
+    e.stopPropagation();
+    const [a, b] = [...touches.current.values()] as [Point, Point];
+    const centre = middle(a, b);
+    cancelGestures();
+    pinch.current = {
+      distance: spread(a, b),
+      zoom,
+      anchor: { x: (centre.x - pan.x) / zoom, y: (centre.y - pan.y) / zoom },
+    };
+  };
+
+  const handlePointerEndCapture = (e: ReactPointerEvent) => {
+    touches.current.delete(e.pointerId);
+    // The finger left on the glass after a pinch does nothing until lifted.
+    if (touches.current.size === 0) pinch.current = null;
+  };
+
   // Canvas Panning Handlers
-  const handleCanvasMouseDown = (e: ReactMouseEvent) => {
+  const handleCanvasPointerDown = (e: ReactPointerEvent) => {
     // The world layer covers most of the canvas, so it counts as background too.
     if (e.target === containerRef.current || e.target === worldRef.current) {
-      if (e.button === 1 || e.shiftKey) {
+      // A finger or pen drags the view; a mouse draws a selection box.
+      if (e.pointerType !== "mouse" || e.button === 1 || e.shiftKey) {
         setIsPanning(true);
         setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
       } else if (e.button === 0) {
@@ -143,7 +196,26 @@ export const FlowCanvas: FC<FlowCanvasProps> = ({
     }
   };
 
-  const handleMouseMove = (e: ReactMouseEvent) => {
+  const handlePointerMove = (e: ReactPointerEvent) => {
+    // 0. Two fingers zoom and move together
+    if (touches.current.has(e.pointerId)) {
+      touches.current.set(e.pointerId, pointInView(e));
+    }
+    if (pinch.current) {
+      const [a, b] = [...touches.current.values()];
+      if (a && b) {
+        const { distance, zoom: startZoom, anchor } = pinch.current;
+        const nextZoom = Math.min(Math.max((startZoom * spread(a, b)) / distance, 0.3), 2.0);
+        const centre = middle(a, b);
+        onZoomChange(nextZoom);
+        onPanChange({
+          x: centre.x - anchor.x * nextZoom,
+          y: centre.y - anchor.y * nextZoom,
+        });
+      }
+      return;
+    }
+
     // 1. Panning canvas
     if (isPanning) {
       onPanChange({
@@ -185,8 +257,16 @@ export const FlowCanvas: FC<FlowCanvasProps> = ({
 
       // Check if hovering over any node
       const targetEl = document.elementFromPoint(e.clientX, e.clientY);
-      const targetCard = targetEl?.closest("[data-input-socket]");
-      const targetNodeId = targetCard?.getAttribute("data-input-socket") ?? null;
+      // A fingertip hides the small input socket, so the whole card counts.
+      const targetCard = targetEl?.closest(
+        e.pointerType === "mouse"
+          ? "[data-input-socket]"
+          : "[data-input-socket], [data-node-card]",
+      );
+      const targetNodeId =
+        targetCard?.getAttribute("data-input-socket") ??
+        targetCard?.getAttribute("data-node-card") ??
+        null;
 
       if (targetNodeId && targetNodeId !== connectingWire.sourceNodeId) {
         setConnectingHoverTarget(targetNodeId);
@@ -196,7 +276,7 @@ export const FlowCanvas: FC<FlowCanvasProps> = ({
     }
   };
 
-  const handleMouseUp = () => {
+  const handlePointerUp = () => {
     setIsPanning(false);
     setDraggingNode(null);
 
@@ -260,7 +340,7 @@ export const FlowCanvas: FC<FlowCanvasProps> = ({
   }, [zoom, pan, onZoomChange, onPanChange]);
 
   // Drag node card start
-  const handleNodeDragStart = (nodeId: string, e: ReactMouseEvent) => {
+  const handleNodeDragStart = (nodeId: string, e: ReactPointerEvent) => {
     let activeIds = selectedNodeIds;
     if (!selectedNodeIds.includes(nodeId)) {
       activeIds = [nodeId];
@@ -327,12 +407,17 @@ export const FlowCanvas: FC<FlowCanvasProps> = ({
   return (
     <div
       ref={containerRef}
-      onMouseDown={handleCanvasMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
+      onPointerDownCapture={handlePointerDownCapture}
+      onPointerUpCapture={handlePointerEndCapture}
+      onPointerCancelCapture={handlePointerEndCapture}
+      onPointerDown={handleCanvasPointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={cancelGestures}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      className={`relative size-full overflow-hidden bg-void select-none ${
+      // touch-none: swipes here move the graph, not the page.
+      className={`relative size-full touch-none overflow-hidden bg-void select-none ${
         isPanning ? "cursor-grabbing" : "cursor-default"
       }`}
       style={{

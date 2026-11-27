@@ -70,8 +70,13 @@ device, so install Admin first where both are wanted. Sign-ins last 12 idle hour
 Contact Lists), Analytics (Dashboard, Calls, Jobs, CDR) and Infrastructure (My
 Numbers, Audio Pools, CLI Pools, Wallets, Tariffs), with account capacity and
 Settings below. Compliance, People and Access keys are not on the staff sidebar.
-The Jobs and Active Jobs screens ask for up to 200 jobs, because the server's
-default is 25 in no set order; Jobs lists the newest first.
+
+**Long lists.** The server returns 25 records at a time, newest first unless a
+list has its own order. Jobs, Active Jobs and the staff portal's lists and
+dropdowns read every page (`requestAll` in `client/src/lib/api.ts`, up to 10,000
+records). The Campaigns screen and the admin record lists show 25 per page with
+page buttons; admin dropdowns offer up to 2,000 records. A filter such as
+`?campaign=<id>` accepts only your own organisation's records.
 
 **Create Job options.** "Tries per number" (1-5) redials busy and unanswered
 numbers after the chosen gap. A job that includes a US number says who is
@@ -85,6 +90,11 @@ administration, Scripts, Transfer numbers. They can then be chosen for a key in
 Create Job, or as "Transfer To" on a transfer step in the flow builder. The agent
 sees the job's caller ID unless the number sets its own. Calls can only be
 connected to registered numbers. Not yet verified on a real call.
+
+**Flow builder.** Publishing a draft with unsaved changes asks to save them
+first. On a touch screen, drag empty space to move the graph, pinch to zoom, drag
+a step by its header, and drag from a step's connector onto another step to link
+them. Checked with simulated touch in a desktop browser, not yet on a device.
 
 **Calls Trend.** The dashboard charts calls per day for the last 7, 30 or 90 days
 on the viewer's clock, from `GET /api/v1/calls/trend/?days=7&tz=...`, counted over
@@ -113,11 +123,13 @@ number, wallet and admin list screens fetch fresh data every 5 seconds
 an editable form do not. The campaign live screen also uses a websocket, which
 accepts both API keys and name-and-code sign-ins.
 
-**Calling hours for new jobs.** A job made with Create Job reads each number's
-country and timezone from the number itself, so its calling window, and the
-holidays that block it, are the called person's. US numbers are also held to
-08:00-21:00 local time. US toll-free numbers have no location and use Central
-time. Jobs created before this keep their old values.
+**Calling hours.** A job made with Create Job reads each number's country and
+timezone from the number itself, so its calling window, and the holidays that
+block it, are the called person's. US numbers are also held to 08:00-21:00 local
+time. US toll-free numbers have no location and use Central time, in Create Job
+and in contact list imports; a database migration corrects toll-free contacts
+imported earlier. Jobs created before calling hours followed the number keep
+their old values.
 
 **Spoken text on Telnyx.** English messages are sent with the voice `woman` and
 accent `en-US`, set in `IVR/apps/ivr/renderers.py`.
@@ -199,8 +211,11 @@ In the portal, open **Numbers**, type the number, choose the carrier and press
 
 ### Checks
 
-`kombu` is pinned to 5.6.2 (5.7.0 needs redis-py 6.1 or later). A green CI run
-does not currently prove the tests passed: check the log for `FAILED`.
+`kombu` is pinned to 5.6.2 (5.7.0 needs redis-py 6.1 or later). CI runs the
+backend only; it does not build or test the portal.
+
+Through the web server, `/healthz` says the app is up and `/readyz` that it can
+reach what it needs.
 
 ```bash
 cd IVR    && pytest              # backend

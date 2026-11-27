@@ -8,7 +8,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { request } from "../api";
+import { query, request, requestAll } from "../api";
 import type { ApiError } from "../errors";
 import { LIVE_REFRESH_MS } from "../live";
 
@@ -76,14 +76,30 @@ export interface PagedRows {
   results: Row[];
 }
 
-export function usePlatformList(resource: string, search: string) {
+/** Records on one page of an admin list. */
+export const PAGE_SIZE = 25;
+
+export function usePlatformList(resource: string, search: string, page: number) {
   return useQuery<PagedRows, ApiError>({
-    queryKey: ["platform", resource, search],
+    queryKey: ["platform", resource, search, page],
     refetchInterval: LIVE_REFRESH_MS,
     queryFn: () =>
       request<PagedRows>(
-        `platform/${resource}/${search ? `?q=${encodeURIComponent(search)}` : ""}`,
+        `platform/${resource}/${query({ q: search, page, page_size: PAGE_SIZE })}`,
       ),
+    // The rows on screen stay while the next page loads.
+    placeholderData: (previous, last) =>
+      last?.queryKey[1] === resource ? previous : undefined,
+    enabled: Boolean(resource),
+  });
+}
+
+/** The records a dropdown offers: all of them, up to 2,000. */
+export function usePlatformOptions(resource: string) {
+  return useQuery<PagedRows, ApiError>({
+    queryKey: ["platform", resource, "options"],
+    staleTime: 30_000,
+    queryFn: () => requestAll<Row>(`platform/${resource}/`, 10),
     enabled: Boolean(resource),
   });
 }

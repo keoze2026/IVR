@@ -15,7 +15,7 @@ import {
 
 import {
   query,
-  request,
+  request, requestAll,
   type CursorResponse,
   type PagedResponse,
 } from "../api";
@@ -67,7 +67,7 @@ export function useContactLists(filters: { ingest_status?: string } = {}) {
     queryKey: keys.contactLists(filters),
     refetchInterval: LIVE_REFRESH_MS,
     queryFn: () =>
-      request<PagedResponse<ContactList>>(`contact-lists/${query(filters)}`),
+      requestAll<ContactList>(`contact-lists/${query(filters)}`),
   });
 }
 
@@ -180,7 +180,7 @@ export function useFlows(filters: { is_archived?: string } = {}) {
   return useQuery<PagedResponse<FlowSummary>, ApiError>({
     queryKey: keys.flows(filters),
     refetchInterval: LIVE_REFRESH_MS,
-    queryFn: () => request<PagedResponse<FlowSummary>>(`flows/${query(filters)}`),
+    queryFn: () => requestAll<FlowSummary>(`flows/${query(filters)}`),
   });
 }
 
@@ -481,7 +481,7 @@ export function useRevokeConsent() {
 export function useCallingWindows() {
   return useQuery<PagedResponse<CallingWindow>, ApiError>({
     queryKey: keys.windows(),
-    queryFn: () => request<PagedResponse<CallingWindow>>("calling-windows/"),
+    queryFn: () => requestAll<CallingWindow>("calling-windows/"),
   });
 }
 
@@ -504,7 +504,7 @@ export function useCallerIds(
   return useQuery<PagedResponse<CallerID>, ApiError>({
     queryKey: keys.callerIds(filters),
     refetchInterval: LIVE_REFRESH_MS,
-    queryFn: () => request<PagedResponse<CallerID>>(`caller-ids/${query(filters)}`),
+    queryFn: () => requestAll<CallerID>(`caller-ids/${query(filters)}`),
   });
 }
 
@@ -531,7 +531,7 @@ export function useUpdateCallerId() {
 export function useTransferEndpoints() {
   return useQuery<PagedResponse<TransferEndpoint>, ApiError>({
     queryKey: ["transfer-endpoints"],
-    queryFn: () => request<PagedResponse<TransferEndpoint>>("transfer-endpoints/"),
+    queryFn: () => requestAll<TransferEndpoint>("transfer-endpoints/"),
     retry: false,
   });
 }
@@ -539,7 +539,7 @@ export function useTransferEndpoints() {
 export function useAudioAssets() {
   return useQuery<PagedResponse<AudioAsset>, ApiError>({
     queryKey: ["audio-assets"],
-    queryFn: () => request<PagedResponse<AudioAsset>>("audio-assets/"),
+    queryFn: () => requestAll<AudioAsset>("audio-assets/"),
     retry: false,
   });
 }
@@ -576,7 +576,7 @@ export interface CreatedAccessKey extends AccessKey {
 export function useAccessKeys() {
   return useQuery<PagedResponse<AccessKey>, ApiError>({
     queryKey: ["api-keys"],
-    queryFn: () => request<PagedResponse<AccessKey>>("api-keys/"),
+    queryFn: () => requestAll<AccessKey>("api-keys/"),
   });
 }
 
@@ -631,7 +631,7 @@ export interface IssuedEmployee extends Employee {
 export function useEmployees() {
   return useQuery<PagedResponse<Employee>, ApiError>({
     queryKey: ["employees"],
-    queryFn: () => request<PagedResponse<Employee>>("employees/"),
+    queryFn: () => requestAll<Employee>("employees/"),
   });
 }
 
@@ -681,7 +681,7 @@ export interface AudioClip {
 export function useAudioClips() {
   return useQuery<PagedResponse<AudioClip>, ApiError>({
     queryKey: ["audio"],
-    queryFn: () => request<PagedResponse<AudioClip>>("audio/"),
+    queryFn: () => requestAll<AudioClip>("audio/"),
   });
 }
 
@@ -777,7 +777,7 @@ function poolHooks(path: string, key: string) {
     useList: () =>
       useQuery<PagedResponse<Pool>, ApiError>({
         queryKey: [key],
-        queryFn: () => request<PagedResponse<Pool>>(`${path}/`),
+        queryFn: () => requestAll<Pool>(`${path}/`),
       }),
     useCreate: () => {
       const qc = useQueryClient();
@@ -847,7 +847,7 @@ export interface Tariff {
 export function useTariffs() {
   return useQuery<PagedResponse<Tariff>, ApiError>({
     queryKey: ["tariffs"],
-    queryFn: () => request<PagedResponse<Tariff>>("tariffs/"),
+    queryFn: () => requestAll<Tariff>("tariffs/"),
   });
 }
 export function useCreateTariff() {
