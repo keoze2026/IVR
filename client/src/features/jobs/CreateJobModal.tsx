@@ -30,6 +30,8 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
     max_concurrent_channels: 10,
     dial_batch_size: 5,
     dial_interval_seconds: 30,
+    max_attempts: 1,
+    retry_delay_minutes: 15,
   });
   const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) =>
     setF((p) => ({ ...p, [k]: v }));
@@ -93,6 +95,8 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
         dial_batch_size: f.dial_batch_size,
         dial_interval_seconds: f.dial_interval_seconds,
         cps_limit: 5,
+        max_attempts: f.max_attempts,
+        retry_delay_minutes: f.retry_delay_minutes,
         start_now: startNow,
       } as Parameters<typeof quickDial.mutateAsync>[0]);
       onClose();
@@ -183,6 +187,39 @@ export function CreateJobModal({ onClose }: { onClose: () => void }) {
             />
           )}
         </Field>
+
+        {/* retries */}
+        <div className="border-t border-edge pt-4">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="eyebrow">
+              Tries per number
+              <Input
+                type="number"
+                min={1}
+                max={5}
+                value={f.max_attempts}
+                onChange={(e) => set("max_attempts", Number(e.target.value))}
+                className="mt-1"
+              />
+            </label>
+            {f.max_attempts > 1 && (
+              <label className="eyebrow">
+                Minutes between tries
+                <Input
+                  type="number"
+                  min={1}
+                  max={1440}
+                  value={f.retry_delay_minutes}
+                  onChange={(e) => set("retry_delay_minutes", Number(e.target.value))}
+                  className="mt-1"
+                />
+              </label>
+            )}
+          </div>
+          {f.max_attempts > 1 && (
+            <p className="mt-1.5 text-xs text-ash">Only busy and unanswered numbers are tried again.</p>
+          )}
+        </div>
 
         {/* concurrency */}
         <div className="border-t border-edge pt-4">

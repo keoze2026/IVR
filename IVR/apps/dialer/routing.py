@@ -19,6 +19,7 @@ from apps.dialer.providers.base import (
     CallHandle,
     OriginateRequest,
     ProviderAdapter,
+    ProviderAtCapacity,
     ProviderCallError,
     ProviderRateLimited,
 )
@@ -200,22 +201,30 @@ def originate_with_failover(
 
             return handle, provider_name, provider
 
+        except ProviderAtCapacity:
+            # Full lines are not a carrier fault: do not mark the carrier
+            # unhealthy or move to another one, which would not own this
+            # caller ID. The caller puts the number back in the queue.
+            raise
+
         except Exception as exc:
             last_exc = exc
             is_rate_limit = isinstance(exc, ProviderRateLimited)
             retry_after = getattr(exc, "retry_after", 60.0) if is_rate_limit else 0.0
             is_outage = getattr(exc, "status", 0) >= 500
 
-            circuit_breaker.record_failure(
-                provider_name,
-                exc,
-                is_rate_limit=is_rate_limit,
-                retry_after=retry_after,
-                is_server_outage=is_outage,
-            )
+            eligible = is_failover_eligible(exc)
+            # A number that can never be reached says nothing about the carrier.
+            if eligible:
+                circuit_breaker.record_failure(
+                    provider_name,
+                    exc,
+                    is_rate_limit=is_rate_limit,
+                    retry_after=retry_after,
+                    is_server_outage=is_outage,
+                )
 
             has_fallback = idx + 1 < len(chain)
-            eligible = is_failover_eligible(exc)
 
             if has_fallback and eligible:
                 next_provider = chain[idx + 1]

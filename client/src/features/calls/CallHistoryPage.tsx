@@ -9,6 +9,7 @@ import { PhoneOutIcon } from "@/components/icons";
 import { EmptyState, ErrorState, PageHeader, Panel, Stat, StatusPill, TableSkeleton } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import { useCalls } from "@/lib/queries/resources";
+import { useCan } from "@/lib/session";
 
 import { RecordingButton, minutes, tallies } from "./shared";
 
@@ -16,12 +17,26 @@ export function CdrPage() {
   const { data, isLoading, error, refetch } = useCalls({});
   const calls = data?.results ?? [];
   const t = tallies(calls);
+  const mayExport = useCan("contacts.export");
   const pct = (n: number) => (t.total ? Math.round((n / t.total) * 100) : 0);
   const show = (n: number) => (isLoading ? "—" : String(n));
 
   return (
     <div className="space-y-6">
-      <PageHeader title="CDR" />
+      <PageHeader
+        title="CDR"
+        actions={
+          mayExport && (
+            <a
+              href="/bff/api/calls/export/"
+              download
+              className="press btn-solid inline-flex min-h-11 items-center rounded-lg px-5 text-sm font-bold"
+            >
+              Download CSV
+            </a>
+          )
+        }
+      />
 
       {error && <ErrorState error={error} onRetry={() => void refetch()} />}
 

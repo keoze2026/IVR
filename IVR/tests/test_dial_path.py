@@ -75,18 +75,23 @@ class FakeProvider:
         return CallStatus.QUEUED
 
 
+def install_provider(monkeypatch, fake):
+    """
+    Stand `fake` in for every carrier.
+
+    The dispatch task originates through `apps.dialer.routing`, so that is
+    where the adapter lookup has to be replaced. Every carrier name resolves to
+    the same fake: a failover then lands on it too, not on a real adapter.
+    """
+    from apps.dialer import routing
+
+    monkeypatch.setattr(routing, "get_provider", lambda *_a, **_k: fake)
+    return fake
+
+
 @pytest.fixture
 def provider(monkeypatch):
-    fake = FakeProvider()
-
-    def _install(p):
-        from apps.dialer import tasks
-
-        monkeypatch.setattr(tasks, "get_provider", lambda *_a, **_k: p)
-        return p
-
-    fake.install = _install
-    return _install(fake)
+    return install_provider(monkeypatch, FakeProvider())
 
 
 @pytest.fixture
@@ -335,13 +340,15 @@ class TestCarrierFailure:
                                                                monkeypatch):
         """"The carrier is telling us our pacing is wrong. Believe it."""
         from apps.common.enums import CampaignStatus, QueueState
-        from apps.dialer import tasks
         from apps.dialer.providers.base import ProviderRateLimited
 
-        fake = FakeProvider(raises=ProviderRateLimited("slow down"))
-        monkeypatch.setattr(tasks, "get_provider", lambda *_a, **_k: fake)
+        fake = install_provider(
+            monkeypatch, FakeProvider(raises=ProviderRateLimited("slow down"))
+        )
 
         run_dispatch(dial)
+
+        assert fake.dialled, "the carrier was never asked, so nothing throttled"
 
         dial["row"].refresh_from_db()
         dial["campaign"].refresh_from_db()
@@ -352,17 +359,16 @@ class TestCarrierFailure:
 
     def test_a_permanent_carrier_error_releases_the_channel(self, dial,
                                                             monkeypatch):
-        from apps.dialer import tasks
         from apps.dialer.providers.base import ProviderCallError
 
-        fake = FakeProvider(
+        fake = install_provider(monkeypatch, FakeProvider(
             raises=ProviderCallError("invalid number", code="21217",
                                      status=400, retryable=False)
-        )
-        monkeypatch.setattr(tasks, "get_provider", lambda *_a, **_k: fake)
+        ))
 
         run_dispatch(dial)
 
+        assert len(fake.requests) == 1, "a permanent error must not be re-dialled"
         assert dial["semaphore"].live() == 0, (
             "channel leaked on a permanent carrier error; the campaign will "
             "grind to a halt at its ceiling"

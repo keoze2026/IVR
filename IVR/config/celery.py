@@ -89,6 +89,13 @@ app.conf.beat_schedule = {
         "schedule": 30.0,
         "options": {"queue": "maintenance"},
     },
+    # Without this a campaign the carrier slowed down stays stopped for good.
+    "recover-throttled-campaigns": {
+        "task": "campaigns.recover_throttled",
+        "schedule": 30.0,
+        "kwargs": {"max_age_minutes": 1},
+        "options": {"queue": "maintenance"},
+    },
     "reconcile-call-costs": {
         "task": "telephony.reconcile_costs",
         "schedule": crontab(minute=17),

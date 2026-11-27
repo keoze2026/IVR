@@ -713,6 +713,8 @@ export interface QuickDialBody {
   max_concurrent_channels: number;
   dial_batch_size: number;
   dial_interval_seconds: number;
+  max_attempts?: number;
+  retry_delay_minutes?: number;
   cps_limit: number;
   // Keys the caller can press, and what each does.
   dtmf_steps?: { order: number; digit: string; action: string }[];

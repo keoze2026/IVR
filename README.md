@@ -62,6 +62,28 @@ Settings below. Compliance, People and Access keys are not on the staff sidebar.
 The Jobs and Active Jobs screens ask for up to 200 jobs, because the server's
 default is 25 in no set order; Jobs lists the newest first.
 
+**Create Job options.** "Tries per number" (1-5) redials busy and unanswered
+numbers after the chosen gap. A job that includes a US number says who is
+calling and offers "press 9" to stop; set `QUICK_DIAL_US_OPT_OUT=false` to turn
+that off. One job holds up to about 14,000 numbers.
+
+**Starting a job** from the Jobs screen shows any launch warnings first.
+
+**Call report.** The CDR screen has "Download CSV" for owners, administrators
+and compliance officers: up to 50,000 calls, newest first, numbers masked.
+
+**Carrier limits.** When every carrier line is busy, the number goes back in the
+queue and is retried after a few seconds. A campaign the carrier slows down
+resumes by itself after about a minute.
+
+**Alerts and backups.** On the server, `IVR/deploy/monitor.sh` checks the site,
+webhook, services, disk and backup age every five minutes and sends a message
+when something breaks or recovers; put a Telegram bot or a Slack/Discord webhook
+in `/etc/ivr-monitor.env`. `IVR/deploy/backup-daily.sh` writes a verified
+database backup each night to `/root/ivr-backups` and keeps two weeks. It runs on
+the same server, so also copy backups elsewhere (`BACKUP_REMOTE`) and use an
+outside uptime service.
+
 **Live updates.** While a tab is visible, call, campaign, contact list, flow,
 number, wallet and admin list screens fetch fresh data every 5 seconds
 (`client/src/lib/live.ts`); Jobs uses 4 seconds and Active Jobs 2. Screens with

@@ -21,11 +21,24 @@ TEST_REDIS_DB = 15
 #: They hold their own reference to the function, so patching the source
 #: module alone would have no effect on them.
 _COUNTER_CONSUMERS = (
+    "apps.dialer.circuit_breaker",
     "apps.dialer.limits",
     "apps.telephony.events",
     "apps.telemetry.counters",
 )
 _CALLSTATE_CONSUMERS = ("apps.ivr.state",)
+
+#: Carrier secrets that `.env` or the shell may hold. Blanked for every test.
+_CARRIER_CREDENTIALS = (
+    "TWILIO_ACCOUNT_SID",
+    "TWILIO_AUTH_TOKEN",
+    "TWILIO_API_KEY_SID",
+    "TWILIO_API_KEY_SECRET",
+    "TELNYX_API_KEY",
+    "TELNYX_PUBLIC_KEY",
+    "TELNYX_CONNECTION_ID",
+    "TELNYX_ACCOUNT_SID",
+)
 
 
 @pytest.fixture(scope="session")
@@ -89,6 +102,45 @@ def redis_client(monkeypatch):
 @pytest.fixture
 def fake_redis(redis_client):
     return redis_client
+
+
+@pytest.fixture(autouse=True)
+def hermetic_carriers(settings, monkeypatch):
+    """
+    No test may use a developer's carrier account, or reach a real carrier.
+
+    `.env` is loaded by the settings module, so a machine with live keys would
+    otherwise let a test that missed its fake place a real call. Routing
+    settings are pinned to their defaults for the same reason. A test that
+    needs a different value sets it itself.
+
+    Both carriers are reached through `requests` (the Twilio SDK uses it too),
+    so refusing at the transport adapter covers every path out.
+    """
+    from requests.adapters import HTTPAdapter
+
+    from apps.dialer.providers import get_provider
+
+    for name in _CARRIER_CREDENTIALS:
+        setattr(settings, name, "")
+    settings.DEFAULT_PROVIDER = "twilio"
+    settings.FALLBACK_PROVIDER = "telnyx"
+    settings.TOLL_FREE_PROVIDER = "telnyx"
+    settings.ENABLE_CARRIER_FAILOVER = True
+    settings.CARRIER_CIRCUIT_BREAKER_THRESHOLD = 3
+    settings.CARRIER_CIRCUIT_BREAKER_COOLDOWN = 60
+
+    def refuse(adapter, request, **kwargs):
+        raise AssertionError(
+            f"a test tried to send {request.method} {request.url}; fake the carrier"
+        )
+
+    monkeypatch.setattr(HTTPAdapter, "send", refuse)
+
+    # Adapters are cached, and the Twilio one keeps the client it built.
+    get_provider.cache_clear()
+    yield
+    get_provider.cache_clear()
 
 
 @pytest.fixture(autouse=True)

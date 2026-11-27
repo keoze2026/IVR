@@ -26,6 +26,20 @@ process.
 Alert on the things that mean *calls are wrong*, not on the things that mean a
 graph moved.
 
+### What runs today
+
+`/etc/cron.d/ivr-platform` runs two scripts:
+
+| Script | When | What it does |
+|---|---|---|
+| `deploy/monitor.sh` | every 5 minutes | Site, call webhook, every service, disk space, backup age. Messages on change, to the Telegram bot or webhook set in `/etc/ivr-monitor.env`. Log: `/var/log/ivr-monitor.log`. |
+| `deploy/backup-daily.sh` | 02:30 | Verified database dump in `/root/ivr-backups`, kept 14 days, copied to `BACKUP_REMOTE` if set. Log: `/var/log/ivr-backup.log`. |
+
+Both run on the server itself, so an outside uptime check is still needed to
+hear about the whole server being down. Object storage (recordings, uploaded
+audio) is not backed up. The table below is the fuller target; only what is
+listed above is implemented.
+
 ### Page immediately
 
 | Condition | Why |

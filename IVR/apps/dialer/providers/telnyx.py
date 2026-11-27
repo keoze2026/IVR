@@ -21,6 +21,7 @@ from apps.dialer.providers.base import (
     CallHandle,
     OriginateRequest,
     ProviderAdapter,
+    ProviderAtCapacity,
     ProviderCallError,
     ProviderRateLimited,
 )
@@ -29,6 +30,13 @@ logger = logging.getLogger("ivr.dialer")
 
 API_ROOT = "https://api.telnyx.com/v2"
 TIMEOUT = (3.05, 10)
+
+#: Telnyx error codes for "all your concurrent lines are busy" (account, voice
+#: profile and application limits), and for dialling too many calls a second.
+_AT_CAPACITY_CODES = {"90041", "90042", "90043", "D1", "D2", "D3", "D22"}
+_TOO_FAST_CODES = {"90103", "10011"}
+#: How long to wait for a line to come free.
+_CAPACITY_RETRY_SECONDS = 5
 
 
 class TelnyxAdapter(ProviderAdapter):
@@ -175,7 +183,14 @@ class TelnyxAdapter(ProviderAdapter):
         except ValueError:
             pass
 
-        if response.status_code == 429:
+        if code in _AT_CAPACITY_CODES:
+            raise ProviderAtCapacity(
+                detail,
+                code=code,
+                status=response.status_code,
+                retry_after=_CAPACITY_RETRY_SECONDS,
+            )
+        if response.status_code == 429 or code in _TOO_FAST_CODES:
             raise ProviderRateLimited(
                 detail,
                 code=code,

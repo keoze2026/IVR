@@ -48,6 +48,15 @@ if [ -x .venv/bin/python ]; then
     [ -x .venv/bin/ruff ] && RUFF=.venv/bin/ruff
 fi
 
+# Test files an earlier tier has already run. Tier 3 ends by running every file
+# not listed here, so a new tests/test_*.py cannot be left out by omission.
+RAN_TESTS=" "
+suite() {  # suite <description> <test file...>
+    local desc="$1"; shift
+    RAN_TESTS+="$* "
+    run "$desc" $PY -m pytest "$@" -q
+}
+
 have_django() { $PY -c "import django" 2>/dev/null; }
 have_redis()  { redis-cli -u "${REDIS_URL:-redis://127.0.0.1:6379}/15" ping >/dev/null 2>&1; }
 have_pg()     { $PY manage.py shell -c "from django.db import connection; connection.cursor()" >/dev/null 2>&1; }
@@ -117,13 +126,13 @@ fi
 run "django system check" $PY manage.py check
 
 # These need neither Postgres nor Redis.
-run "pure logic: windows, DSL validator, runtime, ingest" \
-    $PY -m pytest tests/test_windows.py tests/test_flow_validator.py \
-                  tests/test_runtime.py tests/test_ingest.py -q
+suite "pure logic: windows, DSL validator, runtime, ingest, carrier failover" \
+    tests/test_windows.py tests/test_flow_validator.py \
+    tests/test_runtime.py tests/test_ingest.py tests/test_carrier_failover.py
 
 if have_redis; then
-    run "limiters and idempotency (real Redis, db 15)" \
-        $PY -m pytest tests/test_limits.py tests/test_idempotency.py -q
+    suite "limiters and idempotency (real Redis, db 15)" \
+        tests/test_limits.py tests/test_idempotency.py
 else
     c_skip "Redis unreachable — limiter and dedupe tests need it"
 fi
@@ -149,24 +158,29 @@ else
     run "migrations apply" $PY manage.py migrate --noinput
     run "partitioned event table + partitions" $PY manage.py setup_partitions
 
-    run "tenancy isolation tests (hits the DB)" \
-        $PY -m pytest tests/test_tenancy.py -q
+    suite "tenancy isolation tests (hits the DB)" tests/test_tenancy.py
 
     # API-key writes go through the real URL conf and the real serialisers, so
     # they catch the view-layer faults the unit tiers cannot see.
-    run "API writes with a key (attribution, suppression idempotency)" \
-        $PY -m pytest tests/test_api_key_writes.py -q
+    suite "API writes with a key (attribution, suppression idempotency)" \
+        tests/test_api_key_writes.py
 
     # The carrier callback surface, minus the carrier. Signatures are generated
     # from the providers' published algorithms, so these prove the verifier
     # rejects what it should — which used to be a Tier 5 manual check.
-    run "webhook signatures, opt-out and dedupe" \
-        $PY -m pytest tests/test_webhooks.py -q
+    suite "webhook signatures, opt-out and dedupe" tests/test_webhooks.py
 
     # The dispatch task with a fake carrier: proves the pre-dial re-checks
     # refuse, and that the channel reservation comes back on every branch.
-    run "dial path gates and channel accounting" \
-        $PY -m pytest tests/test_dial_path.py -q
+    suite "dial path gates and channel accounting" tests/test_dial_path.py
+
+    OTHER_TESTS=()
+    for f in tests/test_*.py; do
+        [[ "$RAN_TESTS" == *" $f "* ]] || OTHER_TESTS+=("$f")
+    done
+    if [ "${#OTHER_TESTS[@]}" -gt 0 ]; then
+        suite "all remaining test files (${#OTHER_TESTS[@]})" "${OTHER_TESTS[@]}"
+    fi
 fi
 
 [ "$MAX_TIER" -lt 4 ] && { banner "SUMMARY"; echo "  $PASS passed, $FAIL failed, $SKIP skipped"; exit $((FAIL>0)); }

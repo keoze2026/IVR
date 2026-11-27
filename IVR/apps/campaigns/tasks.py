@@ -127,9 +127,9 @@ def recover_throttled(max_age_minutes: int = 5):
         Campaign.objects.unscoped().filter(pk=campaign.pk).update(
             status=CampaignStatus.RUNNING,
             pause_reason="",
-            # Halve the configured rate on recovery; an operator who wants the
-            # original rate back can set it explicitly.
-            cps_limit=max(0.1, campaign.cps_limit / 2),
+            # Halve the configured rate on recovery, but not below one call a
+            # second; an operator who wants the original rate back can set it.
+            cps_limit=max(min(1.0, campaign.cps_limit), campaign.cps_limit / 2),
         )
         recovered += 1
         logger.info("campaign recovered from throttle",

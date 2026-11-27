@@ -291,6 +291,9 @@ DEFAULT_REGION = env("DEFAULT_REGION", "US")
 
 # Federal ceiling for US traffic. CallingWindow rows may tighten these per
 # jurisdiction; the resolver never widens beyond them (spec 7.4).
+# Create Job to a US number says who is calling and offers "press 9" to stop.
+QUICK_DIAL_US_OPT_OUT = env_bool("QUICK_DIAL_US_OPT_OUT", True)
+
 US_FEDERAL_WINDOW_START = "08:00"
 US_FEDERAL_WINDOW_END = "21:00"
 

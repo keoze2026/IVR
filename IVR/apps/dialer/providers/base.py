@@ -27,6 +27,15 @@ class ProviderRateLimited(ProviderCallError):
         self.retry_after = retry_after
 
 
+class ProviderAtCapacity(ProviderRateLimited):
+    """
+    Every line the carrier allows is already in use.
+
+    Nothing is wrong with the number or the carrier: the same call will go
+    through once another one ends.
+    """
+
+
 @dataclass
 class CallHandle:
     sid: str

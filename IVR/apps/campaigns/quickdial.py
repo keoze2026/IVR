@@ -17,6 +17,7 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 
+from django.conf import settings
 from django.db import transaction
 from rest_framework import serializers, status
 from rest_framework.response import Response
@@ -63,7 +64,46 @@ def _with_disclosure(defn: dict, record: bool) -> dict:
     return defn
 
 
-def _build_definition(prompt: dict, dtmf_steps: list, record: bool = False) -> dict:
+def _with_us_opt_out(defn: dict, caller_name: str) -> dict:
+    """
+    Name the caller, and let them press 9 to stop being called.
+
+    US rules expect both of a prerecorded call. The name is spoken before the
+    message. A job with keypad options gets 9 added to them, unless it already
+    uses that key; a job without any is asked after the message.
+    """
+    nodes = defn["nodes"]
+    nodes.setdefault("optout", {
+        "type": "opt_out",
+        "prompt": {"kind": "say", "text": "You will not be called again. Goodbye."},
+        "scope": "organization",
+    })
+    notice = f"To stop receiving calls from {caller_name}, press 9."
+    first = defn["entry"]
+    if first == "menu":
+        nodes["menu"]["options"].setdefault("9", "optout")
+        intro = f"This is a call from {caller_name}. {notice}"
+    else:
+        intro = f"This is a call from {caller_name}."
+        nodes["stop_menu"] = {
+            "type": "menu",
+            "prompt": {"kind": "say", "text": notice},
+            "options": {"9": "optout"},
+            "timeout_seconds": 4,
+            "max_attempts": 1,
+            "on_timeout": "done",
+            "on_invalid": "done",
+        }
+        nodes["play"]["next"] = "stop_menu"
+    nodes["caller"] = {
+        "type": "play", "prompt": {"kind": "say", "text": intro}, "next": first,
+    }
+    defn["entry"] = "caller"
+    return defn
+
+
+def _build_definition(prompt: dict, dtmf_steps: list, record: bool = False,
+                      opt_out_name: str = "") -> dict:
     """
     A play-then-hangup flow, or play-then-listen when there are DTMF steps.
 
@@ -71,8 +111,13 @@ def _build_definition(prompt: dict, dtmf_steps: list, record: bool = False) -> d
     the sound simply plays and the call ends — the plain broadcast. When
     `record` is set, a spoken disclosure is prepended (see _with_disclosure).
     """
+    def finish(defn: dict) -> dict:
+        if opt_out_name:
+            defn = _with_us_opt_out(defn, opt_out_name)
+        return _with_disclosure(defn, record)
+
     if not dtmf_steps:
-        return _with_disclosure({
+        return finish({
             "schema_version": "1.0",
             "entry": "play",
             "default_locale": "en",
@@ -82,7 +127,7 @@ def _build_definition(prompt: dict, dtmf_steps: list, record: bool = False) -> d
                 "done": {"type": "hangup",
                          "prompt": {"kind": "say", "text": "Goodbye."}},
             },
-        }, record)
+        })
 
     options: dict[str, str] = {}
     nodes: dict[str, dict] = {
@@ -123,14 +168,14 @@ def _build_definition(prompt: dict, dtmf_steps: list, record: bool = False) -> d
     if not options:
         # Steps were supplied but none was usable; fall back to plain playback
         # rather than a menu that accepts nothing.
-        return _build_definition(prompt, [], record)
-    return _with_disclosure({
+        return _build_definition(prompt, [], record, opt_out_name)
+    return finish({
         "schema_version": "1.0",
         "entry": "menu",
         "default_locale": "en",
         "locales": ["en"],
         "nodes": nodes,
-    }, record)
+    })
 
 
 def _bad(message: str) -> Response:
@@ -143,7 +188,8 @@ def _bad(message: str) -> Response:
 class QuickDialSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=120, required=False, allow_blank=True)
     # One or many destinations, entered one per line or comma-separated.
-    target_number = serializers.CharField(max_length=20000)
+    # Room for about 14,000 numbers; a request body is capped at 1 MB anyway.
+    target_number = serializers.CharField(max_length=200_000)
     # A single caller ID, or a CLI pool to rotate across. One is required.
     caller_id = serializers.UUIDField(required=False, allow_null=True)
     cli_pool = serializers.UUIDField(required=False, allow_null=True)
@@ -181,6 +227,12 @@ class QuickDialSerializer(serializers.Serializer):
     schedule_start = serializers.DateTimeField(required=False, allow_null=True)
     window_start = serializers.TimeField(required=False, allow_null=True)
     window_end = serializers.TimeField(required=False, allow_null=True)
+
+    # Tries per number: busy and unanswered numbers are dialled again.
+    max_attempts = serializers.IntegerField(min_value=1, max_value=5, default=1)
+    retry_delay_minutes = serializers.IntegerField(
+        min_value=1, max_value=1440, default=15
+    )
 
     start_now = serializers.BooleanField(default=False)
 
@@ -272,8 +324,11 @@ class QuickDialView(APIView):
             )
             # Record by default, with the spoken disclosure the flow now carries.
             record = True
+            american = any(cc == "1" for cc, _tz in places.values())
             definition = _build_definition(
-                prompt, data.get("dtmf_steps") or [], record=record
+                prompt, data.get("dtmf_steps") or [], record=record,
+                opt_out_name=(org.name if american and settings.QUICK_DIAL_US_OPT_OUT
+                              else ""),
             )
             version = IVRFlowVersion.objects.create(
                 organization=org, flow=flow, version=1, definition=definition,
@@ -329,7 +384,11 @@ class QuickDialView(APIView):
                 # The window is read on the called person's clock.
                 respect_contact_timezone=True,
                 fallback_timezone="UTC",
-                max_attempts=1,
+                max_attempts=data["max_attempts"],
+                max_attempts_per_day=data["max_attempts"],
+                retry_delay_minutes=data["retry_delay_minutes"],
+                retry_backoff_factor=1.0,
+                retry_on_statuses=["busy", "no_answer"],
                 created_by=request.user if hasattr(request.user, "_meta") else None,
                 # Recorded so the Jobs list can show what this job dials and
                 # which pools it draws from. With many numbers it shows the

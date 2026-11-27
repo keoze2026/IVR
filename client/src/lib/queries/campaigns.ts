@@ -14,7 +14,7 @@ import {
 } from "@tanstack/react-query";
 
 import { query, request, type PagedResponse } from "../api";
-import type { ApiError } from "../errors";
+import { ApiError } from "../errors";
 import type { Campaign, CampaignStatus, KpiFrame, Preflight } from "@/types/domain";
 import { LIVE_REFRESH_MS } from "../live";
 
@@ -243,6 +243,16 @@ export const FROZEN_WHILE_RUNNING = [
  * Job control from a list row, where the hooks keyed by id cannot be called.
  * One mutation that takes the id and the action.
  */
+/** The warnings of a refused start, when nothing else blocks it. */
+function launchWarnings(error: unknown): string | null {
+  if (!(error instanceof ApiError) || !error.isComplianceBlock) return null;
+  const checks = error.detail as
+    | { errors?: unknown[]; warnings?: { message: string }[] }
+    | undefined;
+  if (checks?.errors?.length || !checks?.warnings?.length) return null;
+  return checks.warnings.map((w) => `• ${w.message}`).join("\n");
+}
+
 export function useJobAction() {
   const qc = useQueryClient();
   return useMutation<
@@ -250,11 +260,21 @@ export function useJobAction() {
     ApiError,
     { id: string; action: "start" | "pause" | "stop" }
   >({
-    mutationFn: ({ id, action }) =>
-      request<Campaign>(`campaigns/${id}/${action}/`, {
-        method: "POST",
-        body: action === "start" ? { force: true } : {},
-      }),
+    mutationFn: async ({ id, action }) => {
+      const send = (body: object) =>
+        request<Campaign>(`campaigns/${id}/${action}/`, { method: "POST", body });
+      if (action !== "start") return send({});
+      try {
+        return await send({ force: false });
+      } catch (error) {
+        // Launch warnings are shown and accepted before starting anyway.
+        const warnings = launchWarnings(error);
+        if (warnings && window.confirm(`Start with these warnings?\n\n${warnings}`)) {
+          return send({ force: true });
+        }
+        throw error;
+      }
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: campaignKeys.all }),
   });
 }

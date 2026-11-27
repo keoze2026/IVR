@@ -6,7 +6,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from apps.dialer.circuit_breaker import CarrierCircuitBreaker, CircuitState
+from apps.dialer.circuit_breaker import (
+    CarrierCircuitBreaker,
+    CircuitState,
+    circuit_breaker,
+)
 from apps.dialer.providers.base import (
     CallHandle,
     OriginateRequest,
@@ -88,6 +92,18 @@ class FakeCarrier(ProviderAdapter):
     def normalise_status(self, status):
         from apps.common.enums import CallStatus
         return CallStatus.QUEUED
+
+
+@pytest.fixture(autouse=True)
+def isolated_circuit_breaker(monkeypatch):
+    """
+    Give each test a circuit breaker with no history.
+
+    Routing uses the module-level breaker, whose state lives in Redis and
+    outlives the process. A carrier left tripped by an earlier run is sorted to
+    the back of the chain, which changes who gets dialled first.
+    """
+    monkeypatch.setattr(circuit_breaker, "_client", FakeRedis())
 
 
 # --- Circuit Breaker Tests --------------------------------------------------

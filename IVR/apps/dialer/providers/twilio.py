@@ -49,7 +49,8 @@ class TwilioAdapter(ProviderAdapter):
 
     # --- outbound -------------------------------------------------------
     def place_call(self, request: OriginateRequest) -> CallHandle:
-        from twilio.base.exceptions import TwilioRestException
+        import requests
+        from twilio.base.exceptions import TwilioException, TwilioRestException
 
         params = {
             "to": request.to,
@@ -92,6 +93,10 @@ class TwilioAdapter(ProviderAdapter):
             call = self.client.calls.create(**params)
         except TwilioRestException as exc:
             raise self._translate(exc) from exc
+        except (TwilioException, requests.RequestException) as exc:
+            # Missing credentials, or Twilio could not be reached. Reported as a
+            # carrier failure so the channel and the number are released.
+            raise ProviderCallError(str(exc), retryable=True) from exc
 
         return CallHandle(sid=call.sid, status=call.status or "queued")
 

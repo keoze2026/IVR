@@ -105,18 +105,35 @@ services:
   beat:
     <<: *app
     command: ["beat"]
+    healthcheck:
+      # No web page to ask; a stopped process still shows as not running.
+      disable: true
     environment:
       RUN_MIGRATIONS: "0"
 
   pacer:
     <<: *app
     command: ["pacer"]
+    healthcheck:
+      # Workers serve no web page, so ask the worker itself whether it is alive.
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME -t 10 || exit 1"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
     environment:
       RUN_MIGRATIONS: "0"
 
   dispatch:
     <<: *app
     command: ["dispatch"]
+    healthcheck:
+      # Workers serve no web page, so ask the worker itself whether it is alive.
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME -t 10 || exit 1"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
     environment:
       RUN_MIGRATIONS: "0"
     deploy:
@@ -125,6 +142,13 @@ services:
   events:
     <<: *app
     command: ["events"]
+    healthcheck:
+      # Workers serve no web page, so ask the worker itself whether it is alive.
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME -t 10 || exit 1"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
     environment:
       RUN_MIGRATIONS: "0"
     deploy:
@@ -133,18 +157,35 @@ services:
   telemetry:
     <<: *app
     command: ["telemetry"]
+    healthcheck:
+      # Workers serve no web page, so ask the worker itself whether it is alive.
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME -t 10 || exit 1"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
     environment:
       RUN_MIGRATIONS: "0"
 
   maintenance:
     <<: *app
     command: ["maintenance"]
+    healthcheck:
+      # Workers serve no web page, so ask the worker itself whether it is alive.
+      test: ["CMD-SHELL", "celery -A config inspect ping -d celery@$$HOSTNAME -t 10 || exit 1"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
     environment:
       RUN_MIGRATIONS: "0"
 
   flower:
     <<: *app
     command: ["flower"]
+    healthcheck:
+      # No web page to ask; a stopped process still shows as not running.
+      disable: true
     environment:
       RUN_MIGRATIONS: "0"
     # Localhost-only: reach it over an SSH tunnel, never the open internet.

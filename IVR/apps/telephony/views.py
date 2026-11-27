@@ -1,5 +1,9 @@
 """Call log endpoints (spec 11.2)."""
 
+import csv
+import io
+
+from django.http import StreamingHttpResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -9,8 +13,51 @@ from rest_framework.views import APIView
 from apps.accounts.permissions import HasCapability, IsOrganizationMember
 from apps.common.mixins import AuditedActionMixin, TenantViewSetMixin
 from apps.common.pagination import CursorPagination
+from apps.common.utils import mask_phone
 from apps.telephony.models import CallLog
 from apps.telephony.serializers import CallLogListSerializer, CallLogSerializer
+
+#: Most rows one download holds.
+EXPORT_LIMIT = 50_000
+
+
+def _safe_cell(value) -> str:
+    """Text a spreadsheet will show, never run as a formula."""
+    text = "" if value is None else str(value)
+    return f"'{text}" if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
+
+
+def _csv_lines(calls):
+    """Yield the file a line at a time."""
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+
+    def line(row):
+        writer.writerow(row)
+        text = buffer.getvalue()
+        buffer.seek(0)
+        buffer.truncate()
+        return text
+
+    yield line([
+        "Date (UTC)", "Job", "From", "To", "Status", "Answered by", "Outcome",
+        "Duration (s)", "Billable (s)", "Cost", "Carrier", "Error code",
+    ])
+    for call in calls.iterator(chunk_size=2000):
+        yield line([
+            call.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            _safe_cell(call.campaign.name),
+            call.from_number.lstrip("+"),
+            mask_phone(call.to_number).lstrip("+"),
+            call.status,
+            call.answered_by,
+            call.disposition,
+            call.duration_seconds,
+            call.billable_seconds,
+            "" if call.cost is None else call.cost,
+            call.provider,
+            _safe_cell(call.error_code),
+        ])
 
 
 class CallLogViewSet(TenantViewSetMixin, AuditedActionMixin,
@@ -50,6 +97,25 @@ class CallLogViewSet(TenantViewSetMixin, AuditedActionMixin,
         if self.action == "retrieve":
             return qs.prefetch_related("dtmf")
         return qs
+
+    @action(detail=False, methods=["get"])
+    def export(self, request):
+        """
+        The call records as a CSV file, newest first, with numbers masked.
+
+        Takes the same filters as the list. Capped, so one click cannot tie up
+        a worker on millions of rows.
+        """
+        calls = (
+            self.filter_queryset(self.get_queryset())
+            .order_by("-created_at")[:EXPORT_LIMIT]
+        )
+        self.audit("call.export", request.organization)
+        response = StreamingHttpResponse(
+            _csv_lines(calls), content_type="text/csv; charset=utf-8"
+        )
+        response["Content-Disposition"] = 'attachment; filename="call-records.csv"'
+        return response
 
     @action(detail=True, methods=["get"])
     def events(self, request, pk=None):

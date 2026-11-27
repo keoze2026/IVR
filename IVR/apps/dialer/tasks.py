@@ -30,6 +30,7 @@ from apps.common.enums import (
 from apps.dialer.limits import ChannelSemaphore
 from apps.dialer.providers import get_provider
 from apps.dialer.providers.base import (
+    ProviderAtCapacity,
     ProviderCallError,
     ProviderRateLimited,
 )
@@ -130,6 +131,21 @@ def place_call(self, queue_row_id: str, reservation: str):
         handle, provider_name, provider = originate_with_failover(
             campaign, contact, call, row
         )
+    except ProviderAtCapacity as exc:
+        # Wait for a line. The campaign keeps running and the attempt does not
+        # count against the number.
+        logger.info("carrier lines full", extra={"campaign": str(campaign.pk),
+                                                 "code": exc.code})
+        call.delete()
+        CampaignContact.objects.unscoped().filter(pk=row.pk).update(
+            state=QueueState.PENDING,
+            next_attempt_at=timezone.now() + timezone.timedelta(
+                seconds=max(1, int(exc.retry_after))
+            ),
+            claimed_at=None,
+        )
+        semaphore.release(reservation)
+        return
     except ProviderRateLimited as exc:
         # All available carriers are throttling us.
         logger.warning("all carriers rate limited", extra={"campaign": str(campaign.pk)})
@@ -242,7 +258,11 @@ def _mark_throttled(campaign, reason: str):
 
     Campaign.objects.unscoped().filter(
         pk=campaign.pk, status=CampaignStatus.RUNNING
-    ).update(status=CampaignStatus.THROTTLED, pause_reason=reason[:160])
+    ).update(
+        status=CampaignStatus.THROTTLED, pause_reason=reason[:160],
+        # A queryset update skips auto_now, and recovery is timed from this.
+        updated_at=timezone.now(),
+    )
 
 
 def _bump_caller_id_usage(caller_id_id):
